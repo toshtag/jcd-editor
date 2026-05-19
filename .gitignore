@@ -1,0 +1,23 @@
+# Personal data — never commit
+private/
+.local/
+data.local/
+outputs.local/
+*.local.json
+*.local.md
+*.local.pdf
+
+# Generated documents may contain personal data
+outputs/
+ai-logs/
+prompts.local/
+
+# Secrets
+.env
+.env.*
+
+# Tooling
+node_modules/
+dist/
+coverage/
+.DS_Store
