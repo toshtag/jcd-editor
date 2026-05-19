@@ -1,0 +1,25 @@
+{
+  "name": "jcd-editor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "日本式の履歴書・職務経歴書を構造化データから生成する local-first ドキュメントエディタ",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "format": "biome format .",
+    "format:fix": "biome format --write .",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "typescript": "^5.5.0"
+  }
+}
