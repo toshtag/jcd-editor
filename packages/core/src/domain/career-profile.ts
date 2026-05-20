@@ -2,6 +2,7 @@ import * as v from 'valibot';
 
 import { certificationSchema, type Certification } from './certification';
 import { educationSchema, type Education } from './education';
+import { projectSchema, type Project } from './project';
 import { SCHEMA_VERSION, type SchemaVersion } from './schema-version';
 import { skillSchema, type Skill } from './skill';
 import { workExperienceSchema, type WorkExperience } from './work-experience';
@@ -21,6 +22,7 @@ const WORK_EXPERIENCES_MAX = 100;
 const EDUCATION_HISTORY_MAX = 30;
 const SKILLS_MAX = 200;
 const CERTIFICATIONS_MAX = 100;
+const PROJECTS_MAX = 200;
 
 export type CareerProfile = {
   schemaVersion: SchemaVersion;
@@ -36,6 +38,7 @@ export type CareerProfile = {
   educationHistory?: Education[];
   skills?: Skill[];
   certifications?: Certification[];
+  projects?: Project[];
 };
 
 /** @internal */
@@ -63,5 +66,8 @@ export const careerProfileSchema = v.object({
   ),
   certifications: v.optional(
     v.pipe(v.array(certificationSchema), v.maxLength(CERTIFICATIONS_MAX, '資格の件数が多すぎます')),
+  ),
+  projects: v.optional(
+    v.pipe(v.array(projectSchema), v.maxLength(PROJECTS_MAX, 'プロジェクトの件数が多すぎます')),
   ),
 });
