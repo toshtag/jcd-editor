@@ -37,7 +37,7 @@
 
 ### Phase 1 完了後の負債整理
 
-- `refactor/core-shared-text-validators` (進行中): `nonBlankText` / `isNonBlank` の 6 モジュール重複を `packages/core/src/domain/_internal/text-validation.ts` に抽出。`createNonBlankTextSchema(maxLength, label)` と `isNonBlankText(value)` の 2 つを internal helper として提供する。behavior preservation を厳守 (公開 API・ドメイン型・エラーメッセージ・テスト挙動はすべて不変)
+- `refactor/core-shared-text-validators` (PR #10): `nonBlankText` / `isNonBlank` の 6 モジュール重複を `packages/core/src/domain/_internal/text-validation.ts` に抽出。`createNonBlankTextSchema(maxLength, label)` と `isNonBlankText(value)` の 2 つを internal helper として提供する。behavior preservation を厳守 (公開 API・ドメイン型・エラーメッセージ・テスト挙動はすべて不変)
 
 期間表現 (WorkPeriod / Education / Project / Certification の date 系) の共通化は引き続き検討候補。Phase 2 (renderer) で domain model を扱う頻度が増えた時点で再評価する。
 
