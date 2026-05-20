@@ -10,3 +10,4 @@ export {
   type TemplateRegistry,
   type TemplateRenderer,
 } from './template-registry';
+export { rirekishoBasicTemplate } from './templates/rirekisho-basic';
