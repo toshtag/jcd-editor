@@ -25,6 +25,7 @@
 - `feat/core-education` (PR #6): `Education` ドメインモデルと `CareerProfile.educationHistory` を追加。`institutionName` / `faculty` / `department` / `degree` / `startDate` / `endDate` / `status` / `description` を持つ。`WorkPeriod` は再利用せず、Education 専用の日付フィールドを inline で持つ。在学中等の状態は free string の `status` で表現 (`isCurrent` 不採用)
 - `feat/core-skills-and-certifications` (PR #7): `Skill` と `Certification` ドメインモデル、`CareerProfile.skills` / `CareerProfile.certifications` を追加。`Skill` は技術に限定せず category / level / description で表現。`Certification` は IsoYearMonthString の `acquiredDate` / `expirationDate` を持ち、`credentialUrl` は plain string + 最大長で保持。`yearsOfExperience` および URL value object は採用しない
 - `feat/core-projects` (PR #8): `Project` ドメインモデルと `CareerProfile.projects` を追加。`Project` は業務・副業・個人開発・OSS・ボランティア等を含みうるプロジェクト型の経験を表し、WorkExperience とは独立して保持する (top-level 配列、ID 参照なし)。`organizationName` で context を保持、`isCurrent` 採用 (binary 状態)、`technologies` は Skill と無関係な `string[]`。`teamSize` および ID 参照は採用しない
+- `feat/core-profile-photo` (進行中): `ProfilePhoto` / `ProfilePhotoSource` / `ProfilePhotoMediaType` 型と `CareerProfile.basics.profilePhoto` を追加。`source` は `dataUri` または `relativePath` の discriminated union。絶対パス / Windows root / UNC / `file://` / 外部 URL / parent traversal はすべて reject (privacy / local-first)。汎用 `Attachment[]` システムは導入しない
 
 ### 未確定論点の現状
 
@@ -34,11 +35,14 @@
 - **証明写真**: 未着手 (`feat/core-attachments` で対応予定)
 - **ポート配置**: 暫定方針 (`packages/core/src/application/`)。最初の port を入れる PR で ADR 0005 として正式決定
 
-### 残りの Phase 1 増分 PR 候補
+### Phase 1 完了後の負債整理候補
 
-- `feat/core-attachments` (**次の推奨**): 証明写真の参照型 (data URI vs file path)
+本 PR (`feat/core-profile-photo`) で Phase 1 の主要ドメインモデルがすべて揃う。次は負債整理 PR を検討する:
 
-Phase 1 完了時点 (Attachments 追加後) で `nonBlankText` のような共通 text validator パターンが 5 モジュール以上で重複している場合、`domain/_internal/text-validators.ts` のような場所への抽出を別 refactor PR (`refactor(core): extract shared text validators`) で検討する。同様に、期間表現が共通化できる場合は `refactor(core): extract Period value object` を検討する。
+- `refactor(core): extract shared text validators`: `nonBlankText` ヘルパが 6 モジュール (WorkExperience / Education / Skill / Certification / Project / ProfilePhoto) で重複している。`domain/_internal/text-validators.ts` のような場所への抽出を検討する
+- 期間表現 (WorkPeriod / Education の date / Project の date / Certification の date) が共通化できる場合は `refactor(core): extract Period value object` を検討する
+
+これらは Phase 2 (renderer) に進む前のクリーンアップとして実施する。
 
 ### `feat/core-validation` 単独 PR は不要
 
