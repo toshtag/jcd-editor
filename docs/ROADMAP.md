@@ -57,7 +57,7 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-shokumukeirekisho-template`: 2 個目の built-in テンプレート `shokumukeirekishoBasicTemplate` (id `shokumukeirekisho-basic` / 名前『職務経歴書（基本）』) を追加。template contract が 2 つの DocumentKind で機能することを検証。重複 format helper を `_internal/template-format.ts` に抽出 (`rirekishoBasicTemplate` の挙動は完全保持)。`builtinTemplates` / `createDefaultTemplateRegistry` は本 PR で導入しない (別 PR で議論)
+- `feat/renderer-shokumukeirekisho-template` (PR #15): 2 個目の built-in テンプレート `shokumukeirekishoBasicTemplate` (id `shokumukeirekisho-basic` / 名前『職務経歴書（基本）』) を追加。template contract が 2 つの DocumentKind で機能することを検証。重複 format helper を `_internal/template-format.ts` に抽出 (`rirekishoBasicTemplate` の挙動は完全保持)。`builtinTemplates` / `createDefaultTemplateRegistry` は本 PR で導入しない (別 PR で議論)
 
 ### 次 PR 候補
 
