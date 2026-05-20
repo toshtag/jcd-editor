@@ -1,5 +1,7 @@
 import * as v from 'valibot';
 
+import { createNonBlankTextSchema } from './_internal/text-validation';
+
 export type Skill = {
   name?: string;
   category?: string;
@@ -12,20 +14,10 @@ const CATEGORY_MAX = 50;
 const LEVEL_MAX = 50;
 const DESCRIPTION_MAX = 1000;
 
-const isNonBlank = (value: string): boolean => value.trim().length > 0;
-
-const nonBlankText = (max: number, label: string) =>
-  v.pipe(
-    v.string(),
-    v.minLength(1, `${label}を入力してください`),
-    v.check(isNonBlank, `${label}に空白のみは指定できません`),
-    v.maxLength(max, `${label}が長すぎます`),
-  );
-
 /** @internal */
 export const skillSchema = v.object({
-  name: v.optional(nonBlankText(NAME_MAX, 'スキル名')),
-  category: v.optional(nonBlankText(CATEGORY_MAX, 'カテゴリ')),
-  level: v.optional(nonBlankText(LEVEL_MAX, 'レベル')),
-  description: v.optional(nonBlankText(DESCRIPTION_MAX, '備考')),
+  name: v.optional(createNonBlankTextSchema(NAME_MAX, 'スキル名')),
+  category: v.optional(createNonBlankTextSchema(CATEGORY_MAX, 'カテゴリ')),
+  level: v.optional(createNonBlankTextSchema(LEVEL_MAX, 'レベル')),
+  description: v.optional(createNonBlankTextSchema(DESCRIPTION_MAX, '備考')),
 });

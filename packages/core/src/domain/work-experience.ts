@@ -1,5 +1,6 @@
 import * as v from 'valibot';
 
+import { createNonBlankTextSchema } from './_internal/text-validation';
 import { isoYearMonthStringSchema, type IsoYearMonthString } from './value-objects/iso-date';
 
 // WorkPeriod is currently part of WorkExperience.
@@ -28,18 +29,8 @@ const SUMMARY_MAX = 1000;
 const TEXT_ITEM_MAX = 500;
 const ITEM_ARRAY_MAX = 50;
 
-const isNonBlank = (value: string): boolean => value.trim().length > 0;
-
-const nonBlankText = (max: number, label: string) =>
-  v.pipe(
-    v.string(),
-    v.minLength(1, `${label}を入力してください`),
-    v.check(isNonBlank, `${label}に空白のみは指定できません`),
-    v.maxLength(max, `${label}が長すぎます`),
-  );
-
 const itemListSchema = v.pipe(
-  v.array(nonBlankText(TEXT_ITEM_MAX, '項目')),
+  v.array(createNonBlankTextSchema(TEXT_ITEM_MAX, '項目')),
   v.maxLength(ITEM_ARRAY_MAX, '項目数が多すぎます'),
 );
 
@@ -65,11 +56,11 @@ export const workPeriodSchema = v.pipe(
 
 /** @internal */
 export const workExperienceSchema = v.object({
-  companyName: v.optional(nonBlankText(COMPANY_NAME_MAX, '会社名')),
-  position: v.optional(nonBlankText(POSITION_MAX, '役職')),
-  employmentType: v.optional(nonBlankText(EMPLOYMENT_TYPE_MAX, '雇用形態')),
+  companyName: v.optional(createNonBlankTextSchema(COMPANY_NAME_MAX, '会社名')),
+  position: v.optional(createNonBlankTextSchema(POSITION_MAX, '役職')),
+  employmentType: v.optional(createNonBlankTextSchema(EMPLOYMENT_TYPE_MAX, '雇用形態')),
   period: v.optional(workPeriodSchema),
-  summary: v.optional(nonBlankText(SUMMARY_MAX, '概要')),
+  summary: v.optional(createNonBlankTextSchema(SUMMARY_MAX, '概要')),
   responsibilities: v.optional(itemListSchema),
   achievements: v.optional(itemListSchema),
 });

@@ -5,6 +5,8 @@
 
 import * as v from 'valibot';
 
+import { isNonBlankText } from './_internal/text-validation';
+
 export type ProfilePhotoMediaType = 'image/jpeg' | 'image/png';
 
 export type ProfilePhotoSource =
@@ -22,8 +24,6 @@ const ALT_TEXT_MAX = 200;
 
 // prefix + payload (comma 後に最低 1 文字以上を要求)
 const DATA_URI_PREFIX_REGEX = /^data:image\/(jpeg|png);base64,.+$/;
-
-const isNonBlank = (value: string): boolean => value.trim().length > 0;
 
 // POSIX absolute (/)、Windows root or UNC (\、\\)、Windows drive (C:\)、file:// URL
 const hasAbsolutePathPrefix = (value: string): boolean =>
@@ -45,7 +45,7 @@ const dataUriSourceSchema = v.object({
   dataUri: v.pipe(
     v.string(),
     v.minLength(1, 'dataUri を入力してください'),
-    v.check(isNonBlank, 'dataUri に空白のみは指定できません'),
+    v.check(isNonBlankText, 'dataUri に空白のみは指定できません'),
     v.maxLength(DATA_URI_MAX, 'dataUri が長すぎます'),
     v.regex(
       DATA_URI_PREFIX_REGEX,
@@ -60,7 +60,7 @@ const relativePathSourceSchema = v.object({
   path: v.pipe(
     v.string(),
     v.minLength(1, 'パスを入力してください'),
-    v.check(isNonBlank, 'パスに空白のみは指定できません'),
+    v.check(isNonBlankText, 'パスに空白のみは指定できません'),
     v.maxLength(PATH_MAX, 'パスが長すぎます'),
     v.check((value) => !hasAbsolutePathPrefix(value), '絶対パスは指定できません'),
     v.check((value) => !hasExternalUrlPrefix(value), '外部 URL は指定できません'),
@@ -78,7 +78,7 @@ export const profilePhotoSchema = v.object({
     v.pipe(
       v.string(),
       v.minLength(1, 'altText を入力してください'),
-      v.check(isNonBlank, 'altText に空白のみは指定できません'),
+      v.check(isNonBlankText, 'altText に空白のみは指定できません'),
       v.maxLength(ALT_TEXT_MAX, 'altText が長すぎます'),
     ),
   ),

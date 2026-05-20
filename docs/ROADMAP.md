@@ -35,14 +35,11 @@
 - **証明写真**: 未着手 (`feat/core-attachments` で対応予定)
 - **ポート配置**: 暫定方針 (`packages/core/src/application/`)。最初の port を入れる PR で ADR 0005 として正式決定
 
-### Phase 1 完了後の負債整理候補
+### Phase 1 完了後の負債整理
 
-本 PR (`feat/core-profile-photo`) で Phase 1 の主要ドメインモデルがすべて揃う。次は負債整理 PR を検討する:
+- `refactor/core-shared-text-validators` (PR #10): `nonBlankText` / `isNonBlank` の 6 モジュール重複を `packages/core/src/domain/_internal/text-validation.ts` に抽出。`createNonBlankTextSchema(maxLength, label)` と `isNonBlankText(value)` の 2 つを internal helper として提供する。behavior preservation を厳守 (公開 API・ドメイン型・エラーメッセージ・テスト挙動はすべて不変)
 
-- `refactor(core): extract shared text validators`: `nonBlankText` ヘルパが 6 モジュール (WorkExperience / Education / Skill / Certification / Project / ProfilePhoto) で重複している。`domain/_internal/text-validators.ts` のような場所への抽出を検討する
-- 期間表現 (WorkPeriod / Education の date / Project の date / Certification の date) が共通化できる場合は `refactor(core): extract Period value object` を検討する
-
-これらは Phase 2 (renderer) に進む前のクリーンアップとして実施する。
+期間表現 (WorkPeriod / Education / Project / Certification の date 系) の共通化は引き続き検討候補。Phase 2 (renderer) で domain model を扱う頻度が増えた時点で再評価する。
 
 ### `feat/core-validation` 単独 PR は不要
 
