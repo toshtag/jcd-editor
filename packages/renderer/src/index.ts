@@ -11,3 +11,4 @@ export {
   type TemplateRenderer,
 } from './template-registry';
 export { rirekishoBasicTemplate } from './templates/rirekisho-basic';
+export { shokumukeirekishoBasicTemplate } from './templates/shokumukeirekisho-basic';

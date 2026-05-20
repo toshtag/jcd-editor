@@ -18,6 +18,7 @@ import {
   renderDocument,
   RendererError,
   rirekishoBasicTemplate,
+  shokumukeirekishoBasicTemplate,
 } from '../index';
 
 describe('@jcd-editor/renderer 公開 API', () => {
@@ -133,6 +134,14 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(typeof rirekishoBasicTemplate.render).toBe('function');
   });
 
+  it('shokumukeirekishoBasicTemplate を runtime 値として export する', () => {
+    expect(typeof shokumukeirekishoBasicTemplate).toBe('object');
+    expect(shokumukeirekishoBasicTemplate.id).toBe('shokumukeirekisho-basic');
+    expect(shokumukeirekishoBasicTemplate.kind).toBe('shokumukeirekisho');
+    expect(shokumukeirekishoBasicTemplate.name).toBe('職務経歴書（基本）');
+    expect(typeof shokumukeirekishoBasicTemplate.render).toBe('function');
+  });
+
   it('TemplateRenderer 型は (input: RenderInput) => RenderedDocument を受け付ける', () => {
     const renderer: TemplateRenderer = (input) => ({
       kind: input.kind,
@@ -175,6 +184,7 @@ describe('@jcd-editor/renderer 公開 API', () => {
       'createTemplateRegistry',
       'renderDocument',
       'rirekishoBasicTemplate',
+      'shokumukeirekishoBasicTemplate',
     ]);
   });
 });
