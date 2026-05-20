@@ -10,6 +10,8 @@ export type {
   PostalAddress,
   SchemaVersion,
   ValidationIssue,
+  WorkExperience,
+  WorkPeriod,
 } from './domain';
 export {
   parseCareerProfile,

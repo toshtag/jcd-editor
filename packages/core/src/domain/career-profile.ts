@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 
 import { SCHEMA_VERSION, type SchemaVersion } from './schema-version';
+import { workExperienceSchema, type WorkExperience } from './work-experience';
 import {
   emailAddressSchema,
   phoneNumberSchema,
@@ -13,6 +14,8 @@ import { isoDateStringSchema, type IsoDateString } from './value-objects/iso-dat
 import { personKanaSchema, type PersonKana } from './value-objects/person-kana';
 import { personNameSchema, type PersonName } from './value-objects/person-name';
 
+const WORK_EXPERIENCES_MAX = 100;
+
 export type CareerProfile = {
   schemaVersion: SchemaVersion;
   basics: {
@@ -23,6 +26,7 @@ export type CareerProfile = {
     phone?: PhoneNumber;
     address?: PostalAddress;
   };
+  workExperiences?: WorkExperience[];
 };
 
 /** @internal */
@@ -36,4 +40,10 @@ export const careerProfileSchema = v.object({
     phone: v.optional(phoneNumberSchema),
     address: v.optional(postalAddressSchema),
   }),
+  workExperiences: v.optional(
+    v.pipe(
+      v.array(workExperienceSchema),
+      v.maxLength(WORK_EXPERIENCES_MAX, '職歴の件数が多すぎます'),
+    ),
+  ),
 });
