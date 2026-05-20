@@ -13,7 +13,7 @@ import type {
   TemplateRegistry,
   TemplateRenderer,
 } from '../index';
-import { createTemplateRegistry, RendererError } from '../index';
+import { createTemplateRegistry, renderDocument, RendererError } from '../index';
 
 describe('@jcd-editor/renderer 公開 API', () => {
   it('DocumentKind は rirekisho と shokumukeirekisho を受け付ける', () => {
@@ -116,6 +116,10 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(typeof createTemplateRegistry).toBe('function');
   });
 
+  it('renderDocument を runtime 値として export する', () => {
+    expect(typeof renderDocument).toBe('function');
+  });
+
   it('TemplateRenderer 型は (input: RenderInput) => RenderedDocument を受け付ける', () => {
     const renderer: TemplateRenderer = (input) => ({
       kind: input.kind,
@@ -153,6 +157,10 @@ describe('@jcd-editor/renderer 公開 API', () => {
   it('公開 API の runtime 値は明示的に許可されたもののみ', () => {
     // RendererError / createTemplateRegistry 等の runtime 値を含むが、
     // internal helper や accidental default export がないことを保証する。
-    expect(Object.keys(Renderer).sort()).toEqual(['RendererError', 'createTemplateRegistry']);
+    expect(Object.keys(Renderer).sort()).toEqual([
+      'RendererError',
+      'createTemplateRegistry',
+      'renderDocument',
+    ]);
   });
 });
