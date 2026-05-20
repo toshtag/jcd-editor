@@ -58,16 +58,11 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - `feat/renderer-builtin-templates-bundle` (PR #16): built-in テンプレートを束ねる公開 API として `builtinTemplates: readonly TemplateDefinition[]` (Object.freeze で shallow freeze、append-only semantics) と `createDefaultTemplateRegistry(): TemplateRegistry` (createTemplateRegistry の薄い wrapper) を追加
 - `feat/renderer-rirekisho-chronological-table` (PR #17): `rirekishoBasicTemplate` の学歴 / 職歴を年表テーブル形式に in-place で書き換え。2 列構造 (年月 / 内容)、入力順保持、`現在に至る` は aggregate で 1 行
 - `feat/renderer-rirekisho-photo` (PR #18): `rirekishoBasicTemplate` に dataUri 限定で profilePhoto 描画を in-place 追加 (`<img>` の src / alt は escapeHtml 経由で double-quoted attribute、header に flex layout の photo container 追加)。relativePath は本 PR では一切 render しない (asset resolution / URL policy 未確定のため別 PR)。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / `shokumukeirekisho-basic` はすべて無変更
-
-### 進行中 / 直近マージ予定
-
 - `feat/renderer-html-renderer` (PR #19): output-preserving refactor。両 built-in template の重複 HTML 組み立てを `_internal/html-renderer.ts` の 4 個の helper (`renderSection` / `renderItemList` / `renderListItem` / `renderTextList`) に抽出。既存 `renderTextList` は HTML 系 helper の責務統一のため `_internal/template-format.ts` から移動。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / CSS / template 出力すべて完全無変更 (byte-for-byte 同一)
 
-### 次 PR 候補
+### Phase 2 残課題 (Phase 5 と並行検討)
 
-- `feat/renderer-relativepath-asset-resolution`: `RenderInput` に asset resolver port を追加し、`profilePhoto.source.kind === 'relativePath'` を解決できるようにする (privacy / scheme allowlist を含む URL policy 設計を含む)
-
-どの PR を先にやるかは `feat/renderer-html-renderer` マージ後に別途決定します。
+- `feat/renderer-relativepath-asset-resolution`: `RenderInput` に asset resolver port を追加し、`profilePhoto.source.kind === 'relativePath'` を解決できるようにする (privacy / scheme allowlist を含む URL policy 設計を含む)。Phase 5 と並行で進めるか、Phase 5 完了後に着手するかは判断保留
 
 ### 未確定論点
 
@@ -96,15 +91,28 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 **初期候補:** Vite + Vanilla TypeScript。これは不可逆な決定ではなく、UI フレームワーク選定は `chore/repo-setup` または本フェーズ着手時に再検討する余地があります。
 
-## Phase 5 — ローカル PDF 生成
+## Phase 5 — ローカル PDF 生成 (進行中)
 
 A4 HTML プレビューを完全ローカルで PDF 化します。Playwright を用いた `PdfPort` + `PlaywrightPdfAdapter` で実装します。PDF 生成は外部サービスへデータを送信してはなりません。
 
-**未確定論点:**
+Phase 3 (Storage) / Phase 4 (UI) より先に着手することをユーザーが決定。理由は renderer foundation が安定したタイミングで PDF 境界を先に固定し、UI 着手時に PDF 統合の不確実性を持ち込まないため。
+
+### 進行中 / 直近マージ予定
+
+- `feat/pdf-port-foundation` (PR #20): `packages/pdf` に `PdfPort` / `PdfRenderResult` / `PdfRenderMetadata` / `PdfError` を最小 surface で導入。実 PDF 生成 (Playwright / Puppeteer / pdf-lib 等) は **含まない**。`PdfPort` の shape は **provisional** であり、次 PR で実装目線の見直しを行い、後方互換しない変更を許容する。pdf → renderer の一方向依存。`packages/core` / `packages/renderer` / `packages/templates` / `docs/ARCHITECTURE.md` すべて無変更
+
+### 次 PR 候補
+
+- `feat/pdf-playwright-adapter`: `PlaywrightPdfAdapter` を `@jcd-editor/pdf` に追加し、`PdfPort` を満たす。Playwright を runtime dependency に追加。本 foundation で provisional とした `PdfPort` shape を実装目線で見直す可能性あり
+
+### 未確定論点
 
 - 日本語フォントの選定 (Noto Sans JP、Noto Serif JP、システムフォント) と埋め込み挙動
 - 典型的な履歴書におけるファイルサイズ制約
 - 印刷互換性 (余白、改ページ、写真配置)
+- `PdfRenderOptions` の knob (余白 / 印刷背景 / 拡縮 / metadata 埋め込み) — adapter 実装時に決定
+- `PdfErrorCode` の追加 (`PDF_LAUNCH_FAILED` / `PDF_PAGE_LOAD_FAILED` 等) — adapter 実装時に決定
+- `cause` field の追加判断 — adapter で例外 wrap が必要になれば追加
 
 ## Phase 6 — インポート / エクスポート
 
