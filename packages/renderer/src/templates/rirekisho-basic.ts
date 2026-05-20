@@ -20,6 +20,14 @@ import type {
 } from '@jcd-editor/core';
 
 import { escapeHtml } from '../_internal/html-escape';
+import {
+  formatAddress,
+  formatDate,
+  formatPeriod,
+  formatYearMonth,
+  isNonEmpty,
+  renderTextList,
+} from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
 import type { RenderedDocument } from '../rendered-document';
 import type { TemplateDefinition } from '../template-registry';
@@ -27,59 +35,9 @@ import type { TemplateDefinition } from '../template-registry';
 const TEMPLATE_ID = 'rirekisho-basic';
 const TEMPLATE_TITLE = '履歴書';
 
-// === Format helpers (private) ===
-
-const YEAR_MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
-const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-const formatYearMonth = (value: string): string => {
-  const match = value.match(YEAR_MONTH_PATTERN);
-  if (match === null) return value;
-  return `${match[1]}年${Number(match[2])}月`;
-};
-
-const formatDate = (value: string): string => {
-  const match = value.match(DATE_PATTERN);
-  if (match === null) return value;
-  return `${match[1]}年${Number(match[2])}月${Number(match[3])}日`;
-};
-
-const isNonEmpty = <T extends string>(value: T | undefined): value is T =>
-  value !== undefined && value.length > 0;
-
 const esc = (value: string): string => escapeHtml(value);
 
-const formatPeriod = (
-  startDate: string | undefined,
-  endDate: string | undefined,
-  isCurrent: boolean | undefined,
-): string | undefined => {
-  const start = startDate === undefined ? '' : formatYearMonth(startDate);
-  const end = isCurrent === true ? '現在' : endDate === undefined ? '' : formatYearMonth(endDate);
-  if (start === '' && end === '') return undefined;
-  if (start === '') return end;
-  if (end === '') return start;
-  return `${start} - ${end}`;
-};
-
-// renderTextList は raw string array を <ul> として描画する。
-// 空要素は filter、すべて空なら '' を返す (section 側で skip 判定可能)。
-const renderTextList = (items: readonly string[] | undefined): string => {
-  if (items === undefined) return '';
-  const valid = items.filter(isNonEmpty);
-  if (valid.length === 0) return '';
-  return `<ul>${valid.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`;
-};
-
 // === Section: basics ===
-
-const renderAddress = (address: NonNullable<CareerProfile['basics']['address']>): string => {
-  let result = '';
-  if (isNonEmpty(address.postalCode)) result += `〒${address.postalCode} `;
-  if (isNonEmpty(address.prefecture)) result += address.prefecture;
-  if (isNonEmpty(address.cityAndRest)) result += address.cityAndRest;
-  return result;
-};
 
 const renderBasics = (basics: CareerProfile['basics']): string => {
   const rows: string[] = [];
@@ -102,7 +60,7 @@ const renderBasics = (basics: CareerProfile['basics']): string => {
     rows.push(`<dt>電話番号</dt><dd>${esc(basics.phone)}</dd>`);
   }
   if (basics.address !== undefined) {
-    const addr = renderAddress(basics.address);
+    const addr = formatAddress(basics.address);
     if (addr.length > 0) {
       rows.push(`<dt>住所</dt><dd>${esc(addr)}</dd>`);
     }
