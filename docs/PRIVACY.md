@@ -52,6 +52,12 @@
 - 個人用生成物は `outputs/` または `outputs.local/` に置きます (どちらも git 管理外)
 - 検証目的のサンプル成果物 (完全に無害化されたもの) のみ、`examples/` または `fixtures/` 配下にコミットできます
 
+## 画像データ (証明写真等)
+
+- `CareerProfile.basics.profilePhoto.source.dataUri` に実画像データを含む `CareerProfile` JSON は、実履歴書データと同じ扱いとし、git にコミットしません (`.gitignore` の `*.local.json` / `private/` / `data.local/` で除外)
+- サンプル / fixtures / docs に含める `dataUri` は、placeholder 画像 / 仮想バイト列 / 1×1 ピクセル等のダミーに限定します。実在人物の写真は使用しません
+- `relativePath` の例も実在パスを書きません (例: `photos/profile.jpg` のような仮想例のみ)。絶対パス (`/Users/...` 等) は core が reject しますが、ドキュメント中にも書かないでください
+
 ## AI 連携の規則
 
 `docs/CONCEPT.md` の原則に対応する、運用レベルの規則です。
