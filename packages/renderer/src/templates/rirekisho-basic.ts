@@ -11,8 +11,13 @@
 //   描画しない (詳細は職務経歴書側 shokumukeirekisho-basic の責務)。
 // - description は dated row (入学 / 卒業) には付けない、no-date row のみ
 //   `（description）` で末尾に補足する。
-// - profilePhoto は render しない (HTML / CSS にスペース placeholder も
-//   出さない)。
+// - profilePhoto は **dataUri 限定** で header 右側に render する。
+//   relativePath は本テンプレートでは render しない (file system /
+//   asset resolution / URL policy 未確定のため)。<img> の src / alt は
+//   escapeHtml を通して double-quoted attribute value に挿入する。
+//   写真が無い / source が dataUri 以外の場合は photo container も出さない
+//   (空 placeholder を作らない)。画像デコード / リサイズ / 検証は
+//   renderer で行わない (core validation が責務)。
 // - credentialUrl は escape された plain text のみ (<a href> 化しない)。
 // - すべての CareerProfile 由来文字列は escapeHtml を通してから HTML に
 //   挿入する。HistoryRow は raw display string を保持し、renderHistoryRow で
@@ -46,8 +51,33 @@ import type { TemplateDefinition } from '../template-registry';
 
 const TEMPLATE_ID = 'rirekisho-basic';
 const TEMPLATE_TITLE = '履歴書';
+const PROFILE_PHOTO_DEFAULT_ALT_TEXT = '証明写真';
+
+// indexed access で導出: core import を broaden しない
+type ProfilePhoto = NonNullable<CareerProfile['basics']['profilePhoto']>;
 
 const esc = (value: string): string => escapeHtml(value);
+
+// === 証明写真 (header 右側、dataUri のみ) ===
+//
+// 描画条件: profilePhoto.source.kind === 'dataUri' かつ dataUri が non-empty
+// 上記以外 (relativePath / source 無し / dataUri 空 / 想定外 kind) は何も
+// 出力しない。relativePath を `<img src>` に渡すことは privacy / file
+// leakage の観点で避ける (asset resolution は将来の別 PR で対応)。
+// altText が undefined / 空文字列なら fixed default '証明写真' を使う
+// (固定 phrase、escape 不要)。
+
+const renderProfilePhoto = (profilePhoto: ProfilePhoto | undefined): string => {
+  if (profilePhoto === undefined) return '';
+  if (profilePhoto.source === undefined) return '';
+  if (profilePhoto.source.kind !== 'dataUri') return '';
+  if (!isNonEmpty(profilePhoto.source.dataUri)) return '';
+
+  const altText = isNonEmpty(profilePhoto.altText)
+    ? profilePhoto.altText
+    : PROFILE_PHOTO_DEFAULT_ALT_TEXT;
+  return `<div class="jcd-rirekisho__photo"><img class="jcd-rirekisho__photo-image" src="${esc(profilePhoto.source.dataUri)}" alt="${esc(altText)}"></div>`;
+};
 
 // === Section: basics ===
 
@@ -330,10 +360,14 @@ const renderProjects = (entries: Project[] | undefined): string => {
 
 const CSS = `@page { size: A4; margin: 15mm; }
 .jcd-rirekisho { font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 10.5pt; color: #000; line-height: 1.6; }
+.jcd-rirekisho__header { display: flex; align-items: flex-start; gap: 1em; margin: 0 0 1.5em; }
+.jcd-rirekisho__header-main { flex: 1; min-width: 0; }
 .jcd-rirekisho__title { font-size: 18pt; font-weight: bold; text-align: center; margin: 0 0 1em; }
-.jcd-rirekisho__basics { display: grid; grid-template-columns: 8em 1fr; gap: 0.4em 1em; margin: 0 0 1.5em; }
+.jcd-rirekisho__basics { display: grid; grid-template-columns: 8em 1fr; gap: 0.4em 1em; margin: 0; }
 .jcd-rirekisho__basics dt { font-weight: normal; color: #444; }
 .jcd-rirekisho__basics dd { margin: 0; }
+.jcd-rirekisho__photo { width: 30mm; height: 40mm; flex-shrink: 0; border: 0.5pt solid #ccc; }
+.jcd-rirekisho__photo-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 .jcd-rirekisho__section { margin-block-start: 1.5em; }
 .jcd-rirekisho__section h2 { font-size: 13pt; border-bottom: 1pt solid #000; margin: 0 0 0.6em; padding-bottom: 0.2em; }
 .jcd-rirekisho__section ul { margin: 0; padding-inline-start: 1.5em; }
@@ -353,10 +387,10 @@ const renderRirekishoBasic = (input: RenderInput): RenderedDocument => {
   const sections: string[] = [];
 
   const basics = renderBasics(careerProfile.basics);
-  const header =
-    basics === ''
-      ? `<header class="jcd-rirekisho__header"><h1 class="jcd-rirekisho__title">${TEMPLATE_TITLE}</h1></header>`
-      : `<header class="jcd-rirekisho__header"><h1 class="jcd-rirekisho__title">${TEMPLATE_TITLE}</h1>${basics}</header>`;
+  const photo = renderProfilePhoto(careerProfile.basics.profilePhoto);
+  // header-main wrapper を photo 有無に関係なく常時 wrap する
+  // (条件分岐の複雑性を避け、photo を flex で横並びにする layout を一貫させる)。
+  const header = `<header class="jcd-rirekisho__header"><div class="jcd-rirekisho__header-main"><h1 class="jcd-rirekisho__title">${TEMPLATE_TITLE}</h1>${basics}</div>${photo}</header>`;
   sections.push(header);
 
   const history = renderHistorySection(careerProfile);

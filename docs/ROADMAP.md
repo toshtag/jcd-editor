@@ -56,17 +56,18 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - `feat/renderer-rirekisho-template` (PR #14): 最初の built-in テンプレート `rirekishoBasicTemplate` (id `rirekisho-basic` / 名前『履歴書（基本）』) を `packages/renderer/src/templates/` に追加
 - `feat/renderer-shokumukeirekisho-template` (PR #15): 2 個目の built-in テンプレート `shokumukeirekishoBasicTemplate` (id `shokumukeirekisho-basic` / 名前『職務経歴書（基本）』) を追加。重複 format helper を `_internal/template-format.ts` に抽出 (`rirekishoBasicTemplate` の挙動は完全保持)
 - `feat/renderer-builtin-templates-bundle` (PR #16): built-in テンプレートを束ねる公開 API として `builtinTemplates: readonly TemplateDefinition[]` (Object.freeze で shallow freeze、append-only semantics) と `createDefaultTemplateRegistry(): TemplateRegistry` (createTemplateRegistry の薄い wrapper) を追加
+- `feat/renderer-rirekisho-chronological-table` (PR #17): `rirekishoBasicTemplate` の学歴 / 職歴を年表テーブル形式に in-place で書き換え。2 列構造 (年月 / 内容)、入力順保持、`現在に至る` は aggregate で 1 行
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-rirekisho-chronological-table` (PR #17): `rirekishoBasicTemplate` の学歴 / 職歴を年表テーブル形式に **in-place で書き換え** (新規テンプレートは追加しない、`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` はすべて無変更)。2 列構造 (年月 / 内容)、入力順保持、`現在に至る` は aggregate で 1 行。responsibilities / achievements / summary は履歴書では描画せず職務経歴書側の責務とする
+- `feat/renderer-rirekisho-photo` (PR #18): `rirekishoBasicTemplate` に dataUri 限定で profilePhoto 描画を in-place 追加 (`<img>` の src / alt は escapeHtml 経由で double-quoted attribute、header に flex layout の photo container 追加)。relativePath は本 PR では一切 render しない (asset resolution / URL policy 未確定のため別 PR)。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / `shokumukeirekisho-basic` はすべて無変更
 
 ### 次 PR 候補
 
-- `feat/renderer-rirekisho-photo`: profilePhoto を dataUri 限定で render (URL policy / file system access は scope 外)
+- `feat/renderer-relativepath-asset-resolution`: `RenderInput` に asset resolver port を追加し、`profilePhoto.source.kind === 'relativePath'` を解決できるようにする (privacy / scheme allowlist を含む URL policy 設計を含む)
 - `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) の追加抽出 (3 個目の template で更なる重複が見えた時点で着手)
 
-どの PR を先にやるかは `feat/renderer-rirekisho-chronological-table` マージ後に別途決定します。
+どの PR を先にやるかは `feat/renderer-rirekisho-photo` マージ後に別途決定します。
 
 ### 未確定論点
 
@@ -76,11 +77,13 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - `packages/templates` を導入するタイミング (現在 2 個の built-in が `packages/renderer/src/templates/` 内に住む、3 個目以降で moving を再検討)
 - URL policy (`credentialUrl` の `<a href>` 化、scheme allowlist) — 別 PR で扱う
 - 和暦変換 — 必要になれば別 PR で table-based variant として追加
-- core import policy: 既存 `rirekisho-basic.ts` の direct core import を indexed access types に揃えるか (将来の clean-up PR 候補)
+- core import policy: 既存 `rirekisho-basic.ts` の direct core import を indexed access types に揃えるか (本 PR で `ProfilePhoto` は indexed access に切り替え済み、残り CareerProfile / Certification 等の整理は別 clean-up PR で)
 - `builtinTemplates` の deep freeze (template 本体の field 書き換えを防ぐか) — 必要になれば別 PR で対応
 - `createDefaultTemplateRegistry` の caching (現状無キャッシュで毎回新規インスタンス、有用な利用パターンが見えた時点で再評価)
-- rirekisho 年表の 3 列化 (`年 / 月 / 事項` の JIS 風) — 本 PR は 2 列、3 列は別 PR (`feat/renderer-rirekisho-jis-table` 等) で年・月分割の helper 設計を含めて議論
+- rirekisho 年表の 3 列化 (`年 / 月 / 事項` の JIS 風) — 別 PR (`feat/renderer-rirekisho-jis-table` 等) で年・月分割の helper 設計を含めて議論
 - テンプレート出力の後方互換性 / versioning policy: 現在は Phase 2 改善フェーズで in-place 変更を許容、出力安定性を固定する段階で新規 templateId / versioning / migration policy を検討
+- `profilePhoto.source.kind === 'relativePath'` の render を担う **asset resolution 設計** (`feat/renderer-relativepath-asset-resolution` で `RenderInput` に asset resolver port を追加する形を検討)
+- `shokumukeirekisho` に将来 photo を追加するかどうか (現状は伝統的に入れない、要件が出れば別 PR で議論)
 
 ## Phase 3 — ローカルファイルストレージ
 
