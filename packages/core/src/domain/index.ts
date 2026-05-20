@@ -14,6 +14,7 @@ export type { WorkExperience, WorkPeriod } from './work-experience';
 export type { Education } from './education';
 export type { Skill } from './skill';
 export type { Certification } from './certification';
+export type { Project } from './project';
 
 export type { CareerProfile } from './career-profile';
 export { parseCareerProfile, safeParseCareerProfile } from './operations';

@@ -10,6 +10,7 @@ export type {
   PersonName,
   PhoneNumber,
   PostalAddress,
+  Project,
   SchemaVersion,
   Skill,
   ValidationIssue,
