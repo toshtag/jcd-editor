@@ -2,6 +2,7 @@ import * as v from 'valibot';
 
 import { certificationSchema, type Certification } from './certification';
 import { educationSchema, type Education } from './education';
+import { profilePhotoSchema, type ProfilePhoto } from './profile-photo';
 import { projectSchema, type Project } from './project';
 import { SCHEMA_VERSION, type SchemaVersion } from './schema-version';
 import { skillSchema, type Skill } from './skill';
@@ -33,6 +34,7 @@ export type CareerProfile = {
     email?: EmailAddress;
     phone?: PhoneNumber;
     address?: PostalAddress;
+    profilePhoto?: ProfilePhoto;
   };
   workExperiences?: WorkExperience[];
   educationHistory?: Education[];
@@ -51,6 +53,7 @@ export const careerProfileSchema = v.object({
     email: v.optional(emailAddressSchema),
     phone: v.optional(phoneNumberSchema),
     address: v.optional(postalAddressSchema),
+    profilePhoto: v.optional(profilePhotoSchema),
   }),
   workExperiences: v.optional(
     v.pipe(

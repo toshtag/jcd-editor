@@ -15,6 +15,7 @@ export type { Education } from './education';
 export type { Skill } from './skill';
 export type { Certification } from './certification';
 export type { Project } from './project';
+export type { ProfilePhoto, ProfilePhotoMediaType, ProfilePhotoSource } from './profile-photo';
 
 export type { CareerProfile } from './career-profile';
 export { parseCareerProfile, safeParseCareerProfile } from './operations';
