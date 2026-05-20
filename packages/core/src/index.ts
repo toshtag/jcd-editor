@@ -1,4 +1,5 @@
 export type {
+  CareerProfile,
   EmailAddress,
   IsoDateString,
   IsoYearMonthString,
@@ -10,4 +11,9 @@ export type {
   SchemaVersion,
   ValidationIssue,
 } from './domain';
-export { SCHEMA_VERSION, ValidationError } from './domain';
+export {
+  parseCareerProfile,
+  safeParseCareerProfile,
+  SCHEMA_VERSION,
+  ValidationError,
+} from './domain';
