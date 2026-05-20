@@ -60,7 +60,7 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-rirekisho-photo`: `rirekishoBasicTemplate` に dataUri 限定で profilePhoto 描画を in-place 追加 (`<img>` の src / alt は escapeHtml 経由で double-quoted attribute、header に flex layout の photo container 追加)。relativePath は本 PR では一切 render しない (asset resolution / URL policy 未確定のため別 PR)。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / `shokumukeirekisho-basic` はすべて無変更
+- `feat/renderer-rirekisho-photo` (PR #18): `rirekishoBasicTemplate` に dataUri 限定で profilePhoto 描画を in-place 追加 (`<img>` の src / alt は escapeHtml 経由で double-quoted attribute、header に flex layout の photo container 追加)。relativePath は本 PR では一切 render しない (asset resolution / URL policy 未確定のため別 PR)。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / `shokumukeirekisho-basic` はすべて無変更
 
 ### 次 PR 候補
 
