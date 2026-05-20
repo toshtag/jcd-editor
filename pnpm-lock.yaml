@@ -25,7 +25,11 @@ importers:
 
   packages/ai: {}
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      valibot:
+        specifier: ^1.4.0
+        version: 1.4.0(typescript@5.9.3)
 
   packages/pdf: {}
 
@@ -514,6 +518,14 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  valibot@1.4.0:
+    resolution: {integrity: sha512-iC/x7fVcSyOwlm/VSt7RlHnzNGLGvR9GnxdifUeWoCJo0q4ZZvrVkIHC6faTlkxG47I2Y4UrFquPuVHCrOnrLg==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   vite@8.0.13:
     resolution: {integrity: sha512-MFtjBYgzmSxmgA4RAfjIyXWpGe1oALnjgUTzzV7QLx/TKxCzjtMH6Fd9/eVK+5Fg1qNoz5VAwsmMs/NofrmJvw==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -988,6 +1000,10 @@ snapshots:
     optional: true
 
   typescript@5.9.3: {}
+
+  valibot@1.4.0(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
 
   vite@8.0.13:
     dependencies:
