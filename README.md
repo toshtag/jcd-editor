@@ -69,7 +69,7 @@ Node 22 LTS + pnpm 10 を前提とします。
 
 ```bash
 pnpm install
-pnpm test       # foundations のテスト (PR #3 時点で 86 ケース)
+pnpm test       # root から全パッケージのテストを実行
 pnpm typecheck
 pnpm lint
 pnpm format
