@@ -11,6 +11,7 @@ export type { IsoDateString, IsoYearMonthString } from './value-objects/iso-date
 export type { EmailAddress, PhoneNumber, PostalAddress } from './value-objects/contact';
 
 export type { WorkExperience, WorkPeriod } from './work-experience';
+export type { Education } from './education';
 
 export type { CareerProfile } from './career-profile';
 export { parseCareerProfile, safeParseCareerProfile } from './operations';

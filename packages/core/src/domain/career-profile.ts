@@ -1,5 +1,6 @@
 import * as v from 'valibot';
 
+import { educationSchema, type Education } from './education';
 import { SCHEMA_VERSION, type SchemaVersion } from './schema-version';
 import { workExperienceSchema, type WorkExperience } from './work-experience';
 import {
@@ -15,6 +16,7 @@ import { personKanaSchema, type PersonKana } from './value-objects/person-kana';
 import { personNameSchema, type PersonName } from './value-objects/person-name';
 
 const WORK_EXPERIENCES_MAX = 100;
+const EDUCATION_HISTORY_MAX = 30;
 
 export type CareerProfile = {
   schemaVersion: SchemaVersion;
@@ -27,6 +29,7 @@ export type CareerProfile = {
     address?: PostalAddress;
   };
   workExperiences?: WorkExperience[];
+  educationHistory?: Education[];
 };
 
 /** @internal */
@@ -45,5 +48,8 @@ export const careerProfileSchema = v.object({
       v.array(workExperienceSchema),
       v.maxLength(WORK_EXPERIENCES_MAX, '職歴の件数が多すぎます'),
     ),
+  ),
+  educationHistory: v.optional(
+    v.pipe(v.array(educationSchema), v.maxLength(EDUCATION_HISTORY_MAX, '学歴の件数が多すぎます')),
   ),
 });
