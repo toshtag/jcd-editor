@@ -8,9 +8,12 @@ import type {
   RenderedDocumentMetadata,
   RendererErrorCode,
   RenderInput,
+  TemplateDefinition,
   TemplateId,
+  TemplateRegistry,
+  TemplateRenderer,
 } from '../index';
-import { RendererError } from '../index';
+import { createTemplateRegistry, RendererError } from '../index';
 
 describe('@jcd-editor/renderer 公開 API', () => {
   it('DocumentKind は rirekisho と shokumukeirekisho を受け付ける', () => {
@@ -109,13 +112,47 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(error).toBeInstanceOf(RendererError);
   });
 
+  it('createTemplateRegistry を runtime 値として export する', () => {
+    expect(typeof createTemplateRegistry).toBe('function');
+  });
+
+  it('TemplateRenderer 型は (input: RenderInput) => RenderedDocument を受け付ける', () => {
+    const renderer: TemplateRenderer = (input) => ({
+      kind: input.kind,
+      title: 't',
+      html: '',
+      css: '',
+      metadata: { language: 'ja-JP', page: { size: 'A4', orientation: 'portrait' } },
+    });
+    const careerProfile = { schemaVersion: 1 as const, basics: {} };
+    const result = renderer({ careerProfile, kind: 'rirekisho' });
+    expect(result.kind).toBe('rirekisho');
+  });
+
+  it('TemplateDefinition / TemplateRegistry の完全な object literal を型として受け付ける', () => {
+    const definition: TemplateDefinition = {
+      id: 'sample',
+      kind: 'rirekisho',
+      name: 'Sample',
+      render: (input) => ({
+        kind: input.kind,
+        title: 't',
+        html: '',
+        css: '',
+        metadata: { language: 'ja-JP', page: { size: 'A4', orientation: 'portrait' } },
+      }),
+    };
+    const registry: TemplateRegistry = createTemplateRegistry([definition]);
+    expect(registry.getTemplate('sample')).toBe(definition);
+  });
+
   it('公開 API に内部ヘルパ escapeHtml を含めない', () => {
     expect('escapeHtml' in Renderer).toBe(false);
   });
 
   it('公開 API の runtime 値は明示的に許可されたもののみ', () => {
-    // RendererError 等の runtime 値を含むが、internal helper や
-    // accidental default export がないことを保証する。
-    expect(Object.keys(Renderer).sort()).toEqual(['RendererError']);
+    // RendererError / createTemplateRegistry 等の runtime 値を含むが、
+    // internal helper や accidental default export がないことを保証する。
+    expect(Object.keys(Renderer).sort()).toEqual(['RendererError', 'createTemplateRegistry']);
   });
 });
