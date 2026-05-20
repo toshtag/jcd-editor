@@ -38,12 +38,12 @@ import type {
 } from '@jcd-editor/core';
 
 import { escapeHtml } from '../_internal/html-escape';
+import { renderTextList } from '../_internal/html-renderer';
 import {
   formatAddress,
   formatDate,
   formatYearMonth,
   isNonEmpty,
-  renderTextList,
 } from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
 import type { RenderedDocument } from '../rendered-document';

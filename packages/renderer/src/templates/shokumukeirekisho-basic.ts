@@ -22,12 +22,12 @@
 // - RenderInput 経由で indexed access types を使って必要な型を導出する。
 
 import { escapeHtml } from '../_internal/html-escape';
+import { renderTextList } from '../_internal/html-renderer';
 import {
   formatAddress,
   formatPeriod,
   formatYearMonth,
   isNonEmpty,
-  renderTextList,
 } from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
 import type { RenderedDocument } from '../rendered-document';
