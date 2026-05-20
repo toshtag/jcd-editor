@@ -45,6 +45,33 @@ describe('safeParseCareerProfile', () => {
       expect(issue?.path).toBe('basics.name.family');
     }
   });
+
+  it('workExperiences を省略しても受理する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 1, basics: {} });
+    expect(result.success).toBe(true);
+  });
+
+  it('workExperiences が空配列でも受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('workExperiences 内の不正値で失敗する場合に dot path を含む issues を返す', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [{ companyName: '   ' }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.issues.find((i) => i.path === 'workExperiences.0.companyName');
+      expect(issue).toBeDefined();
+    }
+  });
 });
 
 describe('parseCareerProfile', () => {
