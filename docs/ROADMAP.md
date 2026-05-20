@@ -56,7 +56,7 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-rirekisho-template`: 最初の built-in テンプレート `rirekishoBasicTemplate` (id `rirekisho-basic` / 名前『履歴書（基本）』) を `packages/renderer/src/templates/` に追加。JIS / 年表マージ / profilePhoto / credentialUrl の href 化は scope 外で次 PR 以降
+- `feat/renderer-rirekisho-template` (PR #14): 最初の built-in テンプレート `rirekishoBasicTemplate` (id `rirekisho-basic` / 名前『履歴書（基本）』) を `packages/renderer/src/templates/` に追加。JIS / 年表マージ / profilePhoto / credentialUrl の href 化は scope 外で次 PR 以降
 
 ### 次 PR 候補
 
