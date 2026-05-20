@@ -841,37 +841,186 @@ describe('rirekishoBasicTemplate - escape / 安全性', () => {
   });
 });
 
-describe('rirekishoBasicTemplate - profilePhoto', () => {
-  it('basics.profilePhoto (dataUri) が含まれても html に出力されない', () => {
+describe('rirekishoBasicTemplate - profilePhoto 描画', () => {
+  const SAMPLE_DATA_URI = 'data:image/jpeg;base64,X';
+
+  // === dataUri 描画 ===
+
+  it('source.kind === "dataUri" で <img> が描画される', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: { source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI } },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('<img');
+    expect(result.html).toContain('jcd-rirekisho__photo');
+  });
+
+  it('<img> の src 属性が dataUri と一致する', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: { source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI } },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain(`src="${SAMPLE_DATA_URI}"`);
+  });
+
+  it('altText が non-empty なら alt 属性に escape して入る', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {
         profilePhoto: {
-          source: {
-            kind: 'dataUri',
-            dataUri: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEB',
-          },
+          source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI },
+          altText: '山田太郎の証明写真',
         },
       },
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).not.toContain('data:image');
-    expect(result.html).not.toContain('<img');
-    expect(result.html).not.toContain('jcd-rirekisho__photo');
+    expect(result.html).toContain('alt="山田太郎の証明写真"');
   });
 
-  it('basics.profilePhoto (relativePath) が含まれても html に出力されない', () => {
+  it('altText が undefined なら alt="証明写真" (default) になる', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {
-        profilePhoto: {
-          source: { kind: 'relativePath', path: 'photos/me.jpg' },
-        },
+        profilePhoto: { source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI } },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('alt="証明写真"');
+  });
+
+  it('photo container と <img> に期待する class が付く', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: { source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI } },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('<div class="jcd-rirekisho__photo">');
+    expect(result.html).toContain('<img class="jcd-rirekisho__photo-image"');
+  });
+
+  // === relativePath は描画しない ===
+
+  it('source.kind === "relativePath" では <img> が出力されない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: { source: { kind: 'relativePath', path: 'photos/me.jpg' } },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('<img');
+  });
+
+  it('source.kind === "relativePath" では photo class が出力されない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: { source: { kind: 'relativePath', path: 'photos/me.jpg' } },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('jcd-rirekisho__photo');
+  });
+
+  it('source.kind === "relativePath" では path 文字列が html に出力されない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: { source: { kind: 'relativePath', path: 'photos/me.jpg' } },
       },
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
     expect(result.html).not.toContain('photos/me.jpg');
+    expect(result.html).not.toContain('src=');
+  });
+
+  // === 非描画ケース ===
+
+  it('profilePhoto undefined で <img> も photo container も出ない', () => {
+    const result = rirekishoBasicTemplate.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+    });
     expect(result.html).not.toContain('<img');
+    expect(result.html).not.toContain('jcd-rirekisho__photo');
+  });
+
+  it('profilePhoto: {} (source 無し) で photo は描画されない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: { profilePhoto: {} },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('<img');
+    expect(result.html).not.toContain('jcd-rirekisho__photo');
+  });
+
+  it('profilePhoto: { altText } のみ (source 無し) で photo は描画されない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: { profilePhoto: { altText: 'altのみ' } },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('<img');
+    expect(result.html).not.toContain('jcd-rirekisho__photo');
+  });
+
+  // === escape / 安全性 ===
+
+  it('altText の <script> タグが escape される', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: {
+          source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI },
+          altText: '<script>alert("x")</script>',
+        },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('<script>');
+    expect(result.html).not.toContain('</script>');
+    expect(result.html).toContain('&lt;script&gt;');
+    expect(result.html).toContain('&lt;/script&gt;');
+  });
+
+  it('altText の quote が double-quoted attribute 内で escape される', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: {
+          source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI },
+          altText: `"quoted" and 'single'`,
+        },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('&quot;quoted&quot;');
+    expect(result.html).toContain('&#39;single&#39;');
+    // alt 属性は double-quoted で囲まれている
+    expect(result.html).toContain('alt="');
+  });
+
+  // === 既存挙動の保全 ===
+
+  it('profilePhoto があっても metadata.templateId は "rirekisho-basic" のまま', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: { source: { kind: 'dataUri', dataUri: SAMPLE_DATA_URI } },
+      },
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.metadata.templateId).toBe('rirekisho-basic');
+    expect(result.html).toContain('<h1 class="jcd-rirekisho__title">履歴書</h1>');
   });
 });
 
