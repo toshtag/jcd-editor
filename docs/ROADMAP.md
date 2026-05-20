@@ -54,29 +54,31 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - `feat/renderer-foundation` (PR #11): renderer パッケージの境界と出力契約 (`RenderedDocument` / `DocumentKind` / `RenderedDocumentMetadata`) を確立。internal helper として `escapeHtml` を追加 (公開しない)
 - `feat/renderer-template-registry` (PR #13): template contract (`RenderInput` / `TemplateId` / `TemplateRenderer` / `TemplateDefinition` / `TemplateRegistry`) + `createTemplateRegistry` / `renderDocument` + `RendererError` を最小構成で確立 (fake template で挙動を検証)
 - `feat/renderer-rirekisho-template` (PR #14): 最初の built-in テンプレート `rirekishoBasicTemplate` (id `rirekisho-basic` / 名前『履歴書（基本）』) を `packages/renderer/src/templates/` に追加
+- `feat/renderer-shokumukeirekisho-template` (PR #15): 2 個目の built-in テンプレート `shokumukeirekishoBasicTemplate` (id `shokumukeirekisho-basic` / 名前『職務経歴書（基本）』) を追加。重複 format helper を `_internal/template-format.ts` に抽出 (`rirekishoBasicTemplate` の挙動は完全保持)
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-shokumukeirekisho-template` (PR #15): 2 個目の built-in テンプレート `shokumukeirekishoBasicTemplate` (id `shokumukeirekisho-basic` / 名前『職務経歴書（基本）』) を追加。template contract が 2 つの DocumentKind で機能することを検証。重複 format helper を `_internal/template-format.ts` に抽出 (`rirekishoBasicTemplate` の挙動は完全保持)。`builtinTemplates` / `createDefaultTemplateRegistry` は本 PR で導入しない (別 PR で議論)
+- `feat/renderer-builtin-templates-bundle`: built-in テンプレートを束ねる公開 API として `builtinTemplates: readonly TemplateDefinition[]` (Object.freeze で shallow freeze、append-only semantics) と `createDefaultTemplateRegistry(): TemplateRegistry` (createTemplateRegistry の薄い wrapper) を追加。既存テンプレート / contract / registry / renderDocument の挙動は完全無変更
 
 ### 次 PR 候補
 
 - `feat/renderer-rirekisho-chronological-table`: 教育歴 + 職歴を年表テーブルにマージする JIS 風 layout (`年` / `月` / `事項` の 3 列)
 - `feat/renderer-rirekisho-photo`: profilePhoto を dataUri 限定で render (URL policy / file system access は scope 外)
-- `feat/renderer-builtin-templates-bundle`: `builtinTemplates` 配列 / `createDefaultTemplateRegistry` を導入 (2 個目の template が揃った段階で議論する余地が出る、default の semantics と将来の breaking change リスクを慎重に検討)
-- `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) の追加抽出 (本 PR で `formatXxx` / `renderTextList` を抽出済み、3 個目の template で更なる重複が見えた時点で着手)
+- `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) の追加抽出 (3 個目の template で更なる重複が見えた時点で着手)
 
-どの PR を先にやるかは `feat/renderer-shokumukeirekisho-template` マージ後に別途決定します。
+どの PR を先にやるかは `feat/renderer-builtin-templates-bundle` マージ後に別途決定します。
 
 ### 未確定論点
 
-- 共通 CSS の方針 (本 PR では rirekisho / shokumukeirekisho 共に独立 CSS、3 個目の template で共通化を再評価)
+- 共通 CSS の方針 (現在 rirekisho / shokumukeirekisho 共に独立 CSS、3 個目の template で共通化を再評価)
 - テンプレート `manifest.json` のスキーマ (`packages/templates` を立てるタイミングと併せて議論)
 - テンプレートの検証戦略 (Core スキーマとの整合、template-specific export readiness)
 - `packages/templates` を導入するタイミング (現在 2 個の built-in が `packages/renderer/src/templates/` 内に住む、3 個目以降で moving を再検討)
 - URL policy (`credentialUrl` の `<a href>` 化、scheme allowlist) — 別 PR で扱う
 - 和暦変換 — 必要になれば別 PR で table-based variant として追加
 - core import policy: 既存 `rirekisho-basic.ts` の direct core import を indexed access types に揃えるか (将来の clean-up PR 候補)
+- `builtinTemplates` の deep freeze (template 本体の field 書き換えを防ぐか) — 必要になれば別 PR で対応
+- `createDefaultTemplateRegistry` の caching (現状無キャッシュで毎回新規インスタンス、有用な利用パターンが見えた時点で再評価)
 
 ## Phase 3 — ローカルファイルストレージ
 
