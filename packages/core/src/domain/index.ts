@@ -4,3 +4,8 @@ export { SCHEMA_VERSION } from './schema-version';
 export type { ParseResult, ValidationIssue } from './parse-result';
 
 export { ValidationError } from './errors';
+
+export type { PersonName } from './value-objects/person-name';
+export type { PersonKana } from './value-objects/person-kana';
+export type { IsoDateString, IsoYearMonthString } from './value-objects/iso-date';
+export type { EmailAddress, PhoneNumber, PostalAddress } from './value-objects/contact';
