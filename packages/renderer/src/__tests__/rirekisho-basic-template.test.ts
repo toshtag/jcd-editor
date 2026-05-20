@@ -193,8 +193,73 @@ describe('rirekishoBasicTemplate - basics 描画', () => {
   });
 });
 
-describe('rirekishoBasicTemplate - educationHistory 描画', () => {
-  it('単一 entry が <li> として描画される', () => {
+describe('rirekishoBasicTemplate - 学歴・職歴 chronological table (全体構造)', () => {
+  it('education / work 双方無しなら history section が出ない', () => {
+    const result = rirekishoBasicTemplate.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+    });
+    expect(result.html).not.toContain('jcd-rirekisho__section--history');
+    expect(result.html).not.toContain('学歴・職歴');
+  });
+
+  it('education のみあれば history section が出る、heading row は 学歴 のみ', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '○○大学', startDate: '2010-04' }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('jcd-rirekisho__section--history');
+    expect(result.html).toContain('<h2>学歴・職歴</h2>');
+    expect(result.html).toContain('jcd-rirekisho__history-table');
+    expect(result.html).toContain('<td colspan="2">学歴</td>');
+    expect(result.html).not.toContain('<td colspan="2">職歴</td>');
+  });
+
+  it('work のみあれば history section が出る、heading row は 職歴 のみ', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [{ companyName: '株式会社サンプル', period: { startDate: '2020-04' } }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('<td colspan="2">職歴</td>');
+    expect(result.html).not.toContain('<td colspan="2">学歴</td>');
+  });
+
+  it('両方あれば 学歴 heading → education rows → 職歴 heading → work rows の順', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '○○大学', startDate: '2010-04' }],
+      workExperiences: [{ companyName: '株式会社サンプル', period: { startDate: '2014-04' } }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    const idxEduHeading = result.html.indexOf('<td colspan="2">学歴</td>');
+    const idxEduRow = result.html.indexOf('○○大学');
+    const idxWorkHeading = result.html.indexOf('<td colspan="2">職歴</td>');
+    const idxWorkRow = result.html.indexOf('株式会社サンプル');
+    expect(idxEduHeading).toBeGreaterThan(-1);
+    expect(idxEduRow).toBeGreaterThan(idxEduHeading);
+    expect(idxWorkHeading).toBeGreaterThan(idxEduRow);
+    expect(idxWorkRow).toBeGreaterThan(idxWorkHeading);
+  });
+
+  it('table thead に 年月 / 内容 のヘッダがある', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '○○大学', startDate: '2010-04' }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('<th>年月</th>');
+    expect(result.html).toContain('<th>内容</th>');
+  });
+});
+
+describe('rirekishoBasicTemplate - 学歴 row 生成', () => {
+  it('startDate と endDate 両方で 2 row (入学 / 卒業)', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
@@ -203,79 +268,196 @@ describe('rirekishoBasicTemplate - educationHistory 描画', () => {
           institutionName: '○○大学',
           faculty: '工学部',
           department: '情報工学科',
-          status: '卒業',
           startDate: '2010-04',
           endDate: '2014-03',
         },
       ],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).toContain(
-      '<section class="jcd-rirekisho__section jcd-rirekisho__section--education">',
-    );
-    expect(result.html).toContain('<h2>学歴</h2>');
-    expect(result.html).toContain('○○大学');
-    expect(result.html).toContain('工学部');
-    expect(result.html).toContain('情報工学科');
     expect(result.html).toContain('2010年4月');
     expect(result.html).toContain('2014年3月');
-    expect(result.html).toContain('卒業');
+    expect(result.html).toContain('○○大学 工学部 情報工学科 入学');
+    expect(result.html).toContain('○○大学 工学部 情報工学科 卒業');
   });
 
-  it('status が free string ("卒業見込み") としてそのまま描画される', () => {
+  it('status が non-empty なら endDate row の ending phrase になる', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
-      educationHistory: [{ institutionName: '○○大学', status: '卒業見込み' }],
+      educationHistory: [{ institutionName: '○○大学', endDate: '2025-03', status: '卒業見込み' }],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).toContain('卒業見込み');
+    expect(result.html).toContain('○○大学 卒業見込み');
+    expect(result.html).not.toContain('○○大学 卒業<');
   });
 
-  it('複数 entry が順序通り描画される', () => {
+  it('status が無ければ endDate row は 卒業 で終わる', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
-      educationHistory: [{ institutionName: '○○高校' }, { institutionName: '△△大学' }],
+      educationHistory: [{ institutionName: '○○大学', endDate: '2014-03' }],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    const idxHigh = result.html.indexOf('○○高校');
-    const idxUniv = result.html.indexOf('△△大学');
-    expect(idxHigh).toBeGreaterThan(-1);
-    expect(idxUniv).toBeGreaterThan(idxHigh);
+    expect(result.html).toContain('○○大学 卒業');
   });
 
-  it('空 entry ({}) は skip され、section も出ない', () => {
+  it('startDate のみなら 入学 row 1 つだけ', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '○○大学', startDate: '2010-04' }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('○○大学 入学');
+    expect(result.html).not.toContain('○○大学 卒業');
+  });
+
+  it('endDate のみなら ending row 1 つだけ', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '○○大学', endDate: '2014-03' }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('○○大学 卒業');
+    expect(result.html).not.toContain('入学');
+  });
+
+  it('両 date 無しでも institutionName 等があれば no-date row が出る', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '○○大学', status: '在学中' }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('○○大学 在学中');
+    // date cell は空のはず
+    expect(result.html).toMatch(/<tr><td><\/td><td>○○大学 在学中<\/td><\/tr>/);
+  });
+
+  it('完全に空の education entry は row を生成しない', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
       educationHistory: [{}],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).not.toContain('jcd-rirekisho__section--education');
+    expect(result.html).not.toContain('jcd-rirekisho__section--history');
   });
 
-  it('educationHistory が空配列なら section が出ない', () => {
+  it('institutionName / faculty / department / degree が空白区切りで連結される', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
-      educationHistory: [],
+      educationHistory: [
+        {
+          institutionName: '○○大学',
+          faculty: '工学部',
+          department: '情報工学科',
+          degree: '学士',
+          endDate: '2014-03',
+        },
+      ],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).not.toContain('jcd-rirekisho__section--education');
+    expect(result.html).toContain('○○大学 工学部 情報工学科 学士 卒業');
   });
 
-  it('educationHistory が undefined なら section が出ない', () => {
-    const result = rirekishoBasicTemplate.render({
-      careerProfile: MIN_PROFILE,
-      kind: 'rirekisho',
+  it('dated row では description が出力されない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [
+        {
+          institutionName: '○○大学',
+          startDate: '2010-04',
+          endDate: '2014-03',
+          description: '機械学習を研究',
+        },
+      ],
     });
-    expect(result.html).not.toContain('jcd-rirekisho__section--education');
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('機械学習を研究');
+  });
+
+  it('no-date row では description が （...） で末尾に含まれる', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '○○大学', description: '機械学習を研究' }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('○○大学（機械学習を研究）');
   });
 });
 
-describe('rirekishoBasicTemplate - workExperiences 描画', () => {
-  it('companyName / position / summary / period が描画される', () => {
+describe('rirekishoBasicTemplate - 職歴 row 生成', () => {
+  it('startDate と endDate 両方で 2 row (入社 / 退職)', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        {
+          companyName: '株式会社サンプル',
+          period: { startDate: '2014-04', endDate: '2020-03' },
+        },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('2014年4月');
+    expect(result.html).toContain('株式会社サンプル 入社');
+    expect(result.html).toContain('2020年3月');
+    expect(result.html).toContain('株式会社サンプル 退職');
+  });
+
+  it('isCurrent === true なら 退職 row は生成されず、末尾に 現在に至る row が 1 つ追加される', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        {
+          companyName: '株式会社サンプル',
+          period: { startDate: '2020-04', isCurrent: true },
+        },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toContain('株式会社サンプル 入社');
+    expect(result.html).not.toContain('退職');
+    expect(result.html).toContain('現在に至る');
+  });
+
+  it('isCurrent === true で endDate が同時にあっても 退職 row は出ない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        {
+          companyName: '株式会社サンプル',
+          period: { startDate: '2020-04', isCurrent: true },
+        },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('退職');
+  });
+
+  it('複数の current entries があっても 現在に至る row は 1 つだけ', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        { companyName: 'A社', period: { startDate: '2018-04', isCurrent: true } },
+        { companyName: 'B社', period: { startDate: '2020-04', isCurrent: true } },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    const matches = result.html.match(/現在に至る/g);
+    expect(matches).not.toBeNull();
+    expect(matches?.length).toBe(1);
+  });
+
+  it('position と employmentType 両方ある場合 入社 row の末尾に （employmentType / position） を付与', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
@@ -284,58 +466,82 @@ describe('rirekishoBasicTemplate - workExperiences 描画', () => {
           companyName: '株式会社サンプル',
           position: 'ソフトウェアエンジニア',
           employmentType: '正社員',
-          period: { startDate: '2018-04', endDate: '2022-03' },
-          summary: 'Web アプリケーション開発に従事。',
+          period: { startDate: '2014-04' },
         },
       ],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).toContain('<h2>職歴</h2>');
-    expect(result.html).toContain('株式会社サンプル');
-    expect(result.html).toContain('ソフトウェアエンジニア');
-    expect(result.html).toContain('正社員');
-    expect(result.html).toContain('2018年4月');
-    expect(result.html).toContain('2022年3月');
-    expect(result.html).toContain('Web アプリケーション開発に従事。');
+    expect(result.html).toContain('株式会社サンプル 入社（正社員 / ソフトウェアエンジニア）');
   });
 
-  it('period.isCurrent === true なら end date が "現在" として描画', () => {
+  it('position のみなら （position）', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
       workExperiences: [
         {
           companyName: '株式会社サンプル',
-          period: { startDate: '2020-01', isCurrent: true },
+          position: 'エンジニア',
+          period: { startDate: '2014-04' },
         },
       ],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).toContain('2020年1月');
-    expect(result.html).toContain('現在');
+    expect(result.html).toContain(
+      '株式会社サンプル 入社(エンジニア)'.replace(/[()]/g, (m) => (m === '(' ? '（' : '）')),
+    );
   });
 
-  it('responsibilities / achievements が <ul> で描画される', () => {
+  it('employmentType のみなら （employmentType）', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
       workExperiences: [
         {
           companyName: '株式会社サンプル',
-          responsibilities: ['設計', '実装'],
-          achievements: ['コードレビュー文化を確立'],
+          employmentType: '正社員',
+          period: { startDate: '2014-04' },
         },
       ],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).toContain('担当業務');
-    expect(result.html).toContain('設計');
-    expect(result.html).toContain('実装');
-    expect(result.html).toContain('成果');
-    expect(result.html).toContain('コードレビュー文化を確立');
+    expect(result.html).toContain('株式会社サンプル 入社（正社員）');
   });
 
-  it('period のみ (isCurrent のみ等) で throw しない', () => {
+  it('position も employmentType も無ければ annotation なし', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [{ companyName: '株式会社サンプル', period: { startDate: '2014-04' } }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    // entry には括弧付き annotation が含まれない (entry row の content がちょうど `株式会社サンプル 入社` で終わる)
+    expect(result.html).toMatch(/<td>株式会社サンプル 入社<\/td>/);
+  });
+
+  it('完全に空の work entry は row を生成しない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [{}],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('jcd-rirekisho__section--history');
+  });
+
+  it('date 無しでも companyName があれば no-date row が出る (phrase なし)', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [{ companyName: '株式会社サンプル' }],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).toMatch(/<tr><td><\/td><td>株式会社サンプル<\/td><\/tr>/);
+    expect(result.html).not.toContain('入社');
+    expect(result.html).not.toContain('退職');
+  });
+
+  it('period.isCurrent のみで throw しない', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
@@ -344,6 +550,93 @@ describe('rirekishoBasicTemplate - workExperiences 描画', () => {
     expect(() =>
       rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' }),
     ).not.toThrow();
+  });
+});
+
+describe('rirekishoBasicTemplate - responsibilities / achievements / summary は rirekisho 年表には描画されない', () => {
+  it('responsibilities を含む WorkExperience を render しても 担当業務 / item が現れない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        {
+          companyName: '株式会社サンプル',
+          period: { startDate: '2014-04' },
+          responsibilities: ['設計', '実装'],
+        },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('担当業務');
+    expect(result.html).not.toContain('設計');
+    expect(result.html).not.toContain('実装');
+  });
+
+  it('achievements を含む WorkExperience を render しても 成果 / item が現れない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        {
+          companyName: '株式会社サンプル',
+          period: { startDate: '2014-04' },
+          achievements: ['コードレビュー文化を確立'],
+        },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('成果');
+    expect(result.html).not.toContain('コードレビュー文化を確立');
+  });
+
+  it('summary を含む WorkExperience を render しても summary text が現れない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        {
+          companyName: '株式会社サンプル',
+          period: { startDate: '2014-04' },
+          summary: 'Web アプリケーション開発に従事。',
+        },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(result.html).not.toContain('Web アプリケーション開発に従事。');
+  });
+});
+
+describe('rirekishoBasicTemplate - input order 保持', () => {
+  it('educationHistory 内の複数 entry が input order で描画される', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [
+        { institutionName: '○○高校', endDate: '2010-03' },
+        { institutionName: '△△大学', startDate: '2010-04' },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    const idxHigh = result.html.indexOf('○○高校');
+    const idxUniv = result.html.indexOf('△△大学');
+    expect(idxHigh).toBeGreaterThan(-1);
+    expect(idxUniv).toBeGreaterThan(idxHigh);
+  });
+
+  it('workExperiences 内の複数 entry が input order で描画される', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [
+        { companyName: 'A社', period: { startDate: '2014-04' } },
+        { companyName: 'B社', period: { startDate: '2018-04' } },
+      ],
+    });
+    const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
+    const idxA = result.html.indexOf('A社');
+    const idxB = result.html.indexOf('B社');
+    expect(idxA).toBeGreaterThan(-1);
+    expect(idxB).toBeGreaterThan(idxA);
   });
 });
 
@@ -499,11 +792,12 @@ describe('rirekishoBasicTemplate - escape / 安全性', () => {
     expect(result.html).toContain('&lt;/script&gt;');
   });
 
-  it('& が summary に含まれると &amp; に escape される (二重 escape 込み)', () => {
+  it('& が companyName / institutionName に含まれると &amp; に escape される (二重 escape 込み)', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
-      workExperiences: [{ companyName: 'A & B', summary: '研究 & 開発' }],
+      educationHistory: [{ institutionName: '研究 & 開発', endDate: '2020-03' }],
+      workExperiences: [{ companyName: 'A & B' }],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
     expect(result.html).toContain('A &amp; B');
@@ -514,7 +808,7 @@ describe('rirekishoBasicTemplate - escape / 安全性', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
-      workExperiences: [{ summary: `"quoted" and 'single'` }],
+      workExperiences: [{ companyName: `"quoted" and 'single'` }],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
     expect(result.html).toContain('&quot;quoted&quot;');
@@ -601,14 +895,14 @@ describe('rirekishoBasicTemplate - draft tolerance', () => {
     expect(result.html).toContain('○○大学');
   });
 
-  it('workExperiences の空 entry は section ごとスキップ', () => {
+  it('workExperiences の空 entry は history section ごとスキップ', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
       workExperiences: [{}],
     });
     const result = rirekishoBasicTemplate.render({ careerProfile: profile, kind: 'rirekisho' });
-    expect(result.html).not.toContain('jcd-rirekisho__section--work');
+    expect(result.html).not.toContain('jcd-rirekisho__section--history');
   });
 });
 

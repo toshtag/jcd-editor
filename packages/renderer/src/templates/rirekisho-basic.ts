@@ -1,13 +1,26 @@
 // rirekisho-basic は最初の built-in テンプレート。
 //
 // 制約 (意図的):
-// - 教育歴と職歴を年表テーブルに統合しない (section-by-section blocks 構造)。
-// - profilePhoto は render しない (HTML / CSS にスペース placeholder も出さない)。
+// - 教育歴と職歴を **年表テーブル形式 (学歴・職歴 統合 section)** で描画する。
+//   row 順序は input order を保持し、global sort はしない。
+// - 教育歴の row は startDate → 入学、endDate → status (default 卒業) の
+//   2 row に分解。職歴の row も startDate → 入社、endDate → 退職 の 2 row
+//   に分解 (isCurrent === true の entry は退職 row を抑制し、全 entries 処理後
+//   に 1 つだけ「現在に至る」row を末尾に追加)。
+// - 履歴書の年表テーブルでは responsibilities / achievements / summary を
+//   描画しない (詳細は職務経歴書側 shokumukeirekisho-basic の責務)。
+// - description は dated row (入学 / 卒業) には付けない、no-date row のみ
+//   `（description）` で末尾に補足する。
+// - profilePhoto は render しない (HTML / CSS にスペース placeholder も
+//   出さない)。
 // - credentialUrl は escape された plain text のみ (<a href> 化しない)。
-// - すべての CareerProfile 由来文字列は escapeHtml を通してから HTML に挿入する。
-// - 日付は YYYY年MM月DD日 / YYYY年MM月 形式に文字列変換 (Date object 不使用、
+// - すべての CareerProfile 由来文字列は escapeHtml を通してから HTML に
+//   挿入する。HistoryRow は raw display string を保持し、renderHistoryRow で
+//   最終的に escape する。
+// - 日付は YYYY年M月D日 / YYYY年M月 形式に文字列変換 (Date object 不使用、
 //   regex 不一致時は raw string fallback)。
-// - 空 entry (object のすべての field が空 / undefined) / 空 section は skip する。
+// - 空 entry (object のすべての field が空 / undefined) は row を生成しない。
+//   学歴 / 職歴 双方の row が無ければ history section ごと出さない。
 // - parseCareerProfile / safeParseCareerProfile は呼ばない (parse 済み入力前提)。
 
 import type {
@@ -23,7 +36,6 @@ import { escapeHtml } from '../_internal/html-escape';
 import {
   formatAddress,
   formatDate,
-  formatPeriod,
   formatYearMonth,
   isNonEmpty,
   renderTextList,
@@ -70,69 +82,141 @@ const renderBasics = (basics: CareerProfile['basics']): string => {
   return `<dl class="jcd-rirekisho__basics">${rows.join('')}</dl>`;
 };
 
-// === Section: education ===
+// === 学歴・職歴 統合年表 (history) ===
+//
+// HistoryRow は raw display string を保持する (escape はここでは行わない)。
+// renderHistoryRow が最終的に escapeHtml を通して HTML に変換する。
 
-const renderEducationEntry = (entry: Education): string => {
+type HistoryRow =
+  | { kind: 'heading'; label: '学歴' | '職歴' }
+  | { kind: 'entry'; date: string; content: string };
+
+const educationSubject = (entry: Education): string => {
   const parts: string[] = [];
-  const period = formatPeriod(entry.startDate, entry.endDate, undefined);
-  if (period !== undefined) parts.push(esc(period));
-  if (isNonEmpty(entry.institutionName)) parts.push(esc(entry.institutionName));
-  if (isNonEmpty(entry.faculty)) parts.push(esc(entry.faculty));
-  if (isNonEmpty(entry.department)) parts.push(esc(entry.department));
-  if (isNonEmpty(entry.degree)) parts.push(esc(entry.degree));
-  if (isNonEmpty(entry.status)) parts.push(esc(entry.status));
-  if (parts.length === 0 && !isNonEmpty(entry.description)) return '';
-
-  const main = parts.join(' ');
-  const description = isNonEmpty(entry.description)
-    ? `<div class="jcd-rirekisho__detail">${esc(entry.description)}</div>`
-    : '';
-  return `<li>${main}${description}</li>`;
+  if (isNonEmpty(entry.institutionName)) parts.push(entry.institutionName);
+  if (isNonEmpty(entry.faculty)) parts.push(entry.faculty);
+  if (isNonEmpty(entry.department)) parts.push(entry.department);
+  if (isNonEmpty(entry.degree)) parts.push(entry.degree);
+  return parts.join(' ');
 };
 
-const renderEducation = (entries: Education[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderEducationEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-rirekisho__section jcd-rirekisho__section--education"><h2>学歴</h2><ul>${items.join('')}</ul></section>`;
+const buildEducationRows = (entries: Education[] | undefined): HistoryRow[] => {
+  if (entries === undefined || entries.length === 0) return [];
+
+  const rows: HistoryRow[] = [];
+
+  for (const entry of entries) {
+    const subject = educationSubject(entry);
+    const description = isNonEmpty(entry.description) ? entry.description : '';
+
+    // dated row: startDate → 入学
+    if (entry.startDate !== undefined) {
+      const date = formatYearMonth(entry.startDate);
+      const content = subject === '' ? '入学' : `${subject} 入学`;
+      rows.push({ kind: 'entry', date, content });
+    }
+
+    // dated row: endDate → status (default 卒業)
+    if (entry.endDate !== undefined) {
+      const date = formatYearMonth(entry.endDate);
+      const ending = isNonEmpty(entry.status) ? entry.status : '卒業';
+      const content = subject === '' ? ending : `${subject} ${ending}`;
+      rows.push({ kind: 'entry', date, content });
+    }
+
+    // no-date row: date が無いが意味のある field がある
+    if (entry.startDate === undefined && entry.endDate === undefined) {
+      const contentParts: string[] = [];
+      if (subject !== '') contentParts.push(subject);
+      if (isNonEmpty(entry.status)) contentParts.push(entry.status);
+      let content = contentParts.join(' ');
+      if (description !== '') {
+        content = content === '' ? `（${description}）` : `${content}（${description}）`;
+      }
+      if (content !== '') {
+        rows.push({ kind: 'entry', date: '', content });
+      }
+    }
+  }
+
+  if (rows.length === 0) return [];
+  return [{ kind: 'heading', label: '学歴' }, ...rows];
 };
 
-// === Section: work experiences ===
-
-const renderWorkExperienceEntry = (entry: WorkExperience): string => {
-  const head: string[] = [];
-  const period = formatPeriod(
-    entry.period?.startDate,
-    entry.period?.endDate,
-    entry.period?.isCurrent,
-  );
-  if (period !== undefined) head.push(esc(period));
-  if (isNonEmpty(entry.companyName)) head.push(esc(entry.companyName));
-  if (isNonEmpty(entry.position)) head.push(esc(entry.position));
-  if (isNonEmpty(entry.employmentType)) head.push(esc(entry.employmentType));
-
-  const detail: string[] = [];
-  if (isNonEmpty(entry.summary)) {
-    detail.push(`<div class="jcd-rirekisho__detail">${esc(entry.summary)}</div>`);
-  }
-  const responsibilities = renderTextList(entry.responsibilities);
-  if (responsibilities !== '') {
-    detail.push(`<div class="jcd-rirekisho__detail"><div>担当業務</div>${responsibilities}</div>`);
-  }
-  const achievements = renderTextList(entry.achievements);
-  if (achievements !== '') {
-    detail.push(`<div class="jcd-rirekisho__detail"><div>成果</div>${achievements}</div>`);
-  }
-
-  if (head.length === 0 && detail.length === 0) return '';
-  return `<li>${head.join(' ')}${detail.join('')}</li>`;
+const workAnnotation = (entry: WorkExperience): string => {
+  const parts: string[] = [];
+  if (isNonEmpty(entry.employmentType)) parts.push(entry.employmentType);
+  if (isNonEmpty(entry.position)) parts.push(entry.position);
+  if (parts.length === 0) return '';
+  return `（${parts.join(' / ')}）`;
 };
 
-const renderWorkExperiences = (entries: WorkExperience[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderWorkExperienceEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-rirekisho__section jcd-rirekisho__section--work"><h2>職歴</h2><ul>${items.join('')}</ul></section>`;
+const buildWorkRows = (entries: WorkExperience[] | undefined): HistoryRow[] => {
+  if (entries === undefined || entries.length === 0) return [];
+
+  const rows: HistoryRow[] = [];
+  let hasCurrent = false;
+
+  for (const entry of entries) {
+    const company = isNonEmpty(entry.companyName) ? entry.companyName : '';
+    const annotation = workAnnotation(entry);
+    const startDate = entry.period?.startDate;
+    const endDate = entry.period?.endDate;
+    const isCurrent = entry.period?.isCurrent === true;
+
+    if (isCurrent) hasCurrent = true;
+
+    // dated row: startDate → 入社
+    if (startDate !== undefined) {
+      const date = formatYearMonth(startDate);
+      const content = company === '' ? `入社${annotation}` : `${company} 入社${annotation}`;
+      rows.push({ kind: 'entry', date, content });
+    }
+
+    // dated row: endDate → 退職 (ただし isCurrent === true なら抑制)
+    if (!isCurrent && endDate !== undefined) {
+      const date = formatYearMonth(endDate);
+      const content = company === '' ? '退職' : `${company} 退職`;
+      rows.push({ kind: 'entry', date, content });
+    }
+
+    // no-date row: date が無く isCurrent でもないが company / annotation がある
+    if (startDate === undefined && endDate === undefined && !isCurrent) {
+      const contentParts: string[] = [];
+      if (company !== '') contentParts.push(company);
+      const content = contentParts.join('') + annotation;
+      if (content !== '') {
+        rows.push({ kind: 'entry', date: '', content });
+      }
+    }
+  }
+
+  // aggregate: 複数 current でも 1 行のみ
+  if (hasCurrent) {
+    rows.push({ kind: 'entry', date: '', content: '現在に至る' });
+  }
+
+  if (rows.length === 0) return [];
+  return [{ kind: 'heading', label: '職歴' }, ...rows];
+};
+
+const renderHistoryRow = (row: HistoryRow): string => {
+  if (row.kind === 'heading') {
+    // label は固定 union ('学歴' | '職歴')、escape 不要
+    return `<tr class="jcd-rirekisho__history-heading"><td colspan="2">${row.label}</td></tr>`;
+  }
+  const dateCell = row.date === '' ? '' : esc(row.date);
+  const contentCell = esc(row.content);
+  return `<tr><td>${dateCell}</td><td>${contentCell}</td></tr>`;
+};
+
+const renderHistorySection = (careerProfile: CareerProfile): string => {
+  const educationRows = buildEducationRows(careerProfile.educationHistory);
+  const workRows = buildWorkRows(careerProfile.workExperiences);
+  if (educationRows.length === 0 && workRows.length === 0) return '';
+
+  const rowsHtml = [...educationRows, ...workRows].map(renderHistoryRow).join('');
+  return `<section class="jcd-rirekisho__section jcd-rirekisho__section--history"><h2>学歴・職歴</h2><table class="jcd-rirekisho__history-table"><thead><tr><th>年月</th><th>内容</th></tr></thead><tbody>${rowsHtml}</tbody></table></section>`;
 };
 
 // === Section: skills ===
@@ -198,8 +282,18 @@ const renderCertifications = (entries: Certification[] | undefined): string => {
 
 const renderProjectEntry = (entry: Project): string => {
   const head: string[] = [];
-  const period = formatPeriod(entry.startDate, entry.endDate, entry.isCurrent);
-  if (period !== undefined) head.push(esc(period));
+  const startDate = entry.startDate === undefined ? '' : formatYearMonth(entry.startDate);
+  const endDate =
+    entry.isCurrent === true
+      ? '現在'
+      : entry.endDate === undefined
+        ? ''
+        : formatYearMonth(entry.endDate);
+  let period = '';
+  if (startDate !== '' && endDate !== '') period = `${startDate} - ${endDate}`;
+  else if (startDate !== '') period = startDate;
+  else if (endDate !== '') period = endDate;
+  if (period !== '') head.push(esc(period));
   if (isNonEmpty(entry.name)) head.push(esc(entry.name));
   if (isNonEmpty(entry.organizationName)) head.push(esc(entry.organizationName));
   if (isNonEmpty(entry.role)) head.push(esc(entry.role));
@@ -246,6 +340,10 @@ const CSS = `@page { size: A4; margin: 15mm; }
 .jcd-rirekisho__section li { margin-block-end: 0.6em; }
 .jcd-rirekisho__detail { margin-block-start: 0.2em; }
 .jcd-rirekisho__detail ul { margin: 0.2em 0; }
+.jcd-rirekisho__history-table { width: 100%; border-collapse: collapse; margin: 0; }
+.jcd-rirekisho__history-table th, .jcd-rirekisho__history-table td { border-bottom: 0.5pt solid #ccc; padding: 0.3em 0.5em; vertical-align: top; text-align: left; }
+.jcd-rirekisho__history-table th { font-weight: normal; background: #f5f5f5; width: 8em; }
+.jcd-rirekisho__history-heading td { font-weight: bold; text-align: center; background: #fafafa; }
 `;
 
 // === Render entrypoint ===
@@ -261,11 +359,8 @@ const renderRirekishoBasic = (input: RenderInput): RenderedDocument => {
       : `<header class="jcd-rirekisho__header"><h1 class="jcd-rirekisho__title">${TEMPLATE_TITLE}</h1>${basics}</header>`;
   sections.push(header);
 
-  const education = renderEducation(careerProfile.educationHistory);
-  if (education !== '') sections.push(education);
-
-  const work = renderWorkExperiences(careerProfile.workExperiences);
-  if (work !== '') sections.push(work);
+  const history = renderHistorySection(careerProfile);
+  if (history !== '') sections.push(history);
 
   const skills = renderSkills(careerProfile.skills);
   if (skills !== '') sections.push(skills);
