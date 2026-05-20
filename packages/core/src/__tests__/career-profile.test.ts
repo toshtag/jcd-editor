@@ -1,0 +1,71 @@
+import { describe, expect, it } from 'vitest';
+
+import { ValidationError } from '../domain/errors';
+import { parseCareerProfile, safeParseCareerProfile } from '../domain/operations';
+
+describe('safeParseCareerProfile', () => {
+  it('最小構造 (空の basics) を受理する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 1, basics: {} });
+    expect(result.success).toBe(true);
+  });
+
+  it('basics に有効な値を含む構造を受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        name: { family: '山田', given: '太郎' },
+        nameKana: { family: 'ヤマダ', given: 'タロウ' },
+        birthDate: '1993-04-01',
+        email: 'taro@example.com',
+        phone: '090-1234-5678',
+        address: { postalCode: '100-0001', prefecture: '東京都', cityAndRest: '千代田区' },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('schemaVersion: 2 を拒否する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 2, basics: {} });
+    expect(result.success).toBe(false);
+  });
+
+  it('basics が無い場合を拒否する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 1 });
+    expect(result.success).toBe(false);
+  });
+
+  it('basics 内の不正値で失敗する場合に dot path を含む issues を返す', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: { name: { family: '', given: '太郎' } },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.issues.find((i) => i.path.includes('family'));
+      expect(issue?.path).toBe('basics.name.family');
+    }
+  });
+});
+
+describe('parseCareerProfile', () => {
+  it('正常データを CareerProfile として返す', () => {
+    const data = parseCareerProfile({ schemaVersion: 1, basics: {} });
+    expect(data.schemaVersion).toBe(1);
+    expect(data.basics).toEqual({});
+  });
+
+  it('不正データで ValidationError を throw する', () => {
+    expect(() => parseCareerProfile({ schemaVersion: 2, basics: {} })).toThrow(ValidationError);
+  });
+
+  it('throw された ValidationError は issues を保持する', () => {
+    try {
+      parseCareerProfile({ schemaVersion: 2, basics: {} });
+    } catch (e) {
+      expect(e).toBeInstanceOf(ValidationError);
+      if (e instanceof ValidationError) {
+        expect(e.issues.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
