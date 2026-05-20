@@ -31,7 +31,11 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0(typescript@5.9.3)
 
-  packages/pdf: {}
+  packages/pdf:
+    dependencies:
+      '@jcd-editor/renderer':
+        specifier: workspace:*
+        version: link:../renderer
 
   packages/renderer:
     dependencies:
