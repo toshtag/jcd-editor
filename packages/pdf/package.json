@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@jcd-editor/renderer": "workspace:*"
+    "@jcd-editor/renderer": "workspace:*",
+    "playwright": "^1.48.0"
   }
 }
