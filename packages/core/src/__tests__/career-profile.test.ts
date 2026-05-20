@@ -72,6 +72,55 @@ describe('safeParseCareerProfile', () => {
       expect(issue).toBeDefined();
     }
   });
+
+  it('educationHistory を省略しても受理する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 1, basics: {} });
+    expect(result.success).toBe(true);
+  });
+
+  it('educationHistory が空配列でも受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('workExperiences と educationHistory の両方を含む CareerProfile を受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      workExperiences: [{ companyName: '株式会社サンプル' }],
+      educationHistory: [{ institutionName: '◯◯大学' }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('educationHistory の配列要素最大数を超えた場合は拒否する', () => {
+    const tooMany = Array.from({ length: 31 }, (_, i) => ({
+      institutionName: `学校${i}`,
+    }));
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: tooMany,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('educationHistory 内の不正値で失敗する場合に dot path を含む issues を返す', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: '   ' }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.issues.find((i) => i.path === 'educationHistory.0.institutionName');
+      expect(issue).toBeDefined();
+    }
+  });
 });
 
 describe('parseCareerProfile', () => {
