@@ -12,6 +12,8 @@ export type { EmailAddress, PhoneNumber, PostalAddress } from './value-objects/c
 
 export type { WorkExperience, WorkPeriod } from './work-experience';
 export type { Education } from './education';
+export type { Skill } from './skill';
+export type { Certification } from './certification';
 
 export type { CareerProfile } from './career-profile';
 export { parseCareerProfile, safeParseCareerProfile } from './operations';
