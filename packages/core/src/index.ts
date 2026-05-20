@@ -1,5 +1,6 @@
 export type {
   CareerProfile,
+  Education,
   EmailAddress,
   IsoDateString,
   IsoYearMonthString,
