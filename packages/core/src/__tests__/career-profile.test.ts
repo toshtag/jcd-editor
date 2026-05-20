@@ -121,6 +121,87 @@ describe('safeParseCareerProfile', () => {
       expect(issue).toBeDefined();
     }
   });
+
+  it('skills / certifications を省略しても受理する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 1, basics: {} });
+    expect(result.success).toBe(true);
+  });
+
+  it('skills が空配列でも受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      skills: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('certifications が空配列でも受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      certifications: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('skills の配列要素最大数 (200) を超えた場合は拒否する', () => {
+    const tooMany = Array.from({ length: 201 }, (_, i) => ({ name: `スキル${i}` }));
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      skills: tooMany,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('certifications の配列要素最大数 (100) を超えた場合は拒否する', () => {
+    const tooMany = Array.from({ length: 101 }, (_, i) => ({ name: `資格${i}` }));
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      certifications: tooMany,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('skills 内の不正値で失敗する場合に dot path を含む issues を返す', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      skills: [{ name: '   ' }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.issues.find((i) => i.path === 'skills.0.name');
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it('certifications 内の不正値で失敗する場合に dot path を含む issues を返す', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      certifications: [{ acquiredDate: '2024-13' }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.issues.find((i) => i.path === 'certifications.0.acquiredDate');
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it('workExperiences + educationHistory + skills + certifications を全て含む CareerProfile を受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: { name: { family: '山田', given: '太郎' } },
+      workExperiences: [{ companyName: '株式会社サンプル' }],
+      educationHistory: [{ institutionName: '◯◯大学' }],
+      skills: [{ name: 'TypeScript' }],
+      certifications: [{ name: '基本情報技術者試験' }],
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('parseCareerProfile', () => {
