@@ -6,9 +6,11 @@ import type {
   DocumentKind,
   RenderedDocument,
   RenderedDocumentMetadata,
+  RendererErrorCode,
   RenderInput,
   TemplateId,
 } from '../index';
+import { RendererError } from '../index';
 
 describe('@jcd-editor/renderer 公開 API', () => {
   it('DocumentKind は rirekisho と shokumukeirekisho を受け付ける', () => {
@@ -90,13 +92,30 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(input.templateId).toBeUndefined();
   });
 
+  it('RendererErrorCode は string literal union として全 code を assign できる', () => {
+    const codes: RendererErrorCode[] = [
+      'TEMPLATE_NOT_FOUND',
+      'TEMPLATE_KIND_MISMATCH',
+      'TEMPLATE_AMBIGUOUS',
+      'TEMPLATE_RENDER_KIND_MISMATCH',
+      'TEMPLATE_DUPLICATE_ID',
+    ];
+    expect(codes).toHaveLength(5);
+  });
+
+  it('RendererError を runtime 値として export する', () => {
+    expect(typeof RendererError).toBe('function');
+    const error = new RendererError('test', 'TEMPLATE_NOT_FOUND');
+    expect(error).toBeInstanceOf(RendererError);
+  });
+
   it('公開 API に内部ヘルパ escapeHtml を含めない', () => {
     expect('escapeHtml' in Renderer).toBe(false);
   });
 
-  it('公開 API は型のみで、実行時値を持たない', () => {
-    // index.ts は type-only export のため、実行時 namespace には何も
-    // 含まれない (TypeScript の `export type` の保証)。
-    expect(Object.keys(Renderer)).toEqual([]);
+  it('公開 API の runtime 値は明示的に許可されたもののみ', () => {
+    // RendererError 等の runtime 値を含むが、internal helper や
+    // accidental default export がないことを保証する。
+    expect(Object.keys(Renderer).sort()).toEqual(['RendererError']);
   });
 });
