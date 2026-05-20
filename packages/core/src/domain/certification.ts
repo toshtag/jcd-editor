@@ -13,6 +13,7 @@
 
 import * as v from 'valibot';
 
+import { createNonBlankTextSchema } from './_internal/text-validation';
 import { isoYearMonthStringSchema, type IsoYearMonthString } from './value-objects/iso-date';
 
 export type Certification = {
@@ -31,26 +32,16 @@ const CREDENTIAL_ID_MAX = 100;
 const CREDENTIAL_URL_MAX = 2000;
 const DESCRIPTION_MAX = 1000;
 
-const isNonBlank = (value: string): boolean => value.trim().length > 0;
-
-const nonBlankText = (max: number, label: string) =>
-  v.pipe(
-    v.string(),
-    v.minLength(1, `${label}を入力してください`),
-    v.check(isNonBlank, `${label}に空白のみは指定できません`),
-    v.maxLength(max, `${label}が長すぎます`),
-  );
-
 /** @internal */
 export const certificationSchema = v.pipe(
   v.object({
-    name: v.optional(nonBlankText(NAME_MAX, '資格名')),
-    issuer: v.optional(nonBlankText(ISSUER_MAX, '発行機関')),
+    name: v.optional(createNonBlankTextSchema(NAME_MAX, '資格名')),
+    issuer: v.optional(createNonBlankTextSchema(ISSUER_MAX, '発行機関')),
     acquiredDate: v.optional(isoYearMonthStringSchema),
     expirationDate: v.optional(isoYearMonthStringSchema),
-    credentialId: v.optional(nonBlankText(CREDENTIAL_ID_MAX, '認定 ID')),
-    credentialUrl: v.optional(nonBlankText(CREDENTIAL_URL_MAX, '認定 URL')),
-    description: v.optional(nonBlankText(DESCRIPTION_MAX, '備考')),
+    credentialId: v.optional(createNonBlankTextSchema(CREDENTIAL_ID_MAX, '認定 ID')),
+    credentialUrl: v.optional(createNonBlankTextSchema(CREDENTIAL_URL_MAX, '認定 URL')),
+    description: v.optional(createNonBlankTextSchema(DESCRIPTION_MAX, '備考')),
   }),
   v.check(
     (certification) =>

@@ -5,6 +5,7 @@
 
 import * as v from 'valibot';
 
+import { createNonBlankTextSchema } from './_internal/text-validation';
 import { isoYearMonthStringSchema, type IsoYearMonthString } from './value-objects/iso-date';
 
 export type Project = {
@@ -30,41 +31,31 @@ const RESPONSIBILITIES_ARRAY_MAX = 50;
 const ACHIEVEMENTS_ARRAY_MAX = 50;
 const TECHNOLOGIES_ARRAY_MAX = 100;
 
-const isNonBlank = (value: string): boolean => value.trim().length > 0;
-
-const nonBlankText = (max: number, label: string) =>
-  v.pipe(
-    v.string(),
-    v.minLength(1, `${label}を入力してください`),
-    v.check(isNonBlank, `${label}に空白のみは指定できません`),
-    v.maxLength(max, `${label}が長すぎます`),
-  );
-
 const responsibilitiesSchema = v.pipe(
-  v.array(nonBlankText(TEXT_ITEM_MAX, '担当業務')),
+  v.array(createNonBlankTextSchema(TEXT_ITEM_MAX, '担当業務')),
   v.maxLength(RESPONSIBILITIES_ARRAY_MAX, '担当業務の項目数が多すぎます'),
 );
 
 const achievementsSchema = v.pipe(
-  v.array(nonBlankText(TEXT_ITEM_MAX, '成果')),
+  v.array(createNonBlankTextSchema(TEXT_ITEM_MAX, '成果')),
   v.maxLength(ACHIEVEMENTS_ARRAY_MAX, '成果の項目数が多すぎます'),
 );
 
 const technologiesSchema = v.pipe(
-  v.array(nonBlankText(TECHNOLOGY_ITEM_MAX, '使用技術')),
+  v.array(createNonBlankTextSchema(TECHNOLOGY_ITEM_MAX, '使用技術')),
   v.maxLength(TECHNOLOGIES_ARRAY_MAX, '使用技術の項目数が多すぎます'),
 );
 
 /** @internal */
 export const projectSchema = v.pipe(
   v.object({
-    name: v.optional(nonBlankText(NAME_MAX, 'プロジェクト名')),
-    organizationName: v.optional(nonBlankText(ORGANIZATION_NAME_MAX, '所属組織')),
-    role: v.optional(nonBlankText(ROLE_MAX, '役割')),
+    name: v.optional(createNonBlankTextSchema(NAME_MAX, 'プロジェクト名')),
+    organizationName: v.optional(createNonBlankTextSchema(ORGANIZATION_NAME_MAX, '所属組織')),
+    role: v.optional(createNonBlankTextSchema(ROLE_MAX, '役割')),
     startDate: v.optional(isoYearMonthStringSchema),
     endDate: v.optional(isoYearMonthStringSchema),
     isCurrent: v.optional(v.boolean()),
-    summary: v.optional(nonBlankText(SUMMARY_MAX, '概要')),
+    summary: v.optional(createNonBlankTextSchema(SUMMARY_MAX, '概要')),
     responsibilities: v.optional(responsibilitiesSchema),
     achievements: v.optional(achievementsSchema),
     technologies: v.optional(technologiesSchema),
