@@ -21,7 +21,7 @@
 ### 完了済み
 
 - `feat/core-schema` (PR #3): `CareerProfile` foundations、`schemaVersion`、値オブジェクト (`PersonName`, `PersonKana`, `IsoDateString`, `IsoYearMonthString`, `EmailAddress`, `PhoneNumber`, `PostalAddress`)、parse / safeParse、ISO 8601 検証、ADR 0003 / 0004 を導入
-- `feat/core-work-experience` (進行中): `WorkExperience` ドメインモデルと `WorkPeriod` (`startDate` / `endDate` / `isCurrent`)、`CareerProfile.workExperiences` を追加。`companyName` 等は optional (draft tolerance)、`isCurrent` は明示フィールド
+- `feat/core-work-experience` (PR #5): `WorkExperience` ドメインモデルと `WorkPeriod` (`startDate` / `endDate` / `isCurrent`)、`CareerProfile.workExperiences` を追加。`companyName` 等は optional (draft tolerance)、`isCurrent` は明示フィールド
 
 ### 未確定論点の現状
 
