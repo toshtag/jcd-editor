@@ -38,7 +38,12 @@ import type {
 } from '@jcd-editor/core';
 
 import { escapeHtml } from '../_internal/html-escape';
-import { renderTextList } from '../_internal/html-renderer';
+import {
+  renderItemList,
+  renderListItem,
+  renderSection,
+  renderTextList,
+} from '../_internal/html-renderer';
 import {
   formatAddress,
   formatDate,
@@ -246,7 +251,13 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
   if (educationRows.length === 0 && workRows.length === 0) return '';
 
   const rowsHtml = [...educationRows, ...workRows].map(renderHistoryRow).join('');
-  return `<section class="jcd-rirekisho__section jcd-rirekisho__section--history"><h2>学歴・職歴</h2><table class="jcd-rirekisho__history-table"><thead><tr><th>年月</th><th>内容</th></tr></thead><tbody>${rowsHtml}</tbody></table></section>`;
+  const tableBody = `<table class="jcd-rirekisho__history-table"><thead><tr><th>年月</th><th>内容</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  return renderSection({
+    baseClass: 'jcd-rirekisho',
+    variant: 'history',
+    heading: '学歴・職歴',
+    bodyHtml: tableBody,
+  });
 };
 
 // === Section: skills ===
@@ -264,10 +275,13 @@ const renderSkillEntry = (entry: Skill): string => {
 };
 
 const renderSkills = (entries: Skill[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderSkillEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-rirekisho__section jcd-rirekisho__section--skills"><h2>スキル</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderSkillEntry);
+  return renderSection({
+    baseClass: 'jcd-rirekisho',
+    variant: 'skills',
+    heading: 'スキル',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === Section: certifications ===
@@ -297,15 +311,17 @@ const renderCertificationEntry = (entry: Certification): string => {
     detail.push(`<div class="jcd-rirekisho__detail">${esc(entry.description)}</div>`);
   }
 
-  if (head.length === 0 && detail.length === 0) return '';
-  return `<li>${head.join(' ')}${detail.join('')}</li>`;
+  return renderListItem(head, detail);
 };
 
 const renderCertifications = (entries: Certification[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderCertificationEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-rirekisho__section jcd-rirekisho__section--certifications"><h2>資格</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderCertificationEntry);
+  return renderSection({
+    baseClass: 'jcd-rirekisho',
+    variant: 'certifications',
+    heading: '資格',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === Section: projects ===
@@ -345,15 +361,17 @@ const renderProjectEntry = (entry: Project): string => {
     detail.push(`<div class="jcd-rirekisho__detail"><div>使用技術</div>${technologies}</div>`);
   }
 
-  if (head.length === 0 && detail.length === 0) return '';
-  return `<li>${head.join(' ')}${detail.join('')}</li>`;
+  return renderListItem(head, detail);
 };
 
 const renderProjects = (entries: Project[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderProjectEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-rirekisho__section jcd-rirekisho__section--projects"><h2>プロジェクト</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderProjectEntry);
+  return renderSection({
+    baseClass: 'jcd-rirekisho',
+    variant: 'projects',
+    heading: 'プロジェクト',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === CSS ===
