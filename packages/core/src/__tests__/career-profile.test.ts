@@ -202,6 +202,62 @@ describe('safeParseCareerProfile', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('projects を省略しても受理する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 1, basics: {} });
+    expect(result.success).toBe(true);
+  });
+
+  it('projects が空配列でも受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      projects: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('projects の配列要素最大数 (200) を超えた場合は拒否する', () => {
+    const tooMany = Array.from({ length: 201 }, (_, i) => ({ name: `プロジェクト${i}` }));
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      projects: tooMany,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('projects 内の不正値で失敗する場合に dot path を含む issues を返す', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      projects: [{ name: '   ' }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.issues.find((i) => i.path === 'projects.0.name');
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it('workExperiences + educationHistory + skills + certifications + projects をすべて含む完全な CareerProfile を受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: { name: { family: '山田', given: '太郎' } },
+      workExperiences: [{ companyName: '株式会社サンプル' }],
+      educationHistory: [{ institutionName: '◯◯大学' }],
+      skills: [{ name: 'TypeScript' }],
+      certifications: [{ name: '基本情報技術者試験' }],
+      projects: [
+        {
+          name: '在庫管理システム刷新',
+          organizationName: '株式会社サンプル',
+          technologies: ['TypeScript', 'Next.js'],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('parseCareerProfile', () => {
