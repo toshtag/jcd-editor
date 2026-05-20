@@ -1,7 +1,14 @@
+import type { CareerProfile } from '@jcd-editor/core';
 import { describe, expect, it } from 'vitest';
 
 import * as Renderer from '../index';
-import type { DocumentKind, RenderedDocument, RenderedDocumentMetadata } from '../index';
+import type {
+  DocumentKind,
+  RenderedDocument,
+  RenderedDocumentMetadata,
+  RenderInput,
+  TemplateId,
+} from '../index';
 
 describe('@jcd-editor/renderer 公開 API', () => {
   it('DocumentKind は rirekisho と shokumukeirekisho を受け付ける', () => {
@@ -49,6 +56,38 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(document.html).toContain('<section');
     expect(document.css).toContain('section');
     expect(document.metadata.language).toBe('ja-JP');
+  });
+
+  it('TemplateId は string として扱える', () => {
+    const id: TemplateId = 'rirekisho-default';
+    expect(id).toBe('rirekisho-default');
+  });
+
+  it('RenderInput の完全な object literal を型として受け付ける', () => {
+    const careerProfile: CareerProfile = {
+      schemaVersion: 1,
+      basics: {},
+    };
+    const input: RenderInput = {
+      careerProfile,
+      kind: 'rirekisho',
+      templateId: 'rirekisho-default',
+    };
+    expect(input.kind).toBe('rirekisho');
+    expect(input.templateId).toBe('rirekisho-default');
+    expect(input.careerProfile.schemaVersion).toBe(1);
+  });
+
+  it('RenderInput は templateId を省略できる', () => {
+    const careerProfile: CareerProfile = {
+      schemaVersion: 1,
+      basics: {},
+    };
+    const input: RenderInput = {
+      careerProfile,
+      kind: 'shokumukeirekisho',
+    };
+    expect(input.templateId).toBeUndefined();
   });
 
   it('公開 API に内部ヘルパ escapeHtml を含めない', () => {
