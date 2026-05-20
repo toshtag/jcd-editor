@@ -49,25 +49,28 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 検証済みの `CareerProfile` を `RenderedDocument` (HTML / CSS / メタデータ) に変換します。テンプレートは `packages/templates/` に置き、プレーンな HTML + CSS + `manifest.json` で構成し、React / Vue / Svelte のランタイムを必要としてはなりません。
 
+### 完了済み
+
+- `feat/renderer-foundation` (PR #11): renderer パッケージの境界と出力契約 (`RenderedDocument` / `DocumentKind` / `RenderedDocumentMetadata`) を確立。internal helper として `escapeHtml` を追加 (公開しない)
+
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-foundation` (PR #11): renderer パッケージの境界と出力契約 (`RenderedDocument` / `DocumentKind` / `RenderedDocumentMetadata`) を確立。実 render 関数 / テンプレート実装 / PDF 生成は含めない。internal helper として `escapeHtml` を追加する (公開しない)
+- `feat/renderer-template-registry`: template contract (`RenderInput` / `TemplateId` / `TemplateRenderer` / `TemplateDefinition` / `TemplateRegistry`) + `createTemplateRegistry` / `renderDocument` + `RendererError` を最小構成で確立。実テンプレートは fake template でテストのみ、実 render は次 PR
 
 ### 次 PR 候補
 
-- `feat/renderer-rirekisho-template`: rirekisho 用の最初のテンプレートと render 関数
-- `feat/renderer-template-registry`: `templateId` → render 関数のマッピングと複数テンプレート対応
-- `feat/renderer-html-renderer`: template-agnostic な HTML 生成エンジン
+- `feat/renderer-rirekisho-template`: rirekisho 用の最初の `TemplateDefinition` を実装。本 PR の contract をそのまま使い、HTML / CSS layout と escape の組み合わせを初めて実装する
+- `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) を `_internal/` に切り出し。rirekisho 実装中に再利用ニーズが見えた時点で着手
 
-どの PR を先にやるかは `feat/renderer-foundation` マージ後に別途決定します。
+どの PR を先にやるかは `feat/renderer-template-registry` マージ後に別途決定します。
 
 ### 未確定論点
 
 - テンプレートのプレースホルダー構文とエスケープ規則 (本 PR で HTML body / attribute 値の escape は `escapeHtml` に確立、URL / CSS / script context は次 PR 以降)
 - 共通 CSS とテンプレート個別 CSS の方針
-- テンプレート `manifest.json` のスキーマ
+- テンプレート `manifest.json` のスキーマ (`packages/templates` を立てるタイミングと併せて議論)
 - テンプレートの検証戦略 (Core スキーマとの整合)
-- `RenderInput` 型と render 関数 signature (`render(profile, kind)` vs `render(input)`)
+- 実テンプレート (rirekisho) を `packages/renderer` / `packages/templates` のどちらに置くか (1 個目の template が出てくる PR で判断)
 
 ## Phase 3 — ローカルファイルストレージ
 
