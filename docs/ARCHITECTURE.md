@@ -58,6 +58,11 @@ packages/core
 6. `packages/storage` はデータの永続化方法を知っています。`packages/core` はストレージ形式を知**りません**。
 7. `packages/templates` のテンプレートは HTML + CSS + `manifest.json` で構成します。React、Vue、Svelte のランタイムを必要**としません**。
 8. `apps/local-web` はパッケージとアダプタを組み合わせる役割を持ちます。ドメインロジックを含**みません**。
+9. `packages/core` は **foundation parsing と domain validation を所有します**。`parseCareerProfile` / `safeParseCareerProfile` が外部入力および永続化との境界です。これらの parse 関数を通っていないオブジェクトを `CareerProfile` 型として扱ってはなりません。
+10. `packages/core` は **template-specific な export readiness を所有しません**。「特定の履歴書テンプレートに対して提出可能か」のような判定は、テンプレートが具体化する `packages/renderer` または template 側で実装します。core に export-specific validation 関数を追加してはなりません。
+11. `packages/core` の validation 実装に使う Valibot は **internal implementation detail** です。公開 API に Valibot 型 (`InferOutput`、`GenericSchema` 等) も schema 値 (`*Schema`) も露出してはなりません ([ADR 0004](adr/0004-validation-library-valibot.md) と整合)。
+
+validation 責務の詳細は [docs/VALIDATION.md](VALIDATION.md) を参照してください。
 
 ## 依存方向 (まとめ)
 
