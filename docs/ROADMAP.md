@@ -59,7 +59,7 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-rirekisho-chronological-table`: `rirekishoBasicTemplate` の学歴 / 職歴を年表テーブル形式に **in-place で書き換え** (新規テンプレートは追加しない、`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` はすべて無変更)。2 列構造 (年月 / 内容)、入力順保持、`現在に至る` は aggregate で 1 行。responsibilities / achievements / summary は履歴書では描画せず職務経歴書側の責務とする
+- `feat/renderer-rirekisho-chronological-table` (PR #17): `rirekishoBasicTemplate` の学歴 / 職歴を年表テーブル形式に **in-place で書き換え** (新規テンプレートは追加しない、`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` はすべて無変更)。2 列構造 (年月 / 内容)、入力順保持、`現在に至る` は aggregate で 1 行。responsibilities / achievements / summary は履歴書では描画せず職務経歴書側の責務とする
 
 ### 次 PR 候補
 
