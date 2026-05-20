@@ -24,7 +24,7 @@
 - `feat/core-work-experience` (PR #5): `WorkExperience` ドメインモデルと `WorkPeriod` (`startDate` / `endDate` / `isCurrent`)、`CareerProfile.workExperiences` を追加。`companyName` 等は optional (draft tolerance)、`isCurrent` は明示フィールド
 - `feat/core-education` (PR #6): `Education` ドメインモデルと `CareerProfile.educationHistory` を追加。`institutionName` / `faculty` / `department` / `degree` / `startDate` / `endDate` / `status` / `description` を持つ。`WorkPeriod` は再利用せず、Education 専用の日付フィールドを inline で持つ。在学中等の状態は free string の `status` で表現 (`isCurrent` 不採用)
 - `feat/core-skills-and-certifications` (PR #7): `Skill` と `Certification` ドメインモデル、`CareerProfile.skills` / `CareerProfile.certifications` を追加。`Skill` は技術に限定せず category / level / description で表現。`Certification` は IsoYearMonthString の `acquiredDate` / `expirationDate` を持ち、`credentialUrl` は plain string + 最大長で保持。`yearsOfExperience` および URL value object は採用しない
-- `feat/core-projects` (進行中): `Project` ドメインモデルと `CareerProfile.projects` を追加。`Project` は業務・副業・個人開発・OSS・ボランティア等を含みうるプロジェクト型の経験を表し、WorkExperience とは独立して保持する (top-level 配列、ID 参照なし)。`organizationName` で context を保持、`isCurrent` 採用 (binary 状態)、`technologies` は Skill と無関係な `string[]`。`teamSize` および ID 参照は採用しない
+- `feat/core-projects` (PR #8): `Project` ドメインモデルと `CareerProfile.projects` を追加。`Project` は業務・副業・個人開発・OSS・ボランティア等を含みうるプロジェクト型の経験を表し、WorkExperience とは独立して保持する (top-level 配列、ID 参照なし)。`organizationName` で context を保持、`isCurrent` 採用 (binary 状態)、`technologies` は Skill と無関係な `string[]`。`teamSize` および ID 参照は採用しない
 
 ### 未確定論点の現状
 
