@@ -8,5 +8,8 @@
   "license": "MIT",
   "scripts": {
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@jcd-editor/core": "workspace:*"
   }
 }

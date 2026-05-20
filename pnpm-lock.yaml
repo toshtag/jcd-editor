@@ -33,7 +33,11 @@ importers:
 
   packages/pdf: {}
 
-  packages/renderer: {}
+  packages/renderer:
+    dependencies:
+      '@jcd-editor/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/storage: {}
 
