@@ -14,6 +14,8 @@ import type {
   TemplateRenderer,
 } from '../index';
 import {
+  builtinTemplates,
+  createDefaultTemplateRegistry,
   createTemplateRegistry,
   renderDocument,
   RendererError,
@@ -142,6 +144,18 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(typeof shokumukeirekishoBasicTemplate.render).toBe('function');
   });
 
+  it('builtinTemplates を runtime 値として export する (frozen array)', () => {
+    expect(Array.isArray(builtinTemplates)).toBe(true);
+    expect(Object.isFrozen(builtinTemplates)).toBe(true);
+    expect(builtinTemplates).toHaveLength(2);
+  });
+
+  it('createDefaultTemplateRegistry を runtime 値として export する', () => {
+    expect(typeof createDefaultTemplateRegistry).toBe('function');
+    const registry = createDefaultTemplateRegistry();
+    expect(typeof registry.getTemplates).toBe('function');
+  });
+
   it('TemplateRenderer 型は (input: RenderInput) => RenderedDocument を受け付ける', () => {
     const renderer: TemplateRenderer = (input) => ({
       kind: input.kind,
@@ -181,6 +195,8 @@ describe('@jcd-editor/renderer 公開 API', () => {
     // internal helper や accidental default export がないことを保証する。
     expect(Object.keys(Renderer).sort()).toEqual([
       'RendererError',
+      'builtinTemplates',
+      'createDefaultTemplateRegistry',
       'createTemplateRegistry',
       'renderDocument',
       'rirekishoBasicTemplate',
