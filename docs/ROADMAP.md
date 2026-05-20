@@ -22,6 +22,7 @@
 
 - `feat/core-schema` (PR #3): `CareerProfile` foundations、`schemaVersion`、値オブジェクト (`PersonName`, `PersonKana`, `IsoDateString`, `IsoYearMonthString`, `EmailAddress`, `PhoneNumber`, `PostalAddress`)、parse / safeParse、ISO 8601 検証、ADR 0003 / 0004 を導入
 - `feat/core-work-experience` (PR #5): `WorkExperience` ドメインモデルと `WorkPeriod` (`startDate` / `endDate` / `isCurrent`)、`CareerProfile.workExperiences` を追加。`companyName` 等は optional (draft tolerance)、`isCurrent` は明示フィールド
+- `feat/core-education` (進行中): `Education` ドメインモデルと `CareerProfile.educationHistory` を追加。`institutionName` / `faculty` / `department` / `degree` / `startDate` / `endDate` / `status` / `description` を持つ。`WorkPeriod` は再利用せず、Education 専用の日付フィールドを inline で持つ。在学中等の状態は free string の `status` で表現 (`isCurrent` 不採用)
 
 ### 未確定論点の現状
 
@@ -33,10 +34,11 @@
 
 ### 残りの Phase 1 増分 PR 候補
 
-- `feat/core-education` (**次の推奨**): 学歴 `Education` (学校、学科、入学卒業日、学位)。期間表現は WorkPeriod の inline 定義を再評価し、共通化できるか判断する
-- `feat/core-skills-and-certifications`: `Skill` 列挙、`Certification` (資格名、取得日、認定団体)
+- `feat/core-skills-and-certifications` (**次の推奨**): `Skill` 列挙、`Certification` (資格名、取得日、認定団体)
 - `feat/core-projects`: `Project` (プロジェクト名、期間、役割、技術スタック)
 - `feat/core-attachments`: 証明写真の参照型 (data URI vs file path)
+
+3 つ目のドメインモデル (Skill / Certification / Project のいずれか) で `nonBlankText` のような共通 text validator パターンが繰り返し必要になった場合、`domain/_internal/text-validators.ts` のような場所への抽出を別 refactor PR で検討する。同様に、期間表現が共通化できる場合は `refactor(core): extract Period value object` を検討する。
 
 ### `feat/core-validation` 単独 PR は不要
 
