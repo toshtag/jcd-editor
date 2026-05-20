@@ -258,6 +258,55 @@ describe('safeParseCareerProfile', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('basics.profilePhoto 省略を受理する', () => {
+    const result = safeParseCareerProfile({ schemaVersion: 1, basics: {} });
+    expect(result.success).toBe(true);
+  });
+
+  it('basics.profilePhoto: {} (draft) を受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: { profilePhoto: {} },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('有効な basics.profilePhoto を含む CareerProfile を受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        profilePhoto: {
+          source: { kind: 'relativePath', path: 'photos/profile.jpg' },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('全ドメイン (workExperiences + educationHistory + skills + certifications + projects + basics.profilePhoto) を含む完全な CareerProfile を受理する', () => {
+    const result = safeParseCareerProfile({
+      schemaVersion: 1,
+      basics: {
+        name: { family: '山田', given: '太郎' },
+        nameKana: { family: 'ヤマダ', given: 'タロウ' },
+        birthDate: '1993-04-01',
+        email: 'taro@example.com',
+        phone: '090-1234-5678',
+        address: { postalCode: '100-0001', prefecture: '東京都', cityAndRest: '千代田区' },
+        profilePhoto: {
+          source: { kind: 'relativePath', path: 'photos/profile.jpg' },
+          altText: '証明写真',
+        },
+      },
+      workExperiences: [{ companyName: '株式会社サンプル' }],
+      educationHistory: [{ institutionName: '◯◯大学' }],
+      skills: [{ name: 'TypeScript' }],
+      certifications: [{ name: '基本情報技術者試験' }],
+      projects: [{ name: '在庫管理システム刷新', technologies: ['TypeScript'] }],
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('parseCareerProfile', () => {
