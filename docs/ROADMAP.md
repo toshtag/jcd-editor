@@ -51,7 +51,7 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-foundation`: renderer パッケージの境界と出力契約 (`RenderedDocument` / `DocumentKind` / `RenderedDocumentMetadata`) を確立。実 render 関数 / テンプレート実装 / PDF 生成は含めない。internal helper として `escapeHtml` を追加する (公開しない)
+- `feat/renderer-foundation` (PR #11): renderer パッケージの境界と出力契約 (`RenderedDocument` / `DocumentKind` / `RenderedDocumentMetadata`) を確立。実 render 関数 / テンプレート実装 / PDF 生成は含めない。internal helper として `escapeHtml` を追加する (公開しない)
 
 ### 次 PR 候補
 
