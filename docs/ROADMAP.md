@@ -12,11 +12,11 @@
 
 **Phase 0 では行わないこと:** `tsconfig.json`、`package.json`、TypeScript の足回り、いかなるコードも書きません。
 
-## Phase 1 — Core キャリアデータモデル (進行中)
+## Phase 1 — Core キャリアデータモデル (完了)
 
 `CareerProfile` とその値オブジェクトを Vanilla TypeScript で定義します。Core は UI フレームワーク / DOM / ストレージ実装 / PDF 実装 / AI 実装に依存してはなりません。
 
-**ステータス: foundations は PR #3 で完了。残りの増分は後続 PR で順次追加。**
+**ステータス: 完了。`CareerProfile` の全ドメインモデル (basics / workExperiences / educationHistory / skills / certifications / projects / basics.profilePhoto) と Phase 1 完了後の負債整理 (`refactor/core-shared-text-validators`) が main にマージ済み。**
 
 ### 完了済み
 
@@ -45,16 +45,29 @@
 
 Foundation validation は PR #3 でカバー済みです。template / export 固有の strict validation は Phase 2 以降に延期します (具体テンプレートが存在しないと仕様化できないため)。詳細は [docs/VALIDATION.md](VALIDATION.md) を参照。
 
-## Phase 2 — HTML/CSS テンプレートレンダラー
+## Phase 2 — HTML/CSS テンプレートレンダラー (進行中)
 
 検証済みの `CareerProfile` を `RenderedDocument` (HTML / CSS / メタデータ) に変換します。テンプレートは `packages/templates/` に置き、プレーンな HTML + CSS + `manifest.json` で構成し、React / Vue / Svelte のランタイムを必要としてはなりません。
 
-**未確定論点:**
+### 進行中 / 直近マージ予定
 
-- テンプレートのプレースホルダー構文とエスケープ規則
+- `feat/renderer-foundation`: renderer パッケージの境界と出力契約 (`RenderedDocument` / `DocumentKind` / `RenderedDocumentMetadata`) を確立。実 render 関数 / テンプレート実装 / PDF 生成は含めない。internal helper として `escapeHtml` を追加する (公開しない)
+
+### 次 PR 候補
+
+- `feat/renderer-rirekisho-template`: rirekisho 用の最初のテンプレートと render 関数
+- `feat/renderer-template-registry`: `templateId` → render 関数のマッピングと複数テンプレート対応
+- `feat/renderer-html-renderer`: template-agnostic な HTML 生成エンジン
+
+どの PR を先にやるかは `feat/renderer-foundation` マージ後に別途決定します。
+
+### 未確定論点
+
+- テンプレートのプレースホルダー構文とエスケープ規則 (本 PR で HTML body / attribute 値の escape は `escapeHtml` に確立、URL / CSS / script context は次 PR 以降)
 - 共通 CSS とテンプレート個別 CSS の方針
 - テンプレート `manifest.json` のスキーマ
 - テンプレートの検証戦略 (Core スキーマとの整合)
+- `RenderInput` 型と render 関数 signature (`render(profile, kind)` vs `render(input)`)
 
 ## Phase 3 — ローカルファイルストレージ
 
