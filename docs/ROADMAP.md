@@ -61,7 +61,7 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-html-renderer` (PR 番号は作成後反映): output-preserving refactor。両 built-in template の重複 HTML 組み立てを `_internal/html-renderer.ts` の 4 個の helper (`renderSection` / `renderItemList` / `renderListItem` / `renderTextList`) に抽出。既存 `renderTextList` は HTML 系 helper の責務統一のため `_internal/template-format.ts` から移動。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / CSS / template 出力すべて完全無変更 (byte-for-byte 同一)
+- `feat/renderer-html-renderer` (PR #19): output-preserving refactor。両 built-in template の重複 HTML 組み立てを `_internal/html-renderer.ts` の 4 個の helper (`renderSection` / `renderItemList` / `renderListItem` / `renderTextList`) に抽出。既存 `renderTextList` は HTML 系 helper の責務統一のため `_internal/template-format.ts` から移動。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / CSS / template 出力すべて完全無変更 (byte-for-byte 同一)
 
 ### 次 PR 候補
 
