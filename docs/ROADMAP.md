@@ -52,25 +52,29 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 ### 完了済み
 
 - `feat/renderer-foundation` (PR #11): renderer パッケージの境界と出力契約 (`RenderedDocument` / `DocumentKind` / `RenderedDocumentMetadata`) を確立。internal helper として `escapeHtml` を追加 (公開しない)
+- `feat/renderer-template-registry` (PR #13): template contract (`RenderInput` / `TemplateId` / `TemplateRenderer` / `TemplateDefinition` / `TemplateRegistry`) + `createTemplateRegistry` / `renderDocument` + `RendererError` を最小構成で確立 (fake template で挙動を検証)
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-template-registry` (PR #13): template contract (`RenderInput` / `TemplateId` / `TemplateRenderer` / `TemplateDefinition` / `TemplateRegistry`) + `createTemplateRegistry` / `renderDocument` + `RendererError` を最小構成で確立。実テンプレートは fake template でテストのみ、実 render は次 PR
+- `feat/renderer-rirekisho-template` (PR #14): 最初の built-in テンプレート `rirekishoBasicTemplate` (id `rirekisho-basic` / 名前『履歴書（基本）』) を `packages/renderer/src/templates/` に追加。JIS / 年表マージ / profilePhoto / credentialUrl の href 化は scope 外で次 PR 以降
 
 ### 次 PR 候補
 
-- `feat/renderer-rirekisho-template`: rirekisho 用の最初の `TemplateDefinition` を実装。本 PR の contract をそのまま使い、HTML / CSS layout と escape の組み合わせを初めて実装する
-- `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) を `_internal/` に切り出し。rirekisho 実装中に再利用ニーズが見えた時点で着手
+- `feat/renderer-rirekisho-chronological-table`: 教育歴 + 職歴を年表テーブルにマージする JIS 風 layout (`年` / `月` / `事項` の 3 列)
+- `feat/renderer-rirekisho-photo`: profilePhoto を dataUri 限定で render (URL policy / file system access は scope 外)
+- `feat/renderer-shokumukeirekisho-basic`: 職務経歴書の最初のテンプレート
+- `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) を `_internal/` に切り出し (2 個目の template で再利用ニーズが見えた時点で着手)
 
-どの PR を先にやるかは `feat/renderer-template-registry` マージ後に別途決定します。
+どの PR を先にやるかは `feat/renderer-rirekisho-template` マージ後に別途決定します。
 
 ### 未確定論点
 
-- テンプレートのプレースホルダー構文とエスケープ規則 (本 PR で HTML body / attribute 値の escape は `escapeHtml` に確立、URL / CSS / script context は次 PR 以降)
-- 共通 CSS とテンプレート個別 CSS の方針
+- 共通 CSS とテンプレート個別 CSS の方針 (rirekisho-basic は単一テンプレート向け CSS 自己完結、共通化は 2 個目以降で検討)
 - テンプレート `manifest.json` のスキーマ (`packages/templates` を立てるタイミングと併せて議論)
-- テンプレートの検証戦略 (Core スキーマとの整合)
-- 実テンプレート (rirekisho) を `packages/renderer` / `packages/templates` のどちらに置くか (1 個目の template が出てくる PR で判断)
+- テンプレートの検証戦略 (Core スキーマとの整合、template-specific export readiness)
+- `packages/templates` を導入するタイミング (本 PR は `packages/renderer` 内 built-in、2-3 個目の template が出た時点で moving を再検討)
+- URL policy (`credentialUrl` の `<a href>` 化、scheme allowlist) — 別 PR で扱う
+- 和暦変換 — 必要になれば別 PR で table-based variant として追加
 
 ## Phase 3 — ローカルファイルストレージ
 

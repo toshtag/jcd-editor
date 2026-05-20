@@ -13,7 +13,12 @@ import type {
   TemplateRegistry,
   TemplateRenderer,
 } from '../index';
-import { createTemplateRegistry, renderDocument, RendererError } from '../index';
+import {
+  createTemplateRegistry,
+  renderDocument,
+  RendererError,
+  rirekishoBasicTemplate,
+} from '../index';
 
 describe('@jcd-editor/renderer 公開 API', () => {
   it('DocumentKind は rirekisho と shokumukeirekisho を受け付ける', () => {
@@ -120,6 +125,14 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(typeof renderDocument).toBe('function');
   });
 
+  it('rirekishoBasicTemplate を runtime 値として export する', () => {
+    expect(typeof rirekishoBasicTemplate).toBe('object');
+    expect(rirekishoBasicTemplate.id).toBe('rirekisho-basic');
+    expect(rirekishoBasicTemplate.kind).toBe('rirekisho');
+    expect(rirekishoBasicTemplate.name).toBe('履歴書（基本）');
+    expect(typeof rirekishoBasicTemplate.render).toBe('function');
+  });
+
   it('TemplateRenderer 型は (input: RenderInput) => RenderedDocument を受け付ける', () => {
     const renderer: TemplateRenderer = (input) => ({
       kind: input.kind,
@@ -161,6 +174,7 @@ describe('@jcd-editor/renderer 公開 API', () => {
       'RendererError',
       'createTemplateRegistry',
       'renderDocument',
+      'rirekishoBasicTemplate',
     ]);
   });
 });
