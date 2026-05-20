@@ -12,16 +12,35 @@
 
 **Phase 0 では行わないこと:** `tsconfig.json`、`package.json`、TypeScript の足回り、いかなるコードも書きません。
 
-## Phase 1 — Core キャリアデータモデル
+## Phase 1 — Core キャリアデータモデル (進行中)
 
 `CareerProfile` とその値オブジェクトを Vanilla TypeScript で定義します。Core は UI フレームワーク / DOM / ストレージ実装 / PDF 実装 / AI 実装に依存してはなりません。
 
-**未確定論点:**
+**ステータス: foundations は PR #3 で完了。残りの増分は後続 PR で順次追加。**
 
-- 永続化データが進化する際の `schemaVersion` フィールド設計と移行戦略
-- 日本語固有フィールドの扱い: フリガナ、和暦変換 (令和 / 平成 / 昭和)、卒業年度の表現
-- JIS 様式の証明写真の扱い (data URI vs ローカルファイル参照)
-- ポートの正確な配置場所 (`packages/core` 内 vs 別パッケージの `packages/application`)
+### 完了済み
+
+- `feat/core-schema` (PR #3): `CareerProfile` foundations、`schemaVersion`、値オブジェクト (`PersonName`, `PersonKana`, `IsoDateString`, `IsoYearMonthString`, `EmailAddress`, `PhoneNumber`, `PostalAddress`)、parse / safeParse、ISO 8601 検証、ADR 0003 / 0004 を導入
+
+### 未確定論点の現状
+
+- **`schemaVersion`**: v1 の表現は数値リテラル `1` で確定。migration strategy 全体は依然未確定であり、`schemaVersion` が上がるタイミング (`feat/core-migration-v1-to-v2` 等) で設計する
+- **日付内部表現**: ISO 8601 で確定 ([ADR 0003](adr/0003-isodate-internal-representation.md))。和暦変換は core 不採用
+- **日本語固有フィールド (フリガナ)**: 全角カタカナ + 小書きカナ + 長音符 + 中点 + 全角スペースを許容、空白のみ/中点のみは reject で確定
+- **証明写真**: 未着手 (`feat/core-attachments` で対応予定)
+- **ポート配置**: 暫定方針 (`packages/core/src/application/`)。最初の port を入れる PR で ADR 0005 として正式決定
+
+### 残りの Phase 1 増分 PR 候補
+
+- `feat/core-work-experience` (**次の推奨**): 職歴 `WorkExperience` (会社名、役職、期間、業務内容) と `CareerProfile.workExperiences`
+- `feat/core-education`: 学歴 `Education` (学校、学科、入学卒業日、学位)
+- `feat/core-skills-and-certifications`: `Skill` 列挙、`Certification` (資格名、取得日、認定団体)
+- `feat/core-projects`: `Project` (プロジェクト名、期間、役割、技術スタック)
+- `feat/core-attachments`: 証明写真の参照型 (data URI vs file path)
+
+### `feat/core-validation` 単独 PR は不要
+
+Foundation validation は PR #3 でカバー済みです。template / export 固有の strict validation は Phase 2 以降に延期します (具体テンプレートが存在しないと仕様化できないため)。詳細は [docs/VALIDATION.md](VALIDATION.md) を参照。
 
 ## Phase 2 — HTML/CSS テンプレートレンダラー
 
