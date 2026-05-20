@@ -23,11 +23,16 @@
 
 import { escapeHtml } from '../_internal/html-escape';
 import {
+  renderItemList,
+  renderListItem,
+  renderSection,
+  renderTextList,
+} from '../_internal/html-renderer';
+import {
   formatAddress,
   formatPeriod,
   formatYearMonth,
   isNonEmpty,
-  renderTextList,
 } from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
 import type { RenderedDocument } from '../rendered-document';
@@ -101,15 +106,17 @@ const renderWorkExperienceEntry = (entry: WorkExperience): string => {
     detail.push(`<div class="jcd-shokumukeirekisho__detail"><div>成果</div>${achievements}</div>`);
   }
 
-  if (head.length === 0 && detail.length === 0) return '';
-  return `<li>${head.join(' ')}${detail.join('')}</li>`;
+  return renderListItem(head, detail);
 };
 
 const renderWorkExperiences = (entries: WorkExperience[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderWorkExperienceEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-shokumukeirekisho__section jcd-shokumukeirekisho__section--work"><h2>職務経歴</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderWorkExperienceEntry);
+  return renderSection({
+    baseClass: 'jcd-shokumukeirekisho',
+    variant: 'work',
+    heading: '職務経歴',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === Section: projects ===
@@ -143,15 +150,17 @@ const renderProjectEntry = (entry: Project): string => {
     );
   }
 
-  if (head.length === 0 && detail.length === 0) return '';
-  return `<li>${head.join(' ')}${detail.join('')}</li>`;
+  return renderListItem(head, detail);
 };
 
 const renderProjects = (entries: Project[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderProjectEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-shokumukeirekisho__section jcd-shokumukeirekisho__section--projects"><h2>プロジェクト</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderProjectEntry);
+  return renderSection({
+    baseClass: 'jcd-shokumukeirekisho',
+    variant: 'projects',
+    heading: 'プロジェクト',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === Section: skills ===
@@ -169,10 +178,13 @@ const renderSkillEntry = (entry: Skill): string => {
 };
 
 const renderSkills = (entries: Skill[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderSkillEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-shokumukeirekisho__section jcd-shokumukeirekisho__section--skills"><h2>スキル</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderSkillEntry);
+  return renderSection({
+    baseClass: 'jcd-shokumukeirekisho',
+    variant: 'skills',
+    heading: 'スキル',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === Section: certifications ===
@@ -204,42 +216,47 @@ const renderCertificationEntry = (entry: Certification): string => {
     detail.push(`<div class="jcd-shokumukeirekisho__detail">${esc(entry.description)}</div>`);
   }
 
-  if (head.length === 0 && detail.length === 0) return '';
-  return `<li>${head.join(' ')}${detail.join('')}</li>`;
+  return renderListItem(head, detail);
 };
 
 const renderCertifications = (entries: Certification[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderCertificationEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-shokumukeirekisho__section jcd-shokumukeirekisho__section--certifications"><h2>資格</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderCertificationEntry);
+  return renderSection({
+    baseClass: 'jcd-shokumukeirekisho',
+    variant: 'certifications',
+    heading: '資格',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === Section: education (optional final) ===
 
 const renderEducationEntry = (entry: Education): string => {
-  const parts: string[] = [];
+  const head: string[] = [];
   const period = formatPeriod(entry.startDate, entry.endDate, undefined);
-  if (period !== undefined) parts.push(esc(period));
-  if (isNonEmpty(entry.institutionName)) parts.push(esc(entry.institutionName));
-  if (isNonEmpty(entry.faculty)) parts.push(esc(entry.faculty));
-  if (isNonEmpty(entry.department)) parts.push(esc(entry.department));
-  if (isNonEmpty(entry.degree)) parts.push(esc(entry.degree));
-  if (isNonEmpty(entry.status)) parts.push(esc(entry.status));
-  if (parts.length === 0 && !isNonEmpty(entry.description)) return '';
+  if (period !== undefined) head.push(esc(period));
+  if (isNonEmpty(entry.institutionName)) head.push(esc(entry.institutionName));
+  if (isNonEmpty(entry.faculty)) head.push(esc(entry.faculty));
+  if (isNonEmpty(entry.department)) head.push(esc(entry.department));
+  if (isNonEmpty(entry.degree)) head.push(esc(entry.degree));
+  if (isNonEmpty(entry.status)) head.push(esc(entry.status));
 
-  const main = parts.join(' ');
-  const description = isNonEmpty(entry.description)
-    ? `<div class="jcd-shokumukeirekisho__detail">${esc(entry.description)}</div>`
-    : '';
-  return `<li>${main}${description}</li>`;
+  const detail: string[] = [];
+  if (isNonEmpty(entry.description)) {
+    detail.push(`<div class="jcd-shokumukeirekisho__detail">${esc(entry.description)}</div>`);
+  }
+
+  return renderListItem(head, detail);
 };
 
 const renderEducation = (entries: Education[] | undefined): string => {
-  if (entries === undefined || entries.length === 0) return '';
-  const items = entries.map(renderEducationEntry).filter((s) => s.length > 0);
-  if (items.length === 0) return '';
-  return `<section class="jcd-shokumukeirekisho__section jcd-shokumukeirekisho__section--education"><h2>学歴</h2><ul>${items.join('')}</ul></section>`;
+  const items = (entries ?? []).map(renderEducationEntry);
+  return renderSection({
+    baseClass: 'jcd-shokumukeirekisho',
+    variant: 'education',
+    heading: '学歴',
+    bodyHtml: renderItemList(items),
+  });
 };
 
 // === CSS ===

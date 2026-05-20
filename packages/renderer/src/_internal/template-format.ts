@@ -1,23 +1,20 @@
 // Template-internal formatting helpers. Used by built-in templates
 // (rirekisho-basic, shokumukeirekisho-basic, ...). Not part of public API.
 //
-// 責務分割:
+// 責務:
 //
 // - formatYearMonth / formatDate / formatPeriod / formatAddress
 //   raw display string を返す。HTML へ挿入する直前に caller が
 //   `escapeHtml` を必ず通すこと。helper 内では escape しない
 //   (escape の責務は caller に集約、format helper は string 変換のみ)。
 //
-// - renderTextList
-//   固定 HTML タグと escape 済み item text からなる safe HTML fragment を返す。
-//   helper 内で各 item に `escapeHtml` を適用済み。
-//   呼び出し側は戻り値を **再 escape しない** こと
-//   (再 escape すると `&amp;` が `&amp;amp;` になる事故が発生する)。
-//
 // - isNonEmpty
-//   string 限定の type guard。両方の group に属さない (predicate 専用)。
-
-import { escapeHtml } from './html-escape';
+//   string 限定の type guard。format 系 / HTML rendering 系の両方で
+//   predicate として使われる。
+//
+// HTML fragment 系 helper (renderTextList / renderItemList / renderListItem /
+// renderSection) は `_internal/html-renderer.ts` に移動済み。format = raw
+// string、html-renderer = safe HTML の責務分離を維持する。
 
 const YEAR_MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -48,15 +45,6 @@ export const formatPeriod = (
   if (start === '') return end;
   if (end === '') return start;
   return `${start} - ${end}`;
-};
-
-// renderTextList は raw string array を <ul> として描画する safe HTML fragment を返す。
-// caller は戻り値をそのまま HTML に interpolate する (再 escape しない)。
-export const renderTextList = (items: readonly string[] | undefined): string => {
-  if (items === undefined) return '';
-  const valid = items.filter(isNonEmpty);
-  if (valid.length === 0) return '';
-  return `<ul>${valid.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
 };
 
 // AddressLike は PostalAddress と structural に互換な型。core を import せずに

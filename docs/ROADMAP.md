@@ -57,21 +57,22 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - `feat/renderer-shokumukeirekisho-template` (PR #15): 2 個目の built-in テンプレート `shokumukeirekishoBasicTemplate` (id `shokumukeirekisho-basic` / 名前『職務経歴書（基本）』) を追加。重複 format helper を `_internal/template-format.ts` に抽出 (`rirekishoBasicTemplate` の挙動は完全保持)
 - `feat/renderer-builtin-templates-bundle` (PR #16): built-in テンプレートを束ねる公開 API として `builtinTemplates: readonly TemplateDefinition[]` (Object.freeze で shallow freeze、append-only semantics) と `createDefaultTemplateRegistry(): TemplateRegistry` (createTemplateRegistry の薄い wrapper) を追加
 - `feat/renderer-rirekisho-chronological-table` (PR #17): `rirekishoBasicTemplate` の学歴 / 職歴を年表テーブル形式に in-place で書き換え。2 列構造 (年月 / 内容)、入力順保持、`現在に至る` は aggregate で 1 行
+- `feat/renderer-rirekisho-photo` (PR #18): `rirekishoBasicTemplate` に dataUri 限定で profilePhoto 描画を in-place 追加 (`<img>` の src / alt は escapeHtml 経由で double-quoted attribute、header に flex layout の photo container 追加)。relativePath は本 PR では一切 render しない (asset resolution / URL policy 未確定のため別 PR)。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / `shokumukeirekisho-basic` はすべて無変更
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-rirekisho-photo` (PR #18): `rirekishoBasicTemplate` に dataUri 限定で profilePhoto 描画を in-place 追加 (`<img>` の src / alt は escapeHtml 経由で double-quoted attribute、header に flex layout の photo container 追加)。relativePath は本 PR では一切 render しない (asset resolution / URL policy 未確定のため別 PR)。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / `shokumukeirekisho-basic` はすべて無変更
+- `feat/renderer-html-renderer` (PR #19): output-preserving refactor。両 built-in template の重複 HTML 組み立てを `_internal/html-renderer.ts` の 4 個の helper (`renderSection` / `renderItemList` / `renderListItem` / `renderTextList`) に抽出。既存 `renderTextList` は HTML 系 helper の責務統一のため `_internal/template-format.ts` から移動。`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` / CSS / template 出力すべて完全無変更 (byte-for-byte 同一)
 
 ### 次 PR 候補
 
 - `feat/renderer-relativepath-asset-resolution`: `RenderInput` に asset resolver port を追加し、`profilePhoto.source.kind === 'relativePath'` を解決できるようにする (privacy / scheme allowlist を含む URL policy 設計を含む)
-- `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) の追加抽出 (3 個目の template で更なる重複が見えた時点で着手)
 
-どの PR を先にやるかは `feat/renderer-rirekisho-photo` マージ後に別途決定します。
+どの PR を先にやるかは `feat/renderer-html-renderer` マージ後に別途決定します。
 
 ### 未確定論点
 
 - 共通 CSS の方針 (現在 rirekisho / shokumukeirekisho 共に独立 CSS、3 個目の template で共通化を再評価)
+- `_internal/html-renderer.ts` の helper 拡張余地 (`<dl>` definition list helper / `<div class="...__detail">` wrapper helper など) — 必要性が顕在化した時点で別 PR で議論。本 PR は 4 helper (`renderSection` / `renderItemList` / `renderListItem` / `renderTextList`) に scope を絞った
 - テンプレート `manifest.json` のスキーマ (`packages/templates` を立てるタイミングと併せて議論)
 - テンプレートの検証戦略 (Core スキーマとの整合、template-specific export readiness)
 - `packages/templates` を導入するタイミング (現在 2 個の built-in が `packages/renderer/src/templates/` 内に住む、3 個目以降で moving を再検討)
