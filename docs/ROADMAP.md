@@ -55,18 +55,18 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - `feat/renderer-template-registry` (PR #13): template contract (`RenderInput` / `TemplateId` / `TemplateRenderer` / `TemplateDefinition` / `TemplateRegistry`) + `createTemplateRegistry` / `renderDocument` + `RendererError` を最小構成で確立 (fake template で挙動を検証)
 - `feat/renderer-rirekisho-template` (PR #14): 最初の built-in テンプレート `rirekishoBasicTemplate` (id `rirekisho-basic` / 名前『履歴書（基本）』) を `packages/renderer/src/templates/` に追加
 - `feat/renderer-shokumukeirekisho-template` (PR #15): 2 個目の built-in テンプレート `shokumukeirekishoBasicTemplate` (id `shokumukeirekisho-basic` / 名前『職務経歴書（基本）』) を追加。重複 format helper を `_internal/template-format.ts` に抽出 (`rirekishoBasicTemplate` の挙動は完全保持)
+- `feat/renderer-builtin-templates-bundle` (PR #16): built-in テンプレートを束ねる公開 API として `builtinTemplates: readonly TemplateDefinition[]` (Object.freeze で shallow freeze、append-only semantics) と `createDefaultTemplateRegistry(): TemplateRegistry` (createTemplateRegistry の薄い wrapper) を追加
 
 ### 進行中 / 直近マージ予定
 
-- `feat/renderer-builtin-templates-bundle` (PR #16): built-in テンプレートを束ねる公開 API として `builtinTemplates: readonly TemplateDefinition[]` (Object.freeze で shallow freeze、append-only semantics) と `createDefaultTemplateRegistry(): TemplateRegistry` (createTemplateRegistry の薄い wrapper) を追加。既存テンプレート / contract / registry / renderDocument の挙動は完全無変更
+- `feat/renderer-rirekisho-chronological-table`: `rirekishoBasicTemplate` の学歴 / 職歴を年表テーブル形式に **in-place で書き換え** (新規テンプレートは追加しない、`templateId` / 公開 API / `builtinTemplates` / `createDefaultTemplateRegistry` はすべて無変更)。2 列構造 (年月 / 内容)、入力順保持、`現在に至る` は aggregate で 1 行。responsibilities / achievements / summary は履歴書では描画せず職務経歴書側の責務とする
 
 ### 次 PR 候補
 
-- `feat/renderer-rirekisho-chronological-table`: 教育歴 + 職歴を年表テーブルにマージする JIS 風 layout (`年` / `月` / `事項` の 3 列)
 - `feat/renderer-rirekisho-photo`: profilePhoto を dataUri 限定で render (URL policy / file system access は scope 外)
 - `feat/renderer-html-renderer`: template-agnostic な HTML 生成ヘルパー (見出し / リスト / 表) の追加抽出 (3 個目の template で更なる重複が見えた時点で着手)
 
-どの PR を先にやるかは `feat/renderer-builtin-templates-bundle` マージ後に別途決定します。
+どの PR を先にやるかは `feat/renderer-rirekisho-chronological-table` マージ後に別途決定します。
 
 ### 未確定論点
 
@@ -79,6 +79,8 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - core import policy: 既存 `rirekisho-basic.ts` の direct core import を indexed access types に揃えるか (将来の clean-up PR 候補)
 - `builtinTemplates` の deep freeze (template 本体の field 書き換えを防ぐか) — 必要になれば別 PR で対応
 - `createDefaultTemplateRegistry` の caching (現状無キャッシュで毎回新規インスタンス、有用な利用パターンが見えた時点で再評価)
+- rirekisho 年表の 3 列化 (`年 / 月 / 事項` の JIS 風) — 本 PR は 2 列、3 列は別 PR (`feat/renderer-rirekisho-jis-table` 等) で年・月分割の helper 設計を含めて議論
+- テンプレート出力の後方互換性 / versioning policy: 現在は Phase 2 改善フェーズで in-place 変更を許容、出力安定性を固定する段階で新規 templateId / versioning / migration policy を検討
 
 ## Phase 3 — ローカルファイルストレージ
 
