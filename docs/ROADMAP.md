@@ -23,6 +23,7 @@
 - `feat/core-schema` (PR #3): `CareerProfile` foundations、`schemaVersion`、値オブジェクト (`PersonName`, `PersonKana`, `IsoDateString`, `IsoYearMonthString`, `EmailAddress`, `PhoneNumber`, `PostalAddress`)、parse / safeParse、ISO 8601 検証、ADR 0003 / 0004 を導入
 - `feat/core-work-experience` (PR #5): `WorkExperience` ドメインモデルと `WorkPeriod` (`startDate` / `endDate` / `isCurrent`)、`CareerProfile.workExperiences` を追加。`companyName` 等は optional (draft tolerance)、`isCurrent` は明示フィールド
 - `feat/core-education` (PR #6): `Education` ドメインモデルと `CareerProfile.educationHistory` を追加。`institutionName` / `faculty` / `department` / `degree` / `startDate` / `endDate` / `status` / `description` を持つ。`WorkPeriod` は再利用せず、Education 専用の日付フィールドを inline で持つ。在学中等の状態は free string の `status` で表現 (`isCurrent` 不採用)
+- `feat/core-skills-and-certifications` (進行中): `Skill` と `Certification` ドメインモデル、`CareerProfile.skills` / `CareerProfile.certifications` を追加。`Skill` は技術に限定せず category / level / description で表現。`Certification` は IsoYearMonthString の `acquiredDate` / `expirationDate` を持ち、`credentialUrl` は plain string + 最大長で保持。`yearsOfExperience` および URL value object は採用しない
 
 ### 未確定論点の現状
 
@@ -34,11 +35,10 @@
 
 ### 残りの Phase 1 増分 PR 候補
 
-- `feat/core-skills-and-certifications` (**次の推奨**): `Skill` 列挙、`Certification` (資格名、取得日、認定団体)
-- `feat/core-projects`: `Project` (プロジェクト名、期間、役割、技術スタック)
+- `feat/core-projects` (**次の推奨**): `Project` (プロジェクト名、期間、役割、技術スタック)
 - `feat/core-attachments`: 証明写真の参照型 (data URI vs file path)
 
-3 つ目のドメインモデル (Skill / Certification / Project のいずれか) で `nonBlankText` のような共通 text validator パターンが繰り返し必要になった場合、`domain/_internal/text-validators.ts` のような場所への抽出を別 refactor PR で検討する。同様に、期間表現が共通化できる場合は `refactor(core): extract Period value object` を検討する。
+Phase 1 完了時点 (Project / Attachments 追加後) で `nonBlankText` のような共通 text validator パターンが 5 モジュール以上で重複している場合、`domain/_internal/text-validators.ts` のような場所への抽出を別 refactor PR (`refactor(core): extract shared text validators`) で検討する。同様に、期間表現が共通化できる場合は `refactor(core): extract Period value object` を検討する。
 
 ### `feat/core-validation` 単独 PR は不要
 

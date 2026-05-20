@@ -1,5 +1,6 @@
 export type {
   CareerProfile,
+  Certification,
   Education,
   EmailAddress,
   IsoDateString,
@@ -10,6 +11,7 @@ export type {
   PhoneNumber,
   PostalAddress,
   SchemaVersion,
+  Skill,
   ValidationIssue,
   WorkExperience,
   WorkPeriod,
