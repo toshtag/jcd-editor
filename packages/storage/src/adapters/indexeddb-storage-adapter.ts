@@ -8,10 +8,9 @@
 // - production default: 'jcd-editor' / 'profiles' / new Date().toISOString() /
 //   crypto.randomUUID()
 // - raw IndexedDB API のみ使用、idb / dexie / localforage 等の wrapper 不採用
-// - keyPath: 'metadata.id' (nested path、objectStore に格納する StoredProfile の
-//   metadata.id を主キーとして利用)
-// - index は作らない (listProfiles は in-memory sort)
-// - database version は 1 固定、migration / upgrade は別 PR の責務
+// - profile store keyPath: 'metadata.id' (nested path)
+// - metadata store keyPath: 'id'
+// - listProfiles は metadata store のみを読み、profile body を展開しない
 //
 // transaction lifecycle (重要、auto-commit 回避):
 //
@@ -45,7 +44,7 @@ import type {
 
 const DEFAULT_DATABASE_NAME = 'jcd-editor';
 const DEFAULT_STORE_NAME = 'profiles';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 export type IndexedDbStorageAdapterOptions = {
   /** Database name. Default: 'jcd-editor' */
@@ -58,13 +57,48 @@ export type IndexedDbStorageAdapterOptions = {
   generateId?: () => StoredProfileId;
 };
 
-const openDatabase = (databaseName: string, storeName: string): Promise<IDBDatabase> =>
+const metadataStoreNameFor = (storeName: string): string => `${storeName}__metadata`;
+
+const hasStoredProfileMetadata = (value: unknown): value is StoredProfile => {
+  if (typeof value !== 'object' || value === null) return false;
+  if (!('metadata' in value)) return false;
+  const metadata = value.metadata;
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    'id' in metadata &&
+    typeof metadata.id === 'string'
+  );
+};
+
+const openDatabase = (
+  databaseName: string,
+  storeName: string,
+  metadataStoreName: string,
+): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     const request = indexedDB.open(databaseName, DATABASE_VERSION);
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result;
+      const tx = request.transaction;
       if (!db.objectStoreNames.contains(storeName)) {
         db.createObjectStore(storeName, { keyPath: 'metadata.id' });
+      }
+      const metadataStore = db.objectStoreNames.contains(metadataStoreName)
+        ? tx?.objectStore(metadataStoreName)
+        : db.createObjectStore(metadataStoreName, { keyPath: 'id' });
+
+      if (event.oldVersion > 0 && tx !== null && metadataStore !== undefined) {
+        const profileStore = tx.objectStore(storeName);
+        const cursorRequest = profileStore.openCursor();
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result;
+          if (cursor === null) return;
+          if (hasStoredProfileMetadata(cursor.value)) {
+            metadataStore.put(cursor.value.metadata);
+          }
+          cursor.continue();
+        };
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -91,21 +125,23 @@ export const createIndexedDbStorageAdapter = (
 ): StoragePort => {
   const databaseName = options.databaseName ?? DEFAULT_DATABASE_NAME;
   const storeName = options.storeName ?? DEFAULT_STORE_NAME;
+  const metadataStoreName = metadataStoreNameFor(storeName);
   const now = options.now ?? (() => new Date().toISOString());
   const generateId = options.generateId ?? (() => crypto.randomUUID());
 
   let dbPromise: Promise<IDBDatabase> | undefined;
   const getDatabase = (): Promise<IDBDatabase> => {
     if (dbPromise === undefined) {
-      dbPromise = openDatabase(databaseName, storeName);
+      dbPromise = openDatabase(databaseName, storeName, metadataStoreName);
     }
     return dbPromise;
   };
 
   const saveProfile = async (input: SaveProfileInput): Promise<StoredProfile> => {
     const db = await getDatabase();
-    const tx = db.transaction(storeName, 'readwrite');
+    const tx = db.transaction([storeName, metadataStoreName], 'readwrite');
     const store = tx.objectStore(storeName);
+    const metadataStore = tx.objectStore(metadataStoreName);
 
     const id = input.id ?? generateId();
     let stored: StoredProfile | undefined;
@@ -126,6 +162,7 @@ export const createIndexedDbStorageAdapter = (
       // get の onsuccess 内 (synchronous tick) で put を発行
       // → transaction が auto-commit される前に次 request がキューされる
       store.put(stored);
+      metadataStore.put(stored.metadata);
     };
 
     await waitForTransaction(tx);
@@ -154,16 +191,17 @@ export const createIndexedDbStorageAdapter = (
 
   const listProfiles = async (): Promise<readonly StoredProfileMetadata[]> => {
     const db = await getDatabase();
-    const tx = db.transaction(storeName, 'readonly');
-    const store = tx.objectStore(storeName);
-    const all = await promisifyRequest<StoredProfile[]>(store.getAll());
-    return all.map((s) => s.metadata).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const tx = db.transaction(metadataStoreName, 'readonly');
+    const store = tx.objectStore(metadataStoreName);
+    const all = await promisifyRequest<StoredProfileMetadata[]>(store.getAll());
+    return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   };
 
   const deleteProfile = async (id: StoredProfileId): Promise<void> => {
     const db = await getDatabase();
-    const tx = db.transaction(storeName, 'readwrite');
+    const tx = db.transaction([storeName, metadataStoreName], 'readwrite');
     const store = tx.objectStore(storeName);
+    const metadataStore = tx.objectStore(metadataStoreName);
 
     let found = false;
 
@@ -173,6 +211,7 @@ export const createIndexedDbStorageAdapter = (
         found = true;
         // get の onsuccess 内 (synchronous tick) で delete を発行
         store.delete(id);
+        metadataStore.delete(id);
       }
       // 存在しない場合は何もしない (transaction は no-op で commit)
     };
