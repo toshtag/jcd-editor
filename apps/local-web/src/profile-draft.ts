@@ -68,6 +68,7 @@ export type DraftSections = {
   // に揃える。UI 上の概念名は「学歴」「education」だが、draft merge では schema
   // 側のキーを使い、中間マッピングを発明しない。
   educationHistory?: readonly Record<string, unknown>[];
+  skills?: readonly Record<string, unknown>[];
 };
 
 export const buildDraft = (
@@ -83,6 +84,9 @@ export const buildDraft = (
   }
   if (sections.educationHistory !== undefined) {
     result.educationHistory = sections.educationHistory;
+  }
+  if (sections.skills !== undefined) {
+    result.skills = sections.skills;
   }
   return result;
 };
