@@ -2,11 +2,12 @@
 //
 // 役割:
 //   - sample CareerProfile input を safeParseCareerProfile で runtime 検証
-//   - basics 編集 form を提供、入力ごとに raw draft を構築 → parse → success なら render
+//   - basics + workExperiences 編集 form を提供、入力ごとに raw draft を構築
+//     → parse → success なら render
 //   - createDefaultTemplateRegistry + renderDocument で render
 //   - iframe.srcdoc に preview として表示 (buildPreviewDocument で完全 HTML 化)
 //   - 履歴書 / 職務経歴書 の kind switcher
-//   - manual Save / Load via IndexedDB (本 PR で追加)
+//   - manual Save / Load via IndexedDB
 //
 // 制約:
 //   - @jcd-editor/pdf は import しない (Playwright は browser bundle に入らない)
@@ -19,7 +20,18 @@
 //   - 保存対象は last-valid profile のみ (Save button は invalid 中 disable)
 //   - DOM 操作は createElement + textContent + replaceChildren のみ、innerHTML 不使用 (XSS 回避)
 //
-// draftBase 問題への対応 (本 PR の核心):
+// workExperiences (本 PR で追加):
+//   - DOM を state として扱う pattern: 各 entry は `<section data-index>` で表現、
+//     内部 input / textarea / checkbox は `data-field` で identify。JS 側で state を
+//     別途持たない。`readWorkExperiencesFromForm()` で DOM walk して values を取得
+//   - UI rebuild は add / remove / load 時のみ、text input 時は rebuild しない
+//     (focus 保持)
+//   - event delegation: workExperiencesList container に input listener と click
+//     listener を 1 つずつ
+//   - 完全空の entry は `buildWorkExperiencesFromForm` で除外 (UI には残るが draft
+//     / preview / 保存対象には流さない、UX ノイズ回避)
+//
+// draftBase 問題への対応:
 //   - form input 成功時 / load 成功時に draftBase を current profile に update
 //   - 初期は sampleProfileInput を base、load 後は loaded profile を base
 //   - これにより load 後の form 編集で他 section が sample fixture に戻る重大バグを防止
@@ -44,6 +56,13 @@ import {
 } from './profile-draft';
 import { sampleProfileInput } from './sample-profile';
 import { formatStoredProfileOption } from './storage-ui';
+import {
+  buildWorkExperiencesFromForm,
+  createWorkExperienceItemElement,
+  emptyWorkExperienceFormValues,
+  populateWorkExperiencesForm,
+  readWorkExperiencesFromForm,
+} from './work-experiences-form';
 
 const requireElement = <T extends Element>(id: string, ctor: new () => T): T => {
   const el = document.getElementById(id);
@@ -60,6 +79,8 @@ const validationIssuesPre = requireElement('basics-validation-issues', HTMLPreEl
 const saveButton = requireElement('save-button', HTMLButtonElement);
 const loadButton = requireElement('load-button', HTMLButtonElement);
 const profileSelect = requireElement('saved-profile-select', HTMLSelectElement);
+const workExperiencesList = requireElement('work-experiences-list', HTMLDivElement);
+const addWorkExperienceButton = requireElement('add-work-experience-button', HTMLButtonElement);
 const statusEl = document.getElementById('status');
 const errorArea = document.getElementById('error-area');
 
@@ -156,7 +177,12 @@ if (!parsed.success) {
   const registry = createDefaultTemplateRegistry();
   const storage = createIndexedDbStorageAdapter();
 
-  populateForm(profile.basics);
+  const populateAll = (loaded: CareerProfile): void => {
+    populateForm(loaded.basics);
+    populateWorkExperiencesForm(workExperiencesList, loaded.workExperiences);
+  };
+
+  populateAll(profile);
 
   const renderAndUpdate = (kind: DocumentKind): void => {
     try {
@@ -214,7 +240,10 @@ if (!parsed.success) {
 
   const onFormInput = (): void => {
     const basics = buildBasicsFromForm(readFormValues());
-    const draft = buildDraft(basics, draftBase);
+    const workExperiences = buildWorkExperiencesFromForm(
+      readWorkExperiencesFromForm(workExperiencesList),
+    );
+    const draft = buildDraft({ basics, workExperiences }, draftBase);
     const result = safeParseCareerProfile(draft);
     if (result.success) {
       profile = result.data;
@@ -262,7 +291,7 @@ if (!parsed.success) {
       currentProfileId = stored.metadata.id;
       draftBase = stored.profile as unknown as Record<string, unknown>;
       isCurrentDraftValid = true;
-      populateForm(stored.profile.basics);
+      populateAll(stored.profile);
       clearValidationIssues();
       renderAndUpdate(currentKind);
       showStatus('保存済みプロフィールを読み込みました');
@@ -274,7 +303,37 @@ if (!parsed.success) {
     }
   };
 
+  const renumberWorkExperienceItems = (): void => {
+    workExperiencesList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
+      el.dataset.index = String(i);
+      const legend = el.querySelector('.work-experience-item__legend');
+      if (legend !== null) {
+        legend.textContent = `職歴 ${i + 1}`;
+      }
+    });
+  };
+
   formEl.addEventListener('input', onFormInput);
+  workExperiencesList.addEventListener('input', onFormInput);
+  workExperiencesList.addEventListener('change', onFormInput);
+
+  workExperiencesList.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action !== 'remove') return;
+    const item = target.closest<HTMLElement>('[data-index]');
+    if (item === null) return;
+    item.remove();
+    renumberWorkExperienceItems();
+    onFormInput();
+  });
+
+  addWorkExperienceButton.addEventListener('click', () => {
+    const currentCount = workExperiencesList.querySelectorAll('[data-index]').length;
+    const element = createWorkExperienceItemElement(currentCount, emptyWorkExperienceFormValues());
+    workExperiencesList.appendChild(element);
+    onFormInput();
+  });
 
   kindSelector.addEventListener('change', () => {
     const value = kindSelector.value;
