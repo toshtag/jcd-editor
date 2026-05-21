@@ -148,11 +148,7 @@ describe('buildEducationFromForm', () => {
       institutionName: 'サンプル大学',
     };
     expect(
-      buildEducationFromForm([
-        emptyEducationFormValues(),
-        nonEmpty,
-        emptyEducationFormValues(),
-      ]),
+      buildEducationFromForm([emptyEducationFormValues(), nonEmpty, emptyEducationFormValues()]),
     ).toEqual([{ institutionName: 'サンプル大学' }]);
   });
 });

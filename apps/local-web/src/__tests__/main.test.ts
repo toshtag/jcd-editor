@@ -200,7 +200,9 @@ describe('local-web main flow', () => {
     const removeButtons = document.querySelectorAll<HTMLButtonElement>(
       '#education-list [data-action="remove"]',
     );
-    removeButtons.forEach((b) => b.click());
+    removeButtons.forEach((b) => {
+      b.click();
+    });
 
     button('add-education-button').click();
     const institutionInput = document.querySelector<HTMLInputElement>(
@@ -250,7 +252,9 @@ describe('local-web main flow', () => {
       '#education-list [data-action="remove"]',
     );
     expect(removeButtons.length).toBeGreaterThan(0);
-    removeButtons.forEach((b) => b.click());
+    removeButtons.forEach((b) => {
+      b.click();
+    });
 
     // この時点で preview に「サンプル大学」が残っていないこと
     expect(document.querySelectorAll('#education-list [data-index]')).toHaveLength(0);

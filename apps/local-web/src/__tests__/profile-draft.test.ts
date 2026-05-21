@@ -148,10 +148,7 @@ describe('buildDraft', () => {
 
   it('educationHistory に entry を渡す: baseFixture の educationHistory を override', () => {
     const customEducation = [{ institutionName: 'サンプル工科大学' }];
-    const draft = buildDraft(
-      { basics: {}, educationHistory: customEducation },
-      sampleProfileInput,
-    );
+    const draft = buildDraft({ basics: {}, educationHistory: customEducation }, sampleProfileInput);
     expect(draft.educationHistory).toBe(customEducation);
     expect(draft.workExperiences).toBe(sampleProfileInput.workExperiences);
   });
