@@ -107,6 +107,7 @@ const formEl = requireElement('basics-form', HTMLFormElement);
 const validationIssuesPre = requireElement('basics-validation-issues', HTMLPreElement);
 const saveButton = requireElement('save-button', HTMLButtonElement);
 const loadButton = requireElement('load-button', HTMLButtonElement);
+const deleteButton = requireElement('delete-button', HTMLButtonElement);
 const profileSelect = requireElement('saved-profile-select', HTMLSelectElement);
 const workExperiencesList = requireElement('work-experiences-list', HTMLDivElement);
 const addWorkExperienceButton = requireElement('add-work-experience-button', HTMLButtonElement);
@@ -249,6 +250,7 @@ if (!parsed.success) {
   const updateButtonStates = (): void => {
     saveButton.disabled = !isCurrentDraftValid || isStorageBusy;
     loadButton.disabled = profileSelect.value === '' || isStorageBusy;
+    deleteButton.disabled = profileSelect.value === '' || isStorageBusy;
   };
 
   const handleStorageError = (error: unknown, userMessage: string): void => {
@@ -448,6 +450,46 @@ if (!parsed.success) {
     }
   };
 
+  const onDelete = async (): Promise<void> => {
+    if (isStorageBusy) return;
+    const id = profileSelect.value;
+    if (id === '') return;
+
+    // 削除対象の label を dropdown の表示文字列から取得する (ユーザーが見ている
+    // のと同じ表現を confirm に出す)。option がない異常系では id を fallback。
+    const selectedOption = profileSelect.options[profileSelect.selectedIndex];
+    const label = selectedOption?.textContent ?? id;
+
+    // undo なし。confirm 文言で明示する。
+    const confirmed = window.confirm(
+      `「${label}」を削除します。この操作は取り消せません。続行しますか?`,
+    );
+    if (!confirmed) {
+      showStatus('削除をキャンセルしました');
+      return;
+    }
+
+    isStorageBusy = true;
+    updateButtonStates();
+    try {
+      await storage.deleteProfile(id);
+      // 削除した profile が現在編集中のものなら、id を切り離して未保存 draft に
+      // する (form / preview は維持: ユーザーが内容を別 profile として再保存
+      // したいかもしれない)。
+      if (currentProfileId === id) {
+        currentProfileId = undefined;
+      }
+      await refreshSavedProfileList();
+      profileSelect.value = '';
+      showStatus('プロフィールを削除しました');
+    } catch (error) {
+      handleStorageError(error, '削除に失敗しました');
+    } finally {
+      isStorageBusy = false;
+      updateButtonStates();
+    }
+  };
+
   const renumberWorkExperienceItems = (): void => {
     workExperiencesList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
       el.dataset.index = String(i);
@@ -614,6 +656,10 @@ if (!parsed.success) {
 
   loadButton.addEventListener('click', () => {
     void onLoad();
+  });
+
+  deleteButton.addEventListener('click', () => {
+    void onDelete();
   });
 
   profileSelect.addEventListener('change', updateButtonStates);

@@ -85,6 +85,7 @@ const setupDom = (): void => {
     <button type="button" id="save-button">保存</button>
     <select id="saved-profile-select"><option value="">(選択してください)</option></select>
     <button type="button" id="load-button" disabled>読み込み</button>
+    <button type="button" id="delete-button" disabled>削除</button>
     <button type="button" id="export-button">JSON エクスポート</button>
     <input type="file" id="import-file-input" />
     <form id="basics-form">
@@ -592,6 +593,124 @@ describe('local-web main flow', () => {
     // load 後もプロジェクトが空のまま (再混入しない)
     expect(document.querySelectorAll('#projects-list [data-index]')).toHaveLength(0);
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
+  });
+
+  describe('プロファイル削除', () => {
+    it('未選択時: 削除ボタンは disabled', async () => {
+      await importMain();
+      expect(button('delete-button').disabled).toBe(true);
+    });
+
+    it('confirm OK: storage から削除されて dropdown から消える', async () => {
+      await importMain();
+
+      // 1 件保存
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+
+      // dropdown で選択
+      select('saved-profile-select').value = 'profile-1';
+      select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
+      expect(button('delete-button').disabled).toBe(false);
+
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      button('delete-button').click();
+      await flushPromises();
+
+      const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
+      expect(options.filter((v) => v !== '')).toHaveLength(0);
+      expect(button('delete-button').disabled).toBe(true);
+      expect(document.getElementById('status')?.textContent).toBe('プロフィールを削除しました');
+
+      vi.restoreAllMocks();
+    });
+
+    it('confirm キャンセル: storage 操作なし、status のみ更新', async () => {
+      await importMain();
+
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+
+      select('saved-profile-select').value = 'profile-1';
+      select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
+
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      button('delete-button').click();
+      await flushPromises();
+
+      const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
+      expect(options.filter((v) => v !== '')).toHaveLength(1);
+      expect(document.getElementById('status')?.textContent).toBe('削除をキャンセルしました');
+
+      vi.restoreAllMocks();
+    });
+
+    it('現在編集中の profile を削除: currentProfileId を切り離し、次の save は新規 id で作成される', async () => {
+      await importMain();
+
+      // 保存して current にする
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+
+      // 1 件目を選択して削除
+      select('saved-profile-select').value = 'profile-1';
+      select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      button('delete-button').click();
+      await flushPromises();
+
+      // form は維持されている (currentProfileId は切り離されただけ)
+      expect(input('name-family').value).toBe('佐藤');
+      expect(preview().srcdoc).toContain('佐藤');
+
+      // 再 save すると新規 id (profile-2) で作成される
+      button('save-button').click();
+      await flushPromises();
+      const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
+      expect(options).toContain('profile-2');
+      expect(options).not.toContain('profile-1');
+
+      vi.restoreAllMocks();
+    });
+
+    it('storage 失敗: status にエラー表示、profile は dropdown に残る', async () => {
+      await importMain();
+
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+
+      select('saved-profile-select').value = 'profile-1';
+      select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
+
+      // storage.deleteProfile を 1 回だけ失敗させる (mock adapter の deleteProfile を override)
+      const originalDelete = storageState.adapter.deleteProfile;
+      storageState.adapter.deleteProfile = async () => {
+        throw new Error('storage offline');
+      };
+
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      button('delete-button').click();
+      await flushPromises();
+
+      const errorArea = document.getElementById('error-area');
+      expect(errorArea?.hidden).toBe(false);
+      expect(errorArea?.textContent).toContain('削除に失敗しました');
+      // dropdown は変わらない (再 fetch していない)
+      const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
+      expect(options).toContain('profile-1');
+
+      // teardown: 元の adapter を戻す
+      storageState.adapter.deleteProfile = originalDelete;
+      vi.restoreAllMocks();
+    });
   });
 
   describe('JSON export / import', () => {
