@@ -85,42 +85,52 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 `StoragePort` と `FileStorageAdapter` を実装し、`CareerProfile` をユーザー指定ディレクトリの JSON ファイルとして永続化します。SQLite は将来候補であり、Phase 3 の対象ではありません。
 
-## Phase 4 — 最小ローカル Web UI (A4 HTML プレビューを含む)
+## Phase 4 — 最小ローカル Web UI (進行中)
 
 バックエンドなしでローカル実行できる最小限のブラウザベースエディタ。左ペイン: 構造化入力フォーム。右ペイン: `packages/renderer` を通した A4 サイズの HTML プレビュー。上部: 保存 / 読み込み / エクスポート。
 
-**初期候補:** Vite + Vanilla TypeScript。これは不可逆な決定ではなく、UI フレームワーク選定は `chore/repo-setup` または本フェーズ着手時に再検討する余地があります。
+**stack:** Vite + Vanilla TypeScript (skeleton PR で確定)。
 
-## Phase 5 — ローカル PDF 生成 (進行中)
+### 進行中 / 直近マージ予定
+
+- `feat/local-web-skeleton` (PR 番号は作成後反映): `apps/local-web` に Vite + Vanilla TS の最小 skeleton を立て、`safeParseCareerProfile` → `renderDocument` → iframe `srcdoc` (`sandbox=""`) で A4 preview を表示。履歴書 / 職務経歴書 の kind switcher。**`@jcd-editor/pdf` は import しない** (Playwright は browser bundle に入らない)。React/Vue/Svelte/UI ライブラリ/state ライブラリ/router 一切なし。編集 / 保存 / PDF export なし。root `tsconfig.json` の `include` から `apps/*` を除外し、app は per-app tsconfig (DOM lib + `vite/client` types) + CI の app typecheck step で覆う
+
+### 次 PR 候補
+
+- `feat/local-web-edit-form-basics`: basics 編集 form (氏名 / メール / 電話 等の最小入力)
+- `feat/storage-port-foundation`: Phase 3 着手、Storage 経由で save/load を成立させる準備
+- `feat/local-web-pdf-export`: server-side PDF generation 統合の architecture 設計 (`@jcd-editor/pdf` を **app から直接 import しない** で bridge 経由にする等)
+- `feat/renderer-relativepath-asset-resolution`: Phase 2 残課題 (PDF rendering / preview で profilePhoto.relativePath の制限が顕在化するため優先度上がる可能性)
+
+### 未確定論点
+
+- A4 比率の preview sizing 戦略 (CSS aspect-ratio / iframe zoom / 印刷時の page break preview)
+- sample fixture の構造化 (`packages/test-fixtures` 等への抽出を将来検討)
+- app-local state management の必要性 (現在は module-level 変数、edit form 追加時に再評価)
+- `apps/local-web` から `@jcd-editor/pdf` を呼ぶ architecture (Playwright は Node 専用、browser から PDF 生成を triggers するための bridge 設計 = local server / Tauri 等が別 PR の課題)
+- root `tsconfig.json` から apps を除外した分の典型化 (将来 app が増えた時に root config をどう扱うか)
+
+## Phase 5 — ローカル PDF 生成
 
 A4 HTML プレビューを完全ローカルで PDF 化します。Playwright を用いた `PdfPort` + `PlaywrightPdfAdapter` で実装します。PDF 生成は外部サービスへデータを送信してはなりません。
-
-Phase 3 (Storage) / Phase 4 (UI) より先に着手することをユーザーが決定。理由は renderer foundation が安定したタイミングで PDF 境界を先に固定し、UI 着手時に PDF 統合の不確実性を持ち込まないため。
 
 ### 完了済み
 
 - `feat/pdf-port-foundation` (PR #20): `packages/pdf` に `PdfPort` / `PdfRenderResult` / `PdfRenderMetadata` / `PdfError` を最小 surface で導入。実 PDF 生成 (Playwright / Puppeteer / pdf-lib 等) は含まない。`PdfPort` の shape は provisional として、本 adapter PR で実装目線の見直しを許容する設計だった
-
-### 進行中 / 直近マージ予定
-
 - `feat/pdf-playwright-adapter` (PR #21): `createPlaywrightPdfAdapter` factory を `@jcd-editor/pdf` に追加し、`PdfPort` を満たす最初の実 adapter を実装。`playwright` を runtime dependency に追加、CI に `playwright install chromium --with-deps` ステップを 1 つ追加。`PdfPort` / `PdfError` / `PdfErrorCode` shape は **完全無変更** (provisional 宣言の正当性を実装で確認)。local-first 多層防御 (`setContent` 限定 / JS disable / `data:` `about:` 以外を `route.abort()` / `<base>` tag なし)。ファイル書き出し / UI / CLI / Storage 統合 / asset resolution は本 PR で扱わない
-
-### 次 PR 候補
-
-- `feat/pdf-file-export` (or `feat/local-web-skeleton` / `feat/storage-port-foundation`): file 保存 / UI / Storage のいずれかを次に着手 (本 PR マージ後に判断機会)
-- `feat/renderer-relativepath-asset-resolution` (Phase 2 残課題、PDF rendering で profilePhoto.relativePath の制限が顕在化するため優先度上がる可能性)
 
 ### 未確定論点
 
-- 日本語フォントの選定 (Noto Sans JP、Noto Serif JP、システムフォント) と埋め込み挙動 (本 PR の Playwright integration test で具体性が増す)
+- 日本語フォントの選定 (Noto Sans JP、Noto Serif JP、システムフォント) と埋め込み挙動 (PR #21 の Playwright integration test で具体性が増した)
 - 典型的な履歴書におけるファイルサイズ制約
 - 印刷互換性 (余白、改ページ、写真配置)
-- `PdfRenderOptions` の knob (余白 / 印刷背景 / 拡縮 / metadata 埋め込み) — 本 adapter PR では options 型を導入せず、ユーザー要求が顕在化したら別 PR で追加
-- `PdfErrorCode` の追加 (`PDF_LAUNCH_FAILED` / `PDF_PAGE_LOAD_FAILED` 等) — 本 adapter PR では `PDF_RENDER_FAILED` 1 つを維持、`message` で詳細表現
-- `cause` field の追加判断 — adapter で例外 wrap が必要になれば追加 (本 adapter PR では追加せず、`message` に元 error の text を含める)
+- `PdfRenderOptions` の knob (余白 / 印刷背景 / 拡縮 / metadata 埋め込み) — ユーザー要求が顕在化したら別 PR で追加
+- `PdfErrorCode` の追加 (`PDF_LAUNCH_FAILED` / `PDF_PAGE_LOAD_FAILED` 等) — 現状 `PDF_RENDER_FAILED` 1 つを維持
+- `cause` field の追加判断 — 必要になれば追加
 - `~/.cache/ms-playwright` CI caching の費用対効果 (`chore(ci): cache Playwright browsers` として別 PR で検討)
-- `pageCount` を本 PR で omit、将来 PDF parser で取得する選択肢
+- `pageCount` の取得 (将来 PDF parser で対応する選択肢)
 - long-lived browser process / browser pooling の検討 (UI 統合時に再評価)
+- `apps/local-web` から `@jcd-editor/pdf` を呼ぶ architecture (Playwright は Node 専用、browser から PDF 生成を triggers するための bridge 設計 = local server / Tauri 等が別 PR の課題)
 
 ## Phase 6 — インポート / エクスポート
 
