@@ -317,9 +317,12 @@ describe('local-web main flow', () => {
       } as unknown as FileList;
       Object.defineProperty(fileInput(), 'files', { value: fileList, configurable: true });
       fileInput().dispatchEvent(new Event('change', { bubbles: true }));
-      // FileReader / Promise / storage 操作を全て流す
-      await flushPromises();
-      await flushPromises();
+      // FileReader.readAsText は jsdom 上で setTimeout ベースの async。
+      // change handler 内の onImportFile は fire-and-forget で await 不可能。
+      // 一定回数 tick を回して安定させる (timing 依存の flake を避ける)。
+      for (let i = 0; i < 10; i++) {
+        await flushPromises();
+      }
     };
 
     it('export ボタン: invalid draft では download せずエラー表示する', async () => {
