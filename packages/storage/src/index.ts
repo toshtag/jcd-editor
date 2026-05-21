@@ -6,3 +6,7 @@ export type {
   StoredProfileId,
   StoredProfileMetadata,
 } from './storage-port';
+export {
+  createIndexedDbStorageAdapter,
+  type IndexedDbStorageAdapterOptions,
+} from './adapters/indexeddb-storage-adapter';

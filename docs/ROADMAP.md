@@ -85,27 +85,34 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 `StoragePort` と `FileStorageAdapter` を実装し、`CareerProfile` をユーザー指定ディレクトリの JSON ファイルとして永続化します。SQLite は将来候補であり、Phase 3 の対象ではありません。
 
+### 完了済み
+
+- `feat/storage-port-foundation` (PR #24): `packages/storage` に `StoragePort` / `StoredProfile` / `StoredProfileMetadata` / `SaveProfileInput` / `StoredProfileId` / `StorageError` を最小 surface で導入 (foundation only、実 adapter なし)。`StoragePort` shape は provisional、adapter PR で見直しを許容する設計だった。`storage → core` の type-only 依存。`saveProfile` 単一 method (upsert)、`listProfiles` は `updatedAt 降順`、`loadProfile` / `deleteProfile` missing は `PROFILE_NOT_FOUND` を throw。error code は `PROFILE_NOT_FOUND` 1 個のみ。in-memory fake は contract test 内に閉じる、public export しない
+
 ### 進行中 / 直近マージ予定
 
-- `feat/storage-port-foundation` (PR 番号は作成後反映): `packages/storage` に `StoragePort` / `StoredProfile` / `StoredProfileMetadata` / `SaveProfileInput` / `StoredProfileId` / `StorageError` を最小 surface で導入。実 adapter (localStorage / IndexedDB / FileSystemAccess / Node fs) は **含まない**。`StoragePort` shape は **provisional** であり、次 PR で実装目線の見直しを行い、後方互換しない変更を許容する。`storage → core` の type-only 依存。`@jcd-editor/renderer` / `@jcd-editor/pdf` / `@jcd-editor/templates` / `apps/*` 完全無参照。`saveProfile` 単一 method (upsert)、`listProfiles` は `updatedAt 降順`、`loadProfile` / `deleteProfile` missing は `PROFILE_NOT_FOUND` を throw。error code は `PROFILE_NOT_FOUND` 1 個のみ、`cause` 持たない (PdfError / RendererError 流儀)。in-memory fake は contract test 内に閉じる、public export しない。browser API / Node fs / fetch / network 一切なし
+- `feat/storage-indexeddb-adapter` (PR #25): `packages/storage/src/adapters/indexeddb-storage-adapter.ts` に `createIndexedDbStorageAdapter` factory を追加 (browser IndexedDB 経由で `StoragePort` を満たす最初の実 adapter)。options で `databaseName` / `storeName` / `now` / `generateId` を injectable に (test deterministic + production safe defaults: `'jcd-editor'` / `'profiles'` / `new Date().toISOString()` / `crypto.randomUUID()`)。raw IDB API のみ使用、wrapper library (`idb` / `dexie`) 不採用。keyPath: `metadata.id` (nested)、index なし (listProfiles は in-memory sort)。transaction の auto-commit 回避: `saveProfile` / `deleteProfile` では `get.onsuccess` 内で `put`/`delete` を発行し `waitForTransaction(tx)` で 1 度だけ await。**`StoragePort` / `StorageError` / `StorageErrorCode` shape は完全無変更** (`PROFILE_NOT_FOUND` のみ維持、DOMException は bubble、PR #20 流儀)。DOM lib は per-package tsconfig で追加、root tsconfig から `packages/storage/**` を `exclude` (PR #22 流儀)。CI に `Typecheck storage package` step を 1 つ追加。`fake-indexeddb` を devDep として追加、`fake-indexeddb/auto` で global IDB を populate。**`apps/local-web` への統合は本 PR で扱わない** (save / load UI は別 PR `feat/local-web-save-load-profile`)
 
 ### 次 PR 候補
 
-- `feat/storage-indexeddb-adapter`: browser 用 IndexedDB adapter (idb 等の wrapper 検討、jsdom or playwright 環境での test 戦略を含む)
-- `feat/storage-filesystem-adapter`: Node fs adapter (Tauri / CLI から使う想定)
-- `feat/local-web-save-load-profile`: app から storage を呼ぶ bridge (Phase 4 と並行マージ可)
+- `feat/local-web-save-load-profile`: app から `@jcd-editor/storage` を呼ぶ bridge (Phase 4 と並行マージ可)
+- `feat/storage-filesystem-adapter`: Node fs adapter (Tauri / CLI から使う想定、`StoragePort` を満たす 2 個目の実 adapter)
 
 ### 未確定論点
 
-- 実 adapter の選定 (IndexedDB vs FileSystemAccess vs localStorage)
 - 複数 profile vs 単一 profile の UI 統合戦略
 - profile の rename / metadata 編集 UI
-- migration / versioning policy (`schemaVersion` が変わった時の挙動)
+- migration / versioning policy (`schemaVersion` が変わった時の挙動、database version 1 → 2 upgrade strategy 含む)
 - 暗号化 / compression の判断 (Phase 7 AI 統合時の機密性と関連)
 - draft (invalid 入力) の autosave を別 port (`DraftStorage`) として扱うか、本 port に統合するか
 - port options 型の追加判断 (encryption key / namespace 等)
-- `StorageErrorCode` の追加 (`SCHEMA_VERSION_MISMATCH` / `STORAGE_QUOTA_EXCEEDED` / `STORAGE_LOCKED` / `STORAGE_OPERATION_FAILED` 等) — adapter 実装時に決定
+- `StorageErrorCode` の追加 (`SCHEMA_VERSION_MISMATCH` / `STORAGE_QUOTA_EXCEEDED` / `STORAGE_LOCKED` / `STORAGE_OPERATION_FAILED` 等) — adapter UX 問題が顕在化した段階で決定
 - `cause` field の追加判断 — adapter で例外 wrap が必要になれば追加
+- `StoredProfileId` の brand 化 (現在 plain string)
+- `listProfiles` の order 契約 (現在 `updatedAt 降順` を in-memory sort、>1000 profile 時に IndexedDB index + cursor 最適化を検討)
+- corrupt stored data の検知 / 回復 (現状未実装、adapter が trust する設計)
+- multi-tab consistency / BroadcastChannel (autosave PR で検討)
+- adapter の `close()` / `dispose()` method 追加 (現在 closure で lazy open、明示 close なし)
 - `listProfiles` の order 契約 (現在 `updatedAt 降順`) — real adapter で守れない場合に緩めるか
 - `StoredProfileId` の brand 化 (現在 plain string)
 
