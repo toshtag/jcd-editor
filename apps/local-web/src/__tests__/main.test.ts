@@ -100,6 +100,8 @@ const setupDom = (): void => {
     </form>
     <button type="button" id="add-work-experience-button">職歴を追加</button>
     <div id="work-experiences-list"></div>
+    <button type="button" id="add-education-button">学歴を追加</button>
+    <div id="education-list"></div>
     <iframe id="preview-frame" sandbox=""></iframe>
     <pre id="error-area" hidden></pre>
   `;
@@ -159,7 +161,7 @@ describe('local-web main flow', () => {
 
     expect(input('name-family').value).toBe('山田');
     expect(input('name-given').value).toBe('太郎');
-    expect(document.querySelectorAll('[data-index]')).toHaveLength(1);
+    expect(document.querySelectorAll('#work-experiences-list [data-index]')).toHaveLength(1);
     expect(preview().srcdoc).toContain('履歴書');
     expect(preview().srcdoc).toContain('山田');
     expect(document.getElementById('status')?.textContent).toBe('履歴書を表示中');
