@@ -57,6 +57,13 @@ import {
 import { sampleProfileInput } from './sample-profile';
 import { formatStoredProfileOption } from './storage-ui';
 import {
+  buildEducationFromForm,
+  createEducationItemElement,
+  emptyEducationFormValues,
+  populateEducationForm,
+  readEducationFromForm,
+} from './education-form';
+import {
   buildWorkExperiencesFromForm,
   createWorkExperienceItemElement,
   emptyWorkExperienceFormValues,
@@ -81,6 +88,8 @@ const loadButton = requireElement('load-button', HTMLButtonElement);
 const profileSelect = requireElement('saved-profile-select', HTMLSelectElement);
 const workExperiencesList = requireElement('work-experiences-list', HTMLDivElement);
 const addWorkExperienceButton = requireElement('add-work-experience-button', HTMLButtonElement);
+const educationList = requireElement('education-list', HTMLDivElement);
+const addEducationButton = requireElement('add-education-button', HTMLButtonElement);
 const statusEl = document.getElementById('status');
 const errorArea = document.getElementById('error-area');
 
@@ -180,6 +189,7 @@ if (!parsed.success) {
   const populateAll = (loaded: CareerProfile): void => {
     populateForm(loaded.basics);
     populateWorkExperiencesForm(workExperiencesList, loaded.workExperiences);
+    populateEducationForm(educationList, loaded.educationHistory);
   };
 
   populateAll(profile);
@@ -243,7 +253,8 @@ if (!parsed.success) {
     const workExperiences = buildWorkExperiencesFromForm(
       readWorkExperiencesFromForm(workExperiencesList),
     );
-    const draft = buildDraft({ basics, workExperiences }, draftBase);
+    const educationHistory = buildEducationFromForm(readEducationFromForm(educationList));
+    const draft = buildDraft({ basics, workExperiences, educationHistory }, draftBase);
     const result = safeParseCareerProfile(draft);
     if (result.success) {
       profile = result.data;
@@ -313,9 +324,21 @@ if (!parsed.success) {
     });
   };
 
+  const renumberEducationItems = (): void => {
+    educationList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
+      el.dataset.index = String(i);
+      const legend = el.querySelector('.education-item__legend');
+      if (legend !== null) {
+        legend.textContent = `学歴 ${i + 1}`;
+      }
+    });
+  };
+
   formEl.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('change', onFormInput);
+  educationList.addEventListener('input', onFormInput);
+  educationList.addEventListener('change', onFormInput);
 
   workExperiencesList.addEventListener('click', (e) => {
     const target = e.target;
@@ -328,10 +351,28 @@ if (!parsed.success) {
     onFormInput();
   });
 
+  educationList.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action !== 'remove') return;
+    const item = target.closest<HTMLElement>('[data-index]');
+    if (item === null) return;
+    item.remove();
+    renumberEducationItems();
+    onFormInput();
+  });
+
   addWorkExperienceButton.addEventListener('click', () => {
     const currentCount = workExperiencesList.querySelectorAll('[data-index]').length;
     const element = createWorkExperienceItemElement(currentCount, emptyWorkExperienceFormValues());
     workExperiencesList.appendChild(element);
+    onFormInput();
+  });
+
+  addEducationButton.addEventListener('click', () => {
+    const currentCount = educationList.querySelectorAll('[data-index]').length;
+    const element = createEducationItemElement(currentCount, emptyEducationFormValues());
+    educationList.appendChild(element);
     onFormInput();
   });
 
