@@ -108,6 +108,8 @@ const setupDom = (): void => {
     <div id="skills-list"></div>
     <button type="button" id="add-certification-button">資格を追加</button>
     <div id="certifications-list"></div>
+    <button type="button" id="add-project-button">プロジェクトを追加</button>
+    <div id="projects-list"></div>
     <iframe id="preview-frame" sandbox=""></iframe>
     <pre id="error-area" hidden></pre>
   `;

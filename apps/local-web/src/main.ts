@@ -72,6 +72,13 @@ import {
 } from './education-form';
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import {
+  buildProjectsFromForm,
+  createProjectItemElement,
+  emptyProjectFormValues,
+  populateProjectsForm,
+  readProjectsFromForm,
+} from './projects-form';
+import {
   buildSkillsFromForm,
   createSkillItemElement,
   emptySkillFormValues,
@@ -109,6 +116,8 @@ const skillsList = requireElement('skills-list', HTMLDivElement);
 const addSkillButton = requireElement('add-skill-button', HTMLButtonElement);
 const certificationsList = requireElement('certifications-list', HTMLDivElement);
 const addCertificationButton = requireElement('add-certification-button', HTMLButtonElement);
+const projectsList = requireElement('projects-list', HTMLDivElement);
+const addProjectButton = requireElement('add-project-button', HTMLButtonElement);
 const exportButton = requireElement('export-button', HTMLButtonElement);
 const importFileInput = requireElement('import-file-input', HTMLInputElement);
 const statusEl = document.getElementById('status');
@@ -213,6 +222,7 @@ if (!parsed.success) {
     populateEducationForm(educationList, loaded.educationHistory);
     populateSkillsForm(skillsList, loaded.skills);
     populateCertificationsForm(certificationsList, loaded.certifications);
+    populateProjectsForm(projectsList, loaded.projects);
   };
 
   populateAll(profile);
@@ -281,8 +291,9 @@ if (!parsed.success) {
     const certifications = buildCertificationsFromForm(
       readCertificationsFromForm(certificationsList),
     );
+    const projects = buildProjectsFromForm(readProjectsFromForm(projectsList));
     const draft = buildDraft(
-      { basics, workExperiences, educationHistory, skills, certifications },
+      { basics, workExperiences, educationHistory, skills, certifications, projects },
       draftBase,
     );
     const result = safeParseCareerProfile(draft);
@@ -477,6 +488,16 @@ if (!parsed.success) {
     });
   };
 
+  const renumberProjectItems = (): void => {
+    projectsList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
+      el.dataset.index = String(i);
+      const legend = el.querySelector('.project-item__legend');
+      if (legend !== null) {
+        legend.textContent = `プロジェクト ${i + 1}`;
+      }
+    });
+  };
+
   formEl.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('change', onFormInput);
@@ -486,6 +507,8 @@ if (!parsed.success) {
   skillsList.addEventListener('change', onFormInput);
   certificationsList.addEventListener('input', onFormInput);
   certificationsList.addEventListener('change', onFormInput);
+  projectsList.addEventListener('input', onFormInput);
+  projectsList.addEventListener('change', onFormInput);
 
   workExperiencesList.addEventListener('click', (e) => {
     const target = e.target;
@@ -531,6 +554,17 @@ if (!parsed.success) {
     onFormInput();
   });
 
+  projectsList.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action !== 'remove') return;
+    const item = target.closest<HTMLElement>('[data-index]');
+    if (item === null) return;
+    item.remove();
+    renumberProjectItems();
+    onFormInput();
+  });
+
   addWorkExperienceButton.addEventListener('click', () => {
     const currentCount = workExperiencesList.querySelectorAll('[data-index]').length;
     const element = createWorkExperienceItemElement(currentCount, emptyWorkExperienceFormValues());
@@ -556,6 +590,13 @@ if (!parsed.success) {
     const currentCount = certificationsList.querySelectorAll('[data-index]').length;
     const element = createCertificationItemElement(currentCount, emptyCertificationFormValues());
     certificationsList.appendChild(element);
+    onFormInput();
+  });
+
+  addProjectButton.addEventListener('click', () => {
+    const currentCount = projectsList.querySelectorAll('[data-index]').length;
+    const element = createProjectItemElement(currentCount, emptyProjectFormValues());
+    projectsList.appendChild(element);
     onFormInput();
   });
 
