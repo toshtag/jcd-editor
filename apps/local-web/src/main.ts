@@ -63,6 +63,7 @@ import {
   populateEducationForm,
   readEducationFromForm,
 } from './education-form';
+import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import {
   buildWorkExperiencesFromForm,
   createWorkExperienceItemElement,
@@ -90,6 +91,8 @@ const workExperiencesList = requireElement('work-experiences-list', HTMLDivEleme
 const addWorkExperienceButton = requireElement('add-work-experience-button', HTMLButtonElement);
 const educationList = requireElement('education-list', HTMLDivElement);
 const addEducationButton = requireElement('add-education-button', HTMLButtonElement);
+const exportButton = requireElement('export-button', HTMLButtonElement);
+const importFileInput = requireElement('import-file-input', HTMLInputElement);
 const statusEl = document.getElementById('status');
 const errorArea = document.getElementById('error-area');
 
@@ -290,6 +293,99 @@ if (!parsed.success) {
     }
   };
 
+  const onExport = (): void => {
+    // 計画準拠: export 対象は preview 対象 profile (= 最後に valid だった profile)。
+    // 未保存変更も含む。invalid 状態では download せずエラー表示。
+    if (!isCurrentDraftValid) {
+      showError(
+        'export できません',
+        'form に validation エラーがあります。修正後に再度お試しください。',
+      );
+      showStatus('export 失敗 (validation エラー)');
+      return;
+    }
+    const text = serializeProfileToJson(profile);
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = buildExportFileName(currentProfileId, new Date());
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    showStatus('JSON を export しました');
+  };
+
+  const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
+      reader.onload = () => {
+        const text = typeof reader.result === 'string' ? reader.result : '';
+        resolve(text);
+      };
+      reader.readAsText(file);
+    });
+
+  const onImportFile = async (file: File): Promise<void> => {
+    let text: string;
+    try {
+      text = await readFileAsText(file);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      showError('ファイル読み込みに失敗しました', detail);
+      showStatus('import 失敗');
+      return;
+    }
+
+    const result = parseJsonImport(text);
+    if (!result.ok) {
+      if (result.kind === 'invalid-json') {
+        showError('JSON の解析に失敗しました', result.message);
+      } else {
+        showError('JSON が schema と一致しません', formatIssues(result.issues));
+      }
+      showStatus('import 失敗');
+      return;
+    }
+
+    // 計画準拠: 上書き確認必須。現在 draft は破棄される旨を明示。
+    const confirmed = window.confirm(
+      '現在の編集内容は import 後の profile で上書きされ、新しい保存済み profile として保存されます。続行しますか?',
+    );
+    if (!confirmed) {
+      showStatus('import をキャンセルしました');
+      return;
+    }
+
+    profile = result.profile;
+    // import された profile は別 entity として扱う (新規 id で保存)
+    currentProfileId = undefined;
+    draftBase = result.profile as unknown as Record<string, unknown>;
+    isCurrentDraftValid = true;
+    populateAll(result.profile);
+    clearValidationIssues();
+    renderAndUpdate(currentKind);
+
+    // 既存の saveProfile で永続化
+    isStorageBusy = true;
+    updateButtonStates();
+    try {
+      const input = buildSaveProfileInput(profile, currentProfileId);
+      const stored = await storage.saveProfile(input);
+      currentProfileId = stored.metadata.id;
+      await refreshSavedProfileList();
+      profileSelect.value = currentProfileId;
+      showStatus('import して保存しました');
+    } catch (error) {
+      handleStorageError(error, 'import 後の保存に失敗しました');
+    } finally {
+      isStorageBusy = false;
+      updateButtonStates();
+    }
+  };
+
   const onLoad = async (): Promise<void> => {
     if (isStorageBusy) return;
     const id = profileSelect.value;
@@ -393,6 +489,19 @@ if (!parsed.success) {
   });
 
   profileSelect.addEventListener('change', updateButtonStates);
+
+  exportButton.addEventListener('click', () => {
+    onExport();
+  });
+
+  importFileInput.addEventListener('change', () => {
+    const file = importFileInput.files?.[0];
+    if (file === undefined) return;
+    // 同じファイルを再度選択できるよう、処理後に input をリセット
+    void onImportFile(file).finally(() => {
+      importFileInput.value = '';
+    });
+  });
 
   renderAndUpdate(currentKind);
   updateButtonStates();

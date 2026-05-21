@@ -95,6 +95,55 @@ body {
   cursor: not-allowed;
 }
 
+.app__io {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.app__io-button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #4a90e2;
+  border-radius: 2px;
+  background: #fff;
+  color: #4a90e2;
+  cursor: pointer;
+}
+
+.app__io-button:hover:not(:disabled) {
+  background: #f0f6fd;
+}
+
+.app__io-button:disabled {
+  border-color: #ccc;
+  color: #999;
+  cursor: not-allowed;
+}
+
+.app__io-import {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #4a90e2;
+  border-radius: 2px;
+  background: #fff;
+  color: #4a90e2;
+  cursor: pointer;
+}
+
+.app__io-import:hover {
+  background: #f0f6fd;
+}
+
+.app__io-file {
+  display: none;
+}
+
 .app__main {
   flex: 1;
   display: flex;

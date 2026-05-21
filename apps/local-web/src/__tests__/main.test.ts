@@ -85,6 +85,8 @@ const setupDom = (): void => {
     <button type="button" id="save-button">保存</button>
     <select id="saved-profile-select"><option value="">(選択してください)</option></select>
     <button type="button" id="load-button" disabled>読み込み</button>
+    <button type="button" id="export-button">JSON エクスポート</button>
+    <input type="file" id="import-file-input" />
     <form id="basics-form">
       <input id="name-family" />
       <input id="name-given" />
