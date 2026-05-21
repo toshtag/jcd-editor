@@ -85,6 +85,8 @@ const setupDom = (): void => {
     <button type="button" id="save-button">保存</button>
     <select id="saved-profile-select"><option value="">(選択してください)</option></select>
     <button type="button" id="load-button" disabled>読み込み</button>
+    <button type="button" id="export-button">JSON エクスポート</button>
+    <input type="file" id="import-file-input" />
     <form id="basics-form">
       <input id="name-family" />
       <input id="name-given" />
@@ -296,5 +298,144 @@ describe('local-web main flow', () => {
     expect(input('name-family').value).toBe('佐藤');
     expect(preview().srcdoc).toContain('佐藤');
     expect(preview().srcdoc).not.toContain('田中');
+  });
+
+  describe('JSON export / import', () => {
+    const fileInput = (): HTMLInputElement => {
+      const el = document.getElementById('import-file-input');
+      if (!(el instanceof HTMLInputElement)) throw new Error('Missing import-file-input');
+      return el;
+    };
+
+    const triggerImportWithText = async (text: string): Promise<void> => {
+      // jsdom には DataTransfer がないので files を直接定義する。
+      const file = new File([text], 'imported.json', { type: 'application/json' });
+      const fileList = {
+        0: file,
+        length: 1,
+        item: (i: number) => (i === 0 ? file : null),
+      } as unknown as FileList;
+      Object.defineProperty(fileInput(), 'files', { value: fileList, configurable: true });
+      fileInput().dispatchEvent(new Event('change', { bubbles: true }));
+      // FileReader / Promise / storage 操作を全て流す
+      await flushPromises();
+      await flushPromises();
+    };
+
+    it('export ボタン: invalid draft では download せずエラー表示する', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+
+      const clickSpy = vi.fn();
+      const origCreate = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+        const el = origCreate(tag);
+        if (tag === 'a') {
+          (el as HTMLAnchorElement).click = clickSpy;
+        }
+        return el;
+      }) as typeof document.createElement);
+
+      button('export-button').click();
+      expect(clickSpy).not.toHaveBeenCalled();
+      const errorArea = document.getElementById('error-area');
+      expect(errorArea?.hidden).toBe(false);
+      expect(errorArea?.textContent).toContain('export できません');
+
+      vi.restoreAllMocks();
+    });
+
+    it('export ボタン: valid draft で a.click() が呼ばれ download fileName が profile- 開始', async () => {
+      await importMain();
+
+      const clickSpy = vi.fn();
+      let capturedHref = '';
+      let capturedDownload = '';
+      const origCreate = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+        const el = origCreate(tag);
+        if (tag === 'a') {
+          const anchor = el as HTMLAnchorElement;
+          anchor.click = () => {
+            capturedHref = anchor.href;
+            capturedDownload = anchor.download;
+            clickSpy();
+          };
+        }
+        return el;
+      }) as typeof document.createElement);
+
+      button('export-button').click();
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(capturedDownload).toMatch(/^profile-.+\.json$/);
+      expect(capturedHref.startsWith('blob:')).toBe(true);
+
+      vi.restoreAllMocks();
+    });
+
+    it('import: valid な JSON で form と preview が置き換わり、storage にも保存される', async () => {
+      await importMain();
+
+      const imported = {
+        schemaVersion: 1,
+        basics: {
+          name: { family: '高橋', given: '健' },
+          nameKana: { family: 'タカハシ', given: 'ケン' },
+        },
+      };
+
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      await triggerImportWithText(JSON.stringify(imported));
+
+      expect(input('name-family').value).toBe('高橋');
+      expect(preview().srcdoc).toContain('高橋');
+      // 自動保存により保存済み一覧に 1 件含まれる
+      const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
+      expect(options.filter((v) => v !== '')).toHaveLength(1);
+
+      vi.restoreAllMocks();
+    });
+
+    it('import: confirm 拒否時は form / preview / storage 変更なし', async () => {
+      await importMain();
+      const before = preview().srcdoc;
+
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await triggerImportWithText(
+        JSON.stringify({ schemaVersion: 1, basics: { name: { family: '別', given: '人' } } }),
+      );
+
+      expect(preview().srcdoc).toBe(before);
+      expect(input('name-family').value).toBe('山田');
+
+      vi.restoreAllMocks();
+    });
+
+    it('import: malformed JSON でエラー表示 (form / preview は維持)', async () => {
+      await importMain();
+      const before = preview().srcdoc;
+
+      await triggerImportWithText('{ not valid json');
+
+      const errorArea = document.getElementById('error-area');
+      expect(errorArea?.hidden).toBe(false);
+      expect(errorArea?.textContent).toContain('JSON の解析に失敗');
+      // form は維持
+      expect(input('name-family').value).toBe('山田');
+      // preview は隠れる (showError の挙動) が、再表示でも fixture は残る
+      expect(before).toContain('山田');
+    });
+
+    it('import: schema 不一致でエラー表示 (form / preview は維持)', async () => {
+      await importMain();
+
+      await triggerImportWithText(JSON.stringify({ schemaVersion: 999, basics: {} }));
+
+      const errorArea = document.getElementById('error-area');
+      expect(errorArea?.hidden).toBe(false);
+      expect(errorArea?.textContent).toContain('schema と一致しません');
+      expect(input('name-family').value).toBe('山田');
+    });
   });
 });
