@@ -29,6 +29,9 @@ importers:
       '@jcd-editor/renderer':
         specifier: workspace:*
         version: link:../../packages/renderer
+      '@jcd-editor/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
     devDependencies:
       vite:
         specifier: ^8.0.0
