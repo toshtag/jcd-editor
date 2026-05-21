@@ -91,14 +91,19 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 **stack:** Vite + Vanilla TypeScript (skeleton PR で確定)。
 
-### 進行中 / 直近マージ予定
+### 完了済み
 
 - `feat/local-web-skeleton` (PR #22): `apps/local-web` に Vite + Vanilla TS の最小 skeleton を立て、`safeParseCareerProfile` → `renderDocument` → iframe `srcdoc` (`sandbox=""`) で A4 preview を表示。履歴書 / 職務経歴書 の kind switcher。**`@jcd-editor/pdf` は import しない** (Playwright は browser bundle に入らない)。React/Vue/Svelte/UI ライブラリ/state ライブラリ/router 一切なし。編集 / 保存 / PDF export なし。root `tsconfig.json` の `include` から `apps/*` を除外し、app は per-app tsconfig (DOM lib + `vite/client` types) + CI の app typecheck step で覆う
 
+### 進行中 / 直近マージ予定
+
+- `feat/local-web-edit-form-basics` (PR #23): `apps/local-web` を「sample fixture 固定表示」から「basics-only edit + live preview」に進める。編集対象は basics の **10 fields** (name 2 / nameKana 2 / birthDate / email / phone / address 3)、他 section (work / education / skills / certifications / projects) は sample fixture を維持。`<form>` input event ごとに raw draft を構築 → `safeParseCareerProfile` → success なら preview 更新、failure なら validation issues を form 下に表示 + 前回成功 preview を保持 (invalid draft は renderer に渡さない)。`profile-draft.ts` helper を `_internal/` 外に追加 (`{ ...baseFixture, basics }` shallow spread で section 名独立性を確保)。draft は raw input、`CareerProfile` 型として扱わず `as const satisfies CareerProfile` / `structuredClone` 不使用。**`@jcd-editor/pdf` は引き続き 0 行 import**。React/Vue/Svelte/UI ライブラリ/state ライブラリ/form ライブラリ/validation ライブラリ/router 一切なし。保存 / localStorage / IndexedDB / FileSystemAccess / file API / PDF export 一切なし。CI 変更なし
+
 ### 次 PR 候補
 
-- `feat/local-web-edit-form-basics`: basics 編集 form (氏名 / メール / 電話 等の最小入力)
-- `feat/storage-port-foundation`: Phase 3 着手、Storage 経由で save/load を成立させる準備
+- `feat/storage-port-foundation`: Phase 3 着手、Storage port + adapter 設計。本 PR で「保存する意味のある state」が edit form 経由で生まれたため timing が natural
+- `feat/local-web-edit-work-experiences`: work experience 編集 form (配列 / add/remove UI を導入する初の PR)
+- `feat/local-web-preview-sizing`: A4 比率 preview / CSS aspect-ratio / iframe zoom / page break preview
 - `feat/local-web-pdf-export`: server-side PDF generation 統合の architecture 設計 (`@jcd-editor/pdf` を **app から直接 import しない** で bridge 経由にする等)
 - `feat/renderer-relativepath-asset-resolution`: Phase 2 残課題 (PDF rendering / preview で profilePhoto.relativePath の制限が顕在化するため優先度上がる可能性)
 
@@ -106,7 +111,10 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 - A4 比率の preview sizing 戦略 (CSS aspect-ratio / iframe zoom / 印刷時の page break preview)
 - sample fixture の構造化 (`packages/test-fixtures` 等への抽出を将来検討)
-- app-local state management の必要性 (現在は module-level 変数、edit form 追加時に再評価)
+- app-local state management の必要性 (本 PR の判断: module-level + `let` で十分、edit field が増えたら再評価)
+- input debounce の必要性 (本 PR で見送り、性能問題が顕在化したら別 PR)
+- basics に profilePhoto 編集を追加する判断 (sandbox / asset-resolver 設計と連動するため別 PR)
+- `name` / `nameKana` の片方空入力時の UX (本 PR では validation error 表示で受容、core schema 変更には別議論が必要)
 - `apps/local-web` から `@jcd-editor/pdf` を呼ぶ architecture (Playwright は Node 専用、browser から PDF 生成を triggers するための bridge 設計 = local server / Tauri 等が別 PR の課題)
 - root `tsconfig.json` から apps を除外した分の典型化 (将来 app が増えた時に root config をどう扱うか)
 
