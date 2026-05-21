@@ -8,13 +8,10 @@
 //   - constructor (message, code) のみ、cause field なし
 //   - `name` 明示設定 + `Object.setPrototypeOf` で instanceof 安定化
 //
-// 本 PR の error code は `PROFILE_NOT_FOUND` の 1 個のみ。
-// `STORAGE_OPERATION_FAILED` 等の汎用 IO failure code は本 PR で実 IO を行わない
-// ため public API に出さず、adapter PR で実際に必要になった段階で追加する。
-// 本 package はまだ内部利用前提かつ shape は provisional のため、adapter PR で
-// 見直しを許容する。
+// `PROFILE_CORRUPT` は、永続化済み profile が現行 core schema を満たさない場合に使う。
+// 汎用 IO failure code は、adapter UX 問題が具体化した段階で追加する。
 
-export type StorageErrorCode = 'PROFILE_NOT_FOUND';
+export type StorageErrorCode = 'PROFILE_NOT_FOUND' | 'PROFILE_CORRUPT';
 
 export class StorageError extends Error {
   readonly code: StorageErrorCode;
