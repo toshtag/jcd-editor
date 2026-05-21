@@ -58,6 +58,7 @@
 - built-in template bundle
 - HTML escape と user data の安全な埋め込み
 - 履歴書テンプレートでの data URI 証明写真描画
+- 印刷時の改ページ制御 CSS (h2 widow / li / table tr / thead 再表示)
 
 残課題:
 
@@ -66,6 +67,7 @@
 - テンプレート資産を `packages/templates` に分離するかどうかの判断
 - テンプレート出力の versioning policy
 - 和暦表示など、日本式書類としての表現強化
+- 1 entry が 1 ページに収まらない巨大ケースの HTML 分割
 
 ## Phase 3 — ローカル保存
 
@@ -76,44 +78,49 @@
 実装済み:
 
 - `StoragePort`
-- `StorageError`
-- IndexedDB adapter
+- `StorageError` (`PROFILE_NOT_FOUND` / `PROFILE_CORRUPT`)
+- IndexedDB adapter (DB v2、metadata store 分離)
 - 保存済み profile の save / load / list / delete
-- 保存済みデータの load 時 validation
-- 一覧表示向け metadata store
+- 保存済みデータの load 時 validation (corrupt 時は `PROFILE_CORRUPT` で明示)
+- 一覧表示向け metadata store (body を展開しない最適化)
 
 残課題:
 
-- schema migration / corrupt data recovery policy
+- 本格的な schema migration policy (v2 が必要になった時点で着手)
 - quota / locked / generic storage failure の error code 設計
 - multi-tab consistency
 - autosave / draft storage の扱い
 - Node fs adapter
 - 暗号化や compression の要否判断
 
-## Phase 4 — 最小 local-web UI
+## Phase 4 — local-web UI
 
-**状態:** 進行中
+**状態:** 進行中 (全 section 編集 + JSON I/O + 削除 UI まで完了)
 
 バックエンドなしでローカル実行できるブラウザ UI を提供します。左側で構造化入力、右側で HTML プレビューを表示します。
 
 実装済み:
 
-- Vite + Vanilla TypeScript の最小 UI
-- basics 編集
-- work experiences 編集
-- renderer 経由の live preview
+- Vite + Vanilla TypeScript の UI
+- basics / work experiences / education / skills / certifications / projects の編集
+- renderer 経由の live preview (履歴書 / 職務経歴書 切替)
 - IndexedDB 経由の manual save / load
+- 保存済み profile の削除 UI (confirm 必須 / undo なし)
+- JSON export / import (`safeParseCareerProfile` で検証、上書き confirm 必須)
 - invalid draft 時の preview 保持
+- DOM 結合テスト (round-trip / sample fixture 残留防止 / 削除フロー / JSON I/O)
 - `@jcd-editor/pdf` を browser bundle に含めない境界
 
 残課題:
 
-- education / skills / certifications / projects の編集 UI
-- new / delete / rename / duplicate
 - dirty state / autosave
+- 未保存変更がある状態での load / delete / reload 時の confirm
+- 写真入力 (data URI 化、サイズ上限、MIME type 限定)
+- new / rename / duplicate
 - A4 preview sizing
-- DOM 結合テストまたは e2e テスト
+- validation issues の section 単位での集約表示
+- section 単位の navigation
+- accessibility audit (aria 属性、キーボード操作、focus 管理)
 - PDF export UI
 
 ## Phase 5 — ローカル PDF 生成
@@ -140,16 +147,21 @@
 
 ## Phase 6 — インポート / エクスポート
 
-**状態:** 未着手
+**状態:** 部分実装済み (JSON のみ完了)
 
 ユーザーが自分のデータを持ち出せるようにします。
 
-予定:
+実装済み:
 
-- JSON export / import
+- JSON export (現在 draft profile を対象、`safeParseCareerProfile` validation 必須)
+- JSON import (`safeParseCareerProfile` validation 必須、上書き confirm 必須、import 後は既存 `saveProfile` で永続化)
+
+残課題:
+
 - Markdown export
 - HTML export
-- PDF export
+- PDF export (Phase 5 と連動、まずは CLI 経由を想定)
+- JSON export schema の公開ドキュメント化
 
 ## Phase 7 — Optional AI アダプタ
 
@@ -176,3 +188,33 @@ AI は中核ではなく補助機能です。導入する場合も optional adap
 **状態:** 未着手
 
 クラウド同期や SaaS 派生は optional です。ローカル単独利用を前提条件として維持し、その上に opt-in で重ねる設計にします。
+
+---
+
+## 次の優先事項 (MVP 実用品質固定)
+
+Phase 4 (local-web UI) と Phase 5 (PDF) の間を埋める、MVP の信頼性・実用性を上げるための具体的な次ステップです。Phase 区切りに沿って整理した上記とは別に、直近の実装順序を明示します。
+
+### 直近で着手するもの (順序固定)
+
+1. **dirty state** — 未保存変更の追跡と、load / delete / reload / import 前の confirm。section が増えたことで「未保存編集の喪失」リスクが顕在化したため、PDF / 写真 / template 切替の前に固める
+2. **profile photo input** — 日本式履歴書において写真は構造的に必須レベル。renderer 側で data URI 対応は既にあるため、local-web 側で input + size limit + MIME type 限定を実装する。写真は個人情報として UI / docs に明記
+3. **CLI PDF** — JSON file → `safeParseCareerProfile` → renderer → Playwright PDF。local-web に PDF ボタンを生やすより先に CLI 経由で出力できる導線を作る。short / long / 写真あり fixture で最低限 QA を含める
+
+### QA / 実データ運用後に判断するもの
+
+実際に手動 QA や実データでの利用を経てから着手判断するもの。先に設計しない。
+
+- validation issues の section 単位での集約表示と該当 section への jump
+- section 単位の form navigation
+- accessibility audit (aria, keyboard, focus)
+- error message の user-facing 化 (dot path から日本語表記へ)
+- JSON export schema の公開ドキュメント化
+
+### 当面着手しないもの
+
+- 本格的な schema migration (v2 が必要になるまで)
+- 配布チャネル (GitHub Pages / static build / Electron / Tauri) — 機能 MVP とは別軸
+- AI 連携、SaaS、認証、クラウド同期
+- DOCX / XLSX 出力
+- Western CV 対応
