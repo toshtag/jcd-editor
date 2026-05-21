@@ -64,6 +64,10 @@ export const buildBasicsFromForm = (form: BasicsFormValues): Record<string, unkn
 export type DraftSections = {
   basics: Record<string, unknown>;
   workExperiences?: readonly Record<string, unknown>[];
+  // section key は core 側の CareerProfile schema の正式キー名 (`educationHistory`)
+  // に揃える。UI 上の概念名は「学歴」「education」だが、draft merge では schema
+  // 側のキーを使い、中間マッピングを発明しない。
+  educationHistory?: readonly Record<string, unknown>[];
 };
 
 export const buildDraft = (
@@ -76,6 +80,9 @@ export const buildDraft = (
   };
   if (sections.workExperiences !== undefined) {
     result.workExperiences = sections.workExperiences;
+  }
+  if (sections.educationHistory !== undefined) {
+    result.educationHistory = sections.educationHistory;
   }
   return result;
 };

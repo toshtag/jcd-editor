@@ -139,6 +139,41 @@ describe('buildDraft', () => {
     expect(draft.workExperiences).toBe(customWork);
     expect(draft.educationHistory).toBe(sampleProfileInput.educationHistory);
   });
+
+  it('educationHistory: [] を渡す: baseFixture の educationHistory を override (全削除を表現)', () => {
+    const draft = buildDraft({ basics: {}, educationHistory: [] }, sampleProfileInput);
+    expect(draft.educationHistory).toEqual([]);
+    expect(draft.workExperiences).toBe(sampleProfileInput.workExperiences);
+  });
+
+  it('educationHistory に entry を渡す: baseFixture の educationHistory を override', () => {
+    const customEducation = [{ institutionName: 'サンプル工科大学' }];
+    const draft = buildDraft(
+      { basics: {}, educationHistory: customEducation },
+      sampleProfileInput,
+    );
+    expect(draft.educationHistory).toBe(customEducation);
+    expect(draft.workExperiences).toBe(sampleProfileInput.workExperiences);
+  });
+
+  it('workExperiences と educationHistory を併用: 両方とも baseFixture を override、他 section は引き継ぎ', () => {
+    const customWork = [{ companyName: '株式会社テスト' }];
+    const customEducation = [{ institutionName: 'サンプル工科大学' }];
+    const draft = buildDraft(
+      { basics: {}, workExperiences: customWork, educationHistory: customEducation },
+      sampleProfileInput,
+    );
+    expect(draft.workExperiences).toBe(customWork);
+    expect(draft.educationHistory).toBe(customEducation);
+    expect(draft.skills).toBe(sampleProfileInput.skills);
+    expect(draft.certifications).toBe(sampleProfileInput.certifications);
+    expect(draft.projects).toBe(sampleProfileInput.projects);
+  });
+
+  it('educationHistory を渡さない場合: baseFixture の educationHistory を引き継ぐ', () => {
+    const draft = buildDraft({ basics: {} }, sampleProfileInput);
+    expect(draft.educationHistory).toBe(sampleProfileInput.educationHistory);
+  });
 });
 
 describe('buildSaveProfileInput', () => {
