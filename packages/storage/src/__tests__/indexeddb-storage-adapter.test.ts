@@ -56,6 +56,9 @@ const uniqueDatabaseName = (): string => {
   return `jcd-editor-test-${dbCounter}`;
 };
 
+const PROFILE_STORE_NAME = 'profiles';
+const METADATA_STORE_NAME = 'profiles__metadata';
+
 const createAdapter = (databaseName?: string): StoragePort =>
   createIndexedDbStorageAdapter({
     databaseName: databaseName ?? uniqueDatabaseName(),
@@ -71,8 +74,33 @@ const putRawStoredProfile = async (databaseName: string, value: unknown): Promis
   });
   try {
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('profiles', 'readwrite');
-      tx.objectStore('profiles').put(value);
+      const tx = db.transaction(PROFILE_STORE_NAME, 'readwrite');
+      tx.objectStore(PROFILE_STORE_NAME).put(value);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+};
+
+const createVersion1DatabaseWithProfile = async (
+  databaseName: string,
+  value: unknown,
+): Promise<void> => {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(databaseName, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(PROFILE_STORE_NAME, { keyPath: 'metadata.id' });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(PROFILE_STORE_NAME, 'readwrite');
+      tx.objectStore(PROFILE_STORE_NAME).put(value);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
@@ -186,6 +214,52 @@ describe('createIndexedDbStorageAdapter: listProfiles', () => {
     if (item !== undefined) {
       expect('profile' in item).toBe(false);
       expect(item.id).toBe('a');
+    }
+  });
+
+  it('profile store 側の body が壊れていても metadata store から一覧を返す', async () => {
+    const dbName = uniqueDatabaseName();
+    const port = createAdapter(dbName);
+    const profile = buildValidProfile();
+    const saved = await port.saveProfile({ id: 'a', profile });
+
+    await putRawStoredProfile(dbName, {
+      metadata: {
+        ...saved.metadata,
+        updatedAt: '1900-01-01T00:00:00.000Z',
+      },
+      profile: { schemaVersion: 999, basics: {} },
+    });
+
+    const list = await port.listProfiles();
+    expect(list).toEqual([saved.metadata]);
+  });
+
+  it('v1 database upgrade 時に既存 profile から metadata store を backfill する', async () => {
+    const dbName = uniqueDatabaseName();
+    const profile = buildValidProfile();
+    const metadata = {
+      id: 'legacy-id',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+      schemaVersion: profile.schemaVersion,
+    };
+    await createVersion1DatabaseWithProfile(dbName, { metadata, profile });
+
+    const port = createAdapter(dbName);
+    const list = await port.listProfiles();
+
+    expect(list).toEqual([metadata]);
+
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(dbName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      expect(db.objectStoreNames.contains(METADATA_STORE_NAME)).toBe(true);
+    } finally {
+      db.close();
     }
   });
 });
