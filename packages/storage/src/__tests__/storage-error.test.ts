@@ -41,9 +41,7 @@ describe('StorageError', () => {
   });
 
   it('現状すべての StorageErrorCode を受け付ける', () => {
-    // 本 PR では PROFILE_NOT_FOUND 1 つのみ。adapter PR で code が増えた時、
-    // テストもここに追加する (例: STORAGE_OPERATION_FAILED / SCHEMA_VERSION_MISMATCH 等)。
-    const codes: StorageErrorCode[] = ['PROFILE_NOT_FOUND'];
+    const codes: StorageErrorCode[] = ['PROFILE_NOT_FOUND', 'PROFILE_CORRUPT'];
     for (const code of codes) {
       const error = new StorageError(`message for ${code}`, code);
       expect(error.code).toBe(code);

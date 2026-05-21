@@ -29,9 +29,10 @@
 //
 // error 戦略:
 //
-// - PROFILE_NOT_FOUND のみ StorageError で wrap (load / delete の missing id)
+// - PROFILE_NOT_FOUND / PROFILE_CORRUPT は StorageError で wrap
 // - DOMException (IDB API failure、quota exceeded、blocked 等) は wrap せず bubble
-// - StorageErrorCode は本 PR で増やさない (PR #20 流儀、surface 最小化)
+
+import { safeParseCareerProfile } from '@jcd-editor/core';
 
 import { StorageError } from '../errors';
 import type {
@@ -144,7 +145,11 @@ export const createIndexedDbStorageAdapter = (
     if (stored === undefined) {
       throw new StorageError(`Profile not found: ${id}`, 'PROFILE_NOT_FOUND');
     }
-    return stored;
+    const parsed = safeParseCareerProfile(stored.profile);
+    if (!parsed.success) {
+      throw new StorageError(`Stored profile is corrupt: ${id}`, 'PROFILE_CORRUPT');
+    }
+    return { metadata: stored.metadata, profile: parsed.data };
   };
 
   const listProfiles = async (): Promise<readonly StoredProfileMetadata[]> => {

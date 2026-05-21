@@ -63,6 +63,25 @@ const createAdapter = (databaseName?: string): StoragePort =>
     generateId: createTestIdGenerator(),
   });
 
+const putRawStoredProfile = async (databaseName: string, value: unknown): Promise<void> => {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(databaseName);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('profiles', 'readwrite');
+      tx.objectStore('profiles').put(value);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+};
+
 describe('createIndexedDbStorageAdapter: saveProfile', () => {
   it('id 省略時: adapter が新規 id を生成して create する (createdAt === updatedAt)', async () => {
     const port = createAdapter();
@@ -113,6 +132,28 @@ describe('createIndexedDbStorageAdapter: loadProfile', () => {
     await expect(port.loadProfile('missing-id')).rejects.toBeInstanceOf(StorageError);
     await expect(port.loadProfile('missing-id')).rejects.toMatchObject({
       code: 'PROFILE_NOT_FOUND',
+    });
+  });
+
+  it('保存済み profile が現行 schema を満たさない場合は PROFILE_CORRUPT を throw', async () => {
+    const dbName = uniqueDatabaseName();
+    const port = createAdapter(dbName);
+    const profile = buildValidProfile();
+    await port.saveProfile({ id: 'corrupt-id', profile });
+
+    await putRawStoredProfile(dbName, {
+      metadata: {
+        id: 'corrupt-id',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:01.000Z',
+        schemaVersion: 999,
+      },
+      profile: { schemaVersion: 999, basics: {} },
+    });
+
+    await expect(port.loadProfile('corrupt-id')).rejects.toBeInstanceOf(StorageError);
+    await expect(port.loadProfile('corrupt-id')).rejects.toMatchObject({
+      code: 'PROFILE_CORRUPT',
     });
   });
 });
