@@ -95,7 +95,6 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 次 PR 候補
 
-- `feat/local-web-save-load-profile`: app から `@jcd-editor/storage` を呼ぶ bridge (Phase 4 と並行マージ可)
 - `feat/storage-filesystem-adapter`: Node fs adapter (Tauri / CLI から使う想定、`StoragePort` を満たす 2 個目の実 adapter)
 
 ### 未確定論点
@@ -113,8 +112,6 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - corrupt stored data の検知 / 回復 (現状未実装、adapter が trust する設計)
 - multi-tab consistency / BroadcastChannel (autosave PR で検討)
 - adapter の `close()` / `dispose()` method 追加 (現在 closure で lazy open、明示 close なし)
-- `listProfiles` の order 契約 (現在 `updatedAt 降順`) — real adapter で守れない場合に緩めるか
-- `StoredProfileId` の brand 化 (現在 plain string)
 
 ## Phase 4 — 最小ローカル Web UI (進行中)
 
@@ -125,15 +122,17 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 ### 完了済み
 
 - `feat/local-web-skeleton` (PR #22): `apps/local-web` に Vite + Vanilla TS の最小 skeleton を立て、`safeParseCareerProfile` → `renderDocument` → iframe `srcdoc` (`sandbox=""`) で A4 preview を表示。履歴書 / 職務経歴書 の kind switcher。**`@jcd-editor/pdf` は import しない** (Playwright は browser bundle に入らない)。React/Vue/Svelte/UI ライブラリ/state ライブラリ/router 一切なし。編集 / 保存 / PDF export なし。root `tsconfig.json` の `include` から `apps/*` を除外し、app は per-app tsconfig (DOM lib + `vite/client` types) + CI の app typecheck step で覆う
+- `feat/local-web-edit-form-basics` (PR #23): `apps/local-web` を「sample fixture 固定表示」から「basics-only edit + live preview」に進める。編集対象は basics の **10 fields** (name 2 / nameKana 2 / birthDate / email / phone / address 3)、他 section (work / education / skills / certifications / projects) は sample fixture を維持。`<form>` input event ごとに raw draft を構築 → `safeParseCareerProfile` → success なら preview 更新、failure なら validation issues を form 下に表示 + 前回成功 preview を保持 (invalid draft は renderer に渡さない)。`profile-draft.ts` helper を `_internal/` 外に追加 (`{ ...baseFixture, basics }` shallow spread で section 名独立性を確保)。draft は raw input、`CareerProfile` 型として扱わず `as const satisfies CareerProfile` / `structuredClone` 不使用
 
 ### 進行中 / 直近マージ予定
 
-- `feat/local-web-edit-form-basics` (PR #23): `apps/local-web` を「sample fixture 固定表示」から「basics-only edit + live preview」に進める。編集対象は basics の **10 fields** (name 2 / nameKana 2 / birthDate / email / phone / address 3)、他 section (work / education / skills / certifications / projects) は sample fixture を維持。`<form>` input event ごとに raw draft を構築 → `safeParseCareerProfile` → success なら preview 更新、failure なら validation issues を form 下に表示 + 前回成功 preview を保持 (invalid draft は renderer に渡さない)。`profile-draft.ts` helper を `_internal/` 外に追加 (`{ ...baseFixture, basics }` shallow spread で section 名独立性を確保)。draft は raw input、`CareerProfile` 型として扱わず `as const satisfies CareerProfile` / `structuredClone` 不使用。**`@jcd-editor/pdf` は引き続き 0 行 import**。React/Vue/Svelte/UI ライブラリ/state ライブラリ/form ライブラリ/validation ライブラリ/router 一切なし。保存 / localStorage / IndexedDB / FileSystemAccess / file API / PDF export 一切なし。CI 変更なし
+- `feat/local-web-save-load-profile` (PR 番号は作成後反映): `apps/local-web` に **`@jcd-editor/storage` 経由の manual Save / Load** を導入。Save button + saved-profile-select + Load button を header に追加、`createIndexedDbStorageAdapter()` を default options で生成。state 拡張 (`currentProfileId` / `draftBase` / `isCurrentDraftValid` / `isStorageBusy`)、再 Save 時は同 profile を update (`saveProfile` upsert)。**`draftBase` state を導入**することで、load 後の form 編集で他 section が sample fixture に戻る重大バグを防止 (form input 成功時 / load 成功時に `draftBase = result.data as unknown as Record<string, unknown>`)。保存対象は **last-valid `profile` のみ** (Save button は invalid 中 disable)。**`@jcd-editor/pdf` は引き続き 0 行 import**。autosave / dirty state / delete / new / rename / duplicate ボタン 一切なし。localStorage / FileSystemAccess / Node fs / fetch / WebSocket / IndexedDB wrapper library 一切なし。DOM 操作は `replaceChildren()` + `createElement` + `textContent` のみ (innerHTML 不使用、XSS 回避)。`packages/storage` を **1 行も変更しない** (StoragePort / StorageError / IndexedDB adapter すべて完全無変更)。CI 変更なし
 
 ### 次 PR 候補
 
-- `feat/local-web-save-load-profile`: app から `@jcd-editor/storage` を呼ぶ bridge (Phase 3 と並行マージ可、storage adapter PR とどちらが先でも可)
 - `feat/local-web-edit-work-experiences`: work experience 編集 form (配列 / add/remove UI を導入する初の PR)
+- `feat/local-web-delete-profile-button`: Delete profile UI (本 PR で扱わない、別 PR で議論)
+- `feat/local-web-new-profile-button`: New profile ボタン (current state を reset して sample fixture から再開、別 PR)
 - `feat/local-web-preview-sizing`: A4 比率 preview / CSS aspect-ratio / iframe zoom / page break preview
 - `feat/local-web-pdf-export`: server-side PDF generation 統合の architecture 設計 (`@jcd-editor/pdf` を **app から直接 import しない** で bridge 経由にする等)
 - `feat/renderer-relativepath-asset-resolution`: Phase 2 残課題 (PDF rendering / preview で profilePhoto.relativePath の制限が顕在化するため優先度上がる可能性)
@@ -143,6 +142,10 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - A4 比率の preview sizing 戦略 (CSS aspect-ratio / iframe zoom / 印刷時の page break preview)
 - sample fixture の構造化 (`packages/test-fixtures` 等への抽出を将来検討)
 - app-local state management の必要性 (本 PR の判断: module-level + `let` で十分、edit field が増えたら再評価)
+- delete / new / rename / duplicate UI を本 PR で扱わない判断 (別 PR で議論)
+- autosave / dirty state indicator の必要性 (現在は手動 Save、UX 問題が顕在化したら別 PR)
+- `formatStoredProfileOption` の表示形式 (現在は `YYYY-MM-DD HH:MM:SS (id 先頭 8)`、user の好みで調整余地)
+- `draftBase` state の管理が複雑化するか (work 編集 PR で再評価)
 - input debounce の必要性 (本 PR で見送り、性能問題が顕在化したら別 PR)
 - basics に profilePhoto 編集を追加する判断 (sandbox / asset-resolver 設計と連動するため別 PR)
 - `name` / `nameKana` の片方空入力時の UX (本 PR では validation error 表示で受容、core schema 変更には別議論が必要)
