@@ -1,0 +1,183 @@
+// IndexedDB を使った StoragePort adapter。browser / fake-indexeddb 環境で動作。
+//
+// 設計判断 (本 PR 固定):
+//
+// - factory only export (`createIndexedDbStorageAdapter`)、class export なし
+// - options で `databaseName` / `storeName` / `now` / `generateId` を injectable に
+//   (test の deterministic 化、production safe defaults)
+// - production default: 'jcd-editor' / 'profiles' / new Date().toISOString() /
+//   crypto.randomUUID()
+// - raw IndexedDB API のみ使用、idb / dexie / localforage 等の wrapper 不採用
+// - keyPath: 'metadata.id' (nested path、objectStore に格納する StoredProfile の
+//   metadata.id を主キーとして利用)
+// - index は作らない (listProfiles は in-memory sort)
+// - database version は 1 固定、migration / upgrade は別 PR の責務
+//
+// transaction lifecycle (重要、auto-commit 回避):
+//
+// IndexedDB transaction は auto-commit がシビアで、`get` の結果を `await` してから
+// 次 request を発行すると、microtask を挟んだ時点で transaction が inactive
+// 化される可能性がある (real Chromium / fake-indexeddb 双方で発生しうる)。
+//
+// 対策:
+// - saveProfile / deleteProfile では、get request の onsuccess callback **内で**
+//   (synchronous tick で) put / delete を発行する
+// - transaction 全体の完了は oncomplete / onerror / onabort を Promise 化
+//   (`waitForTransaction`) して 1 度だけ await する
+// - loadProfile / listProfiles は readonly + 単一 request のため
+//   `promisifyRequest` で OK (連続 request がない → auto-commit 問題なし)
+//
+// error 戦略:
+//
+// - PROFILE_NOT_FOUND のみ StorageError で wrap (load / delete の missing id)
+// - DOMException (IDB API failure、quota exceeded、blocked 等) は wrap せず bubble
+// - StorageErrorCode は本 PR で増やさない (PR #20 流儀、surface 最小化)
+
+import { StorageError } from '../errors';
+import type {
+  SaveProfileInput,
+  StoragePort,
+  StoredProfile,
+  StoredProfileId,
+  StoredProfileMetadata,
+} from '../storage-port';
+
+const DEFAULT_DATABASE_NAME = 'jcd-editor';
+const DEFAULT_STORE_NAME = 'profiles';
+const DATABASE_VERSION = 1;
+
+export type IndexedDbStorageAdapterOptions = {
+  /** Database name. Default: 'jcd-editor' */
+  databaseName?: string;
+  /** Object store name. Default: 'profiles' */
+  storeName?: string;
+  /** Timestamp generator. Default: () => new Date().toISOString() */
+  now?: () => string;
+  /** ID generator for new profiles. Default: () => crypto.randomUUID() */
+  generateId?: () => StoredProfileId;
+};
+
+const openDatabase = (databaseName: string, storeName: string): Promise<IDBDatabase> =>
+  new Promise((resolve, reject) => {
+    const request = indexedDB.open(databaseName, DATABASE_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(storeName)) {
+        db.createObjectStore(storeName, { keyPath: 'metadata.id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+// 1 request のみの transaction で使う (readonly)
+const promisifyRequest = <T>(req: IDBRequest<T>): Promise<T> =>
+  new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+// 連続 request の readwrite transaction で使う
+const waitForTransaction = (tx: IDBTransaction): Promise<void> =>
+  new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+
+export const createIndexedDbStorageAdapter = (
+  options: IndexedDbStorageAdapterOptions = {},
+): StoragePort => {
+  const databaseName = options.databaseName ?? DEFAULT_DATABASE_NAME;
+  const storeName = options.storeName ?? DEFAULT_STORE_NAME;
+  const now = options.now ?? (() => new Date().toISOString());
+  const generateId = options.generateId ?? (() => crypto.randomUUID());
+
+  let dbPromise: Promise<IDBDatabase> | undefined;
+  const getDatabase = (): Promise<IDBDatabase> => {
+    if (dbPromise === undefined) {
+      dbPromise = openDatabase(databaseName, storeName);
+    }
+    return dbPromise;
+  };
+
+  const saveProfile = async (input: SaveProfileInput): Promise<StoredProfile> => {
+    const db = await getDatabase();
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+
+    const id = input.id ?? generateId();
+    let stored: StoredProfile | undefined;
+
+    const getRequest = store.get(id);
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as StoredProfile | undefined;
+      const nowIso = now();
+      stored = {
+        metadata: {
+          id,
+          createdAt: existing?.metadata.createdAt ?? nowIso,
+          updatedAt: nowIso,
+          schemaVersion: input.profile.schemaVersion,
+        },
+        profile: input.profile,
+      };
+      // get の onsuccess 内 (synchronous tick) で put を発行
+      // → transaction が auto-commit される前に次 request がキューされる
+      store.put(stored);
+    };
+
+    await waitForTransaction(tx);
+
+    if (stored === undefined) {
+      // 通常到達しない (oncomplete までに onsuccess が走っているはず)、defensive
+      throw new Error('IndexedDB save did not produce a stored profile');
+    }
+    return stored;
+  };
+
+  const loadProfile = async (id: StoredProfileId): Promise<StoredProfile> => {
+    const db = await getDatabase();
+    const tx = db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
+    const stored = await promisifyRequest<StoredProfile | undefined>(store.get(id));
+    if (stored === undefined) {
+      throw new StorageError(`Profile not found: ${id}`, 'PROFILE_NOT_FOUND');
+    }
+    return stored;
+  };
+
+  const listProfiles = async (): Promise<readonly StoredProfileMetadata[]> => {
+    const db = await getDatabase();
+    const tx = db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
+    const all = await promisifyRequest<StoredProfile[]>(store.getAll());
+    return all.map((s) => s.metadata).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  };
+
+  const deleteProfile = async (id: StoredProfileId): Promise<void> => {
+    const db = await getDatabase();
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+
+    let found = false;
+
+    const getRequest = store.get(id);
+    getRequest.onsuccess = () => {
+      if (getRequest.result !== undefined) {
+        found = true;
+        // get の onsuccess 内 (synchronous tick) で delete を発行
+        store.delete(id);
+      }
+      // 存在しない場合は何もしない (transaction は no-op で commit)
+    };
+
+    await waitForTransaction(tx);
+
+    if (!found) {
+      throw new StorageError(`Profile not found: ${id}`, 'PROFILE_NOT_FOUND');
+    }
+  };
+
+  return { saveProfile, loadProfile, listProfiles, deleteProfile };
+};
