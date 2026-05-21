@@ -199,3 +199,157 @@ body {
   overflow: auto;
   max-height: 12rem;
 }
+
+/* work experiences form */
+
+.work-experiences-form {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.work-experiences-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.work-experiences-form__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #444;
+}
+
+.work-experiences-form__add-button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #4a90e2;
+  border-radius: 2px;
+  background: #fff;
+  color: #4a90e2;
+  cursor: pointer;
+}
+
+.work-experiences-form__add-button:hover {
+  background: #f0f6fd;
+}
+
+.work-experiences-form__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.work-experience-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  background: #fafafa;
+}
+
+.work-experience-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.work-experience-item__legend {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.work-experience-item__remove {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #d33;
+  border-radius: 2px;
+  background: #fff;
+  color: #d33;
+  cursor: pointer;
+}
+
+.work-experience-item__remove:hover {
+  background: #fff5f5;
+}
+
+.work-experience-item__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.work-experience-item__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.work-experience-item__hint {
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: normal;
+}
+
+.work-experience-item__input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  background: #fff;
+  min-width: 0;
+}
+
+.work-experience-item__input:focus {
+  outline: 2px solid #4a90e2;
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.work-experience-item__textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  background: #fff;
+  min-width: 0;
+  resize: vertical;
+}
+
+.work-experience-item__textarea:focus {
+  outline: 2px solid #4a90e2;
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.work-experience-item__period-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.work-experience-item__checkbox-wrapper {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #444;
+  padding-bottom: 0.4rem;
+}
+
+.work-experience-item__checkbox {
+  margin-right: 0.25rem;
+}

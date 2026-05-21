@@ -11,10 +11,12 @@
 // - name / nameKana は両 field 空なら object 自体を omit、いずれかに値があれば
 //   object として渡す (片方空でも raw 構築は試行、core schema が reject 判断)。
 // - address は inner field 個別に omit、全 inner omit なら address 自体 omit。
-// - buildDraft は `{ ...baseFixture, basics }` の shallow spread のみ。
-//   section 名 (workExperiences / educationHistory / 等) を helper 側で再列挙
-//   **しない** ことで、core schema / sample fixture の将来変更に対する drift
-//   リスクを排除する。
+// - buildDraft は `DraftSections` 型 (basics 必須、他 section は optional) を受け取り、
+//   指定された section だけ baseFixture を override する。他 section は baseFixture
+//   からそのまま引き継ぐことで draftBase 戦略 (load 後の編集で他 section が
+//   sample fixture に戻らない) と整合。
+//   future-proof: education / skills / certifications / projects 編集 PR で
+//   `DraftSections` を拡張するだけで対応可能。
 // - buildSaveProfileInput は exactOptionalPropertyTypes 制約下で
 //   currentProfileId が undefined のとき id field を omit する conditional spread
 //   を集約 (caller が `{ id: maybeUndefined, profile }` で型エラーになる罠を回避)。
@@ -59,13 +61,24 @@ export const buildBasicsFromForm = (form: BasicsFormValues): Record<string, unkn
   return basics;
 };
 
+export type DraftSections = {
+  basics: Record<string, unknown>;
+  workExperiences?: readonly Record<string, unknown>[];
+};
+
 export const buildDraft = (
-  basics: Record<string, unknown>,
+  sections: DraftSections,
   baseFixture: Record<string, unknown>,
-): Record<string, unknown> => ({
-  ...baseFixture,
-  basics,
-});
+): Record<string, unknown> => {
+  const result: Record<string, unknown> = {
+    ...baseFixture,
+    basics: sections.basics,
+  };
+  if (sections.workExperiences !== undefined) {
+    result.workExperiences = sections.workExperiences;
+  }
+  return result;
+};
 
 export const buildSaveProfileInput = (
   profile: CareerProfile,

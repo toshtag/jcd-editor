@@ -102,16 +102,16 @@ describe('buildBasicsFromForm', () => {
 
   it('fully-populated form の出力は safeParseCareerProfile で success になる', () => {
     const basics = buildBasicsFromForm(fullyPopulatedForm);
-    const draft = buildDraft(basics, sampleProfileInput);
+    const draft = buildDraft({ basics }, sampleProfileInput);
     const result = safeParseCareerProfile(draft);
     expect(result.success).toBe(true);
   });
 });
 
 describe('buildDraft', () => {
-  it('base fixture を shallow spread し、basics だけ差し替える', () => {
+  it('workExperiences を渡さない場合: baseFixture の workExperiences を引き継ぐ (basics のみ差し替え)', () => {
     const newBasics = { name: { family: '鈴木', given: '一郎' } };
-    const draft = buildDraft(newBasics, sampleProfileInput);
+    const draft = buildDraft({ basics: newBasics }, sampleProfileInput);
     expect(draft.basics).toBe(newBasics);
     expect(draft.schemaVersion).toBe(sampleProfileInput.schemaVersion);
     expect(draft.workExperiences).toBe(sampleProfileInput.workExperiences);
@@ -122,7 +122,7 @@ describe('buildDraft', () => {
   });
 
   it('空 basics でも draft は valid (他 section は sample fixture から維持)', () => {
-    const draft = buildDraft({}, sampleProfileInput);
+    const draft = buildDraft({ basics: {} }, sampleProfileInput);
     const result = safeParseCareerProfile(draft);
     expect(result.success).toBe(true);
   });
