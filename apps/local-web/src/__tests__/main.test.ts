@@ -82,6 +82,7 @@ const setupDom = (): void => {
       <option value="shokumukeirekisho">職務経歴書</option>
     </select>
     <span id="status"></span>
+    <span id="dirty-indicator" hidden>● 未保存</span>
     <button type="button" id="save-button">保存</button>
     <select id="saved-profile-select"><option value="">(選択してください)</option></select>
     <button type="button" id="load-button" disabled>読み込み</button>
