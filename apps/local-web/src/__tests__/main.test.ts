@@ -181,6 +181,98 @@ describe('local-web main flow', () => {
     expect(button('save-button').disabled).toBe(true);
   });
 
+  it('初期 profile に sample fixture 由来の学歴が反映される', async () => {
+    await importMain();
+
+    const educationItems = document.querySelectorAll('#education-list [data-index]');
+    expect(educationItems).toHaveLength(1);
+    const institutionInput = educationItems[0]?.querySelector<HTMLInputElement>(
+      '[data-field="institutionName"]',
+    );
+    expect(institutionInput?.value).toBe('サンプル大学');
+    expect(preview().srcdoc).toContain('サンプル大学');
+  });
+
+  it('学歴を入力して保存 → 読み込みで学歴 form が復元される (round-trip)', async () => {
+    await importMain();
+
+    // 既存 entry を削除して 1 件だけにする
+    const removeButtons = document.querySelectorAll<HTMLButtonElement>(
+      '#education-list [data-action="remove"]',
+    );
+    removeButtons.forEach((b) => b.click());
+
+    button('add-education-button').click();
+    const institutionInput = document.querySelector<HTMLInputElement>(
+      '#education-list [data-field="institutionName"]',
+    );
+    if (institutionInput === null) throw new Error('institutionName input missing');
+    institutionInput.value = 'テスト大学';
+    dispatchInput(institutionInput);
+
+    const statusInput = document.querySelector<HTMLInputElement>(
+      '#education-list [data-field="status"]',
+    );
+    if (statusInput === null) throw new Error('status input missing');
+    statusInput.value = '卒業見込み';
+    dispatchInput(statusInput);
+
+    button('save-button').click();
+    await flushPromises();
+
+    // 編集を加える (未保存状態)
+    institutionInput.value = '別大学';
+    dispatchInput(institutionInput);
+    expect(preview().srcdoc).toContain('別大学');
+
+    // load で復元
+    select('saved-profile-select').value = 'profile-1';
+    button('load-button').click();
+    await flushPromises();
+
+    const restored = document.querySelector<HTMLInputElement>(
+      '#education-list [data-field="institutionName"]',
+    );
+    expect(restored?.value).toBe('テスト大学');
+    const restoredStatus = document.querySelector<HTMLInputElement>(
+      '#education-list [data-field="status"]',
+    );
+    expect(restoredStatus?.value).toBe('卒業見込み');
+    expect(preview().srcdoc).toContain('テスト大学');
+    expect(preview().srcdoc).not.toContain('別大学');
+  });
+
+  it('学歴を全削除 → 保存後の data に sample fixture 由来の学歴が再混入しない', async () => {
+    await importMain();
+
+    // sample fixture 由来の学歴 (サンプル大学) を全削除
+    const removeButtons = document.querySelectorAll<HTMLButtonElement>(
+      '#education-list [data-action="remove"]',
+    );
+    expect(removeButtons.length).toBeGreaterThan(0);
+    removeButtons.forEach((b) => b.click());
+
+    // この時点で preview に「サンプル大学」が残っていないこと
+    expect(document.querySelectorAll('#education-list [data-index]')).toHaveLength(0);
+    expect(preview().srcdoc).not.toContain('サンプル大学');
+
+    // 保存して load し直す
+    button('save-button').click();
+    await flushPromises();
+
+    // 編集中の draft をリセットするため、別 profile の編集状態を経由してから load
+    input('name-family').value = '佐藤';
+    dispatchInput(input('name-family'));
+
+    select('saved-profile-select').value = 'profile-1';
+    button('load-button').click();
+    await flushPromises();
+
+    // load 後も学歴が空のまま (再混入しない)
+    expect(document.querySelectorAll('#education-list [data-index]')).toHaveLength(0);
+    expect(preview().srcdoc).not.toContain('サンプル大学');
+  });
+
   it('save 後に未保存編集を load で保存済み profile に戻せる', async () => {
     await importMain();
 
