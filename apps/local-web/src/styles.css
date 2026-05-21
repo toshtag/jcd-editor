@@ -95,6 +95,15 @@ body {
   cursor: not-allowed;
 }
 
+.app__storage-button--danger {
+  border-color: #d33;
+  color: #d33;
+}
+
+.app__storage-button--danger:hover:not(:disabled) {
+  background: #fff5f5;
+}
+
 .app__io {
   display: flex;
   align-items: center;
