@@ -57,7 +57,11 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/storage: {}
+  packages/storage:
+    dependencies:
+      '@jcd-editor/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/templates: {}
 

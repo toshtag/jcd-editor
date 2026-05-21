@@ -81,9 +81,33 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 - `profilePhoto.source.kind === 'relativePath'` の render を担う **asset resolution 設計** (`feat/renderer-relativepath-asset-resolution` で `RenderInput` に asset resolver port を追加する形を検討)
 - `shokumukeirekisho` に将来 photo を追加するかどうか (現状は伝統的に入れない、要件が出れば別 PR で議論)
 
-## Phase 3 — ローカルファイルストレージ
+## Phase 3 — ローカルファイルストレージ (進行中)
 
 `StoragePort` と `FileStorageAdapter` を実装し、`CareerProfile` をユーザー指定ディレクトリの JSON ファイルとして永続化します。SQLite は将来候補であり、Phase 3 の対象ではありません。
+
+### 進行中 / 直近マージ予定
+
+- `feat/storage-port-foundation` (PR 番号は作成後反映): `packages/storage` に `StoragePort` / `StoredProfile` / `StoredProfileMetadata` / `SaveProfileInput` / `StoredProfileId` / `StorageError` を最小 surface で導入。実 adapter (localStorage / IndexedDB / FileSystemAccess / Node fs) は **含まない**。`StoragePort` shape は **provisional** であり、次 PR で実装目線の見直しを行い、後方互換しない変更を許容する。`storage → core` の type-only 依存。`@jcd-editor/renderer` / `@jcd-editor/pdf` / `@jcd-editor/templates` / `apps/*` 完全無参照。`saveProfile` 単一 method (upsert)、`listProfiles` は `updatedAt 降順`、`loadProfile` / `deleteProfile` missing は `PROFILE_NOT_FOUND` を throw。error code は `PROFILE_NOT_FOUND` 1 個のみ、`cause` 持たない (PdfError / RendererError 流儀)。in-memory fake は contract test 内に閉じる、public export しない。browser API / Node fs / fetch / network 一切なし
+
+### 次 PR 候補
+
+- `feat/storage-indexeddb-adapter`: browser 用 IndexedDB adapter (idb 等の wrapper 検討、jsdom or playwright 環境での test 戦略を含む)
+- `feat/storage-filesystem-adapter`: Node fs adapter (Tauri / CLI から使う想定)
+- `feat/local-web-save-load-profile`: app から storage を呼ぶ bridge (Phase 4 と並行マージ可)
+
+### 未確定論点
+
+- 実 adapter の選定 (IndexedDB vs FileSystemAccess vs localStorage)
+- 複数 profile vs 単一 profile の UI 統合戦略
+- profile の rename / metadata 編集 UI
+- migration / versioning policy (`schemaVersion` が変わった時の挙動)
+- 暗号化 / compression の判断 (Phase 7 AI 統合時の機密性と関連)
+- draft (invalid 入力) の autosave を別 port (`DraftStorage`) として扱うか、本 port に統合するか
+- port options 型の追加判断 (encryption key / namespace 等)
+- `StorageErrorCode` の追加 (`SCHEMA_VERSION_MISMATCH` / `STORAGE_QUOTA_EXCEEDED` / `STORAGE_LOCKED` / `STORAGE_OPERATION_FAILED` 等) — adapter 実装時に決定
+- `cause` field の追加判断 — adapter で例外 wrap が必要になれば追加
+- `listProfiles` の order 契約 (現在 `updatedAt 降順`) — real adapter で守れない場合に緩めるか
+- `StoredProfileId` の brand 化 (現在 plain string)
 
 ## Phase 4 — 最小ローカル Web UI (進行中)
 
@@ -101,7 +125,7 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 ### 次 PR 候補
 
-- `feat/storage-port-foundation`: Phase 3 着手、Storage port + adapter 設計。本 PR で「保存する意味のある state」が edit form 経由で生まれたため timing が natural
+- `feat/local-web-save-load-profile`: app から `@jcd-editor/storage` を呼ぶ bridge (Phase 3 と並行マージ可、storage adapter PR とどちらが先でも可)
 - `feat/local-web-edit-work-experiences`: work experience 編集 form (配列 / add/remove UI を導入する初の PR)
 - `feat/local-web-preview-sizing`: A4 比率 preview / CSS aspect-ratio / iframe zoom / page break preview
 - `feat/local-web-pdf-export`: server-side PDF generation 統合の architecture 設計 (`@jcd-editor/pdf` を **app から直接 import しない** で bridge 経由にする等)
