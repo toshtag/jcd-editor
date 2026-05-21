@@ -44,6 +44,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Typecheck storage package
+        run: pnpm --filter @jcd-editor/storage typecheck
+
       - name: Typecheck local web app
         run: pnpm --filter @jcd-editor/local-web typecheck
 
