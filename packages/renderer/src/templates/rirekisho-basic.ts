@@ -376,6 +376,17 @@ const renderProjects = (entries: Project[] | undefined): string => {
 
 // === CSS ===
 
+// 改ページ制御 (印刷 / PDF) について:
+// - h2 widow (heading が前ページ末尾に取り残されて本文が次ページに行く) を防ぐため
+//   break-after: avoid を section h2 に適用する
+// - section の各 li (特に projects / certifications) は 1 entry が複数行に
+//   なるため、entry 途中で改ページされないように break-inside: avoid を適用する
+// - 学歴・職歴年表 table の各行も途中改ページを避けるため break-inside: avoid
+// - 多ページ profile の場合に table の thead (年月 / 内容) を 2 ページ目以降にも
+//   出すため thead { display: table-header-group } を明示する
+// - legacy 互換のため page-break-* property も併記する (古い WebKit 系 PDF generator
+//   は break-* property を解釈しないことがある)
+// 詳細な設計判断は docs/investigations/preview-pagination.md を参照。
 const CSS = `@page { size: A4; margin: 15mm; }
 .jcd-rirekisho { font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 10.5pt; color: #000; line-height: 1.6; }
 .jcd-rirekisho__header { display: flex; align-items: flex-start; gap: 1em; margin: 0 0 1.5em; }
@@ -387,12 +398,14 @@ const CSS = `@page { size: A4; margin: 15mm; }
 .jcd-rirekisho__photo { width: 30mm; height: 40mm; flex-shrink: 0; border: 0.5pt solid #ccc; }
 .jcd-rirekisho__photo-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 .jcd-rirekisho__section { margin-block-start: 1.5em; }
-.jcd-rirekisho__section h2 { font-size: 13pt; border-bottom: 1pt solid #000; margin: 0 0 0.6em; padding-bottom: 0.2em; }
+.jcd-rirekisho__section h2 { font-size: 13pt; border-bottom: 1pt solid #000; margin: 0 0 0.6em; padding-bottom: 0.2em; break-after: avoid; page-break-after: avoid; }
 .jcd-rirekisho__section ul { margin: 0; padding-inline-start: 1.5em; }
-.jcd-rirekisho__section li { margin-block-end: 0.6em; }
+.jcd-rirekisho__section li { margin-block-end: 0.6em; break-inside: avoid; page-break-inside: avoid; }
 .jcd-rirekisho__detail { margin-block-start: 0.2em; }
 .jcd-rirekisho__detail ul { margin: 0.2em 0; }
 .jcd-rirekisho__history-table { width: 100%; border-collapse: collapse; margin: 0; }
+.jcd-rirekisho__history-table thead { display: table-header-group; }
+.jcd-rirekisho__history-table tr { break-inside: avoid; page-break-inside: avoid; }
 .jcd-rirekisho__history-table th, .jcd-rirekisho__history-table td { border-bottom: 0.5pt solid #ccc; padding: 0.3em 0.5em; vertical-align: top; text-align: left; }
 .jcd-rirekisho__history-table th { font-weight: normal; background: #f5f5f5; width: 8em; }
 .jcd-rirekisho__history-heading td { font-weight: bold; text-align: center; background: #fafafa; }
