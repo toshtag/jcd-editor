@@ -126,6 +126,19 @@ describe('buildDraft', () => {
     const result = safeParseCareerProfile(draft);
     expect(result.success).toBe(true);
   });
+
+  it('workExperiences: [] を渡す: baseFixture の workExperiences を override (全削除を表現)', () => {
+    const draft = buildDraft({ basics: {}, workExperiences: [] }, sampleProfileInput);
+    expect(draft.workExperiences).toEqual([]);
+    expect(draft.educationHistory).toBe(sampleProfileInput.educationHistory);
+  });
+
+  it('workExperiences に entry を渡す: baseFixture の workExperiences を override', () => {
+    const customWork = [{ companyName: '株式会社テスト' }];
+    const draft = buildDraft({ basics: {}, workExperiences: customWork }, sampleProfileInput);
+    expect(draft.workExperiences).toBe(customWork);
+    expect(draft.educationHistory).toBe(sampleProfileInput.educationHistory);
+  });
 });
 
 describe('buildSaveProfileInput', () => {
