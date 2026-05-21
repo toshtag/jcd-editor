@@ -104,6 +104,8 @@ const setupDom = (): void => {
     <div id="work-experiences-list"></div>
     <button type="button" id="add-education-button">学歴を追加</button>
     <div id="education-list"></div>
+    <button type="button" id="add-skill-button">スキルを追加</button>
+    <div id="skills-list"></div>
     <iframe id="preview-frame" sandbox=""></iframe>
     <pre id="error-area" hidden></pre>
   `;
@@ -300,6 +302,95 @@ describe('local-web main flow', () => {
     expect(preview().srcdoc).not.toContain('田中');
   });
 
+  it('初期 profile に sample fixture 由来のスキルが反映される', async () => {
+    await importMain();
+
+    const skillItems = document.querySelectorAll('#skills-list [data-index]');
+    // sample fixture には TypeScript / HTML / CSS / Node.js の 3 件入る
+    expect(skillItems.length).toBeGreaterThanOrEqual(1);
+    const firstNameInput = skillItems[0]?.querySelector<HTMLInputElement>('[data-field="name"]');
+    expect(firstNameInput?.value).toBe('TypeScript');
+    expect(preview().srcdoc).toContain('TypeScript');
+  });
+
+  it('スキルを入力して保存 → 読み込みでスキル form が復元される (round-trip)', async () => {
+    await importMain();
+
+    // 既存 entry を削除して空にする
+    const removeButtons = document.querySelectorAll<HTMLButtonElement>(
+      '#skills-list [data-action="remove"]',
+    );
+    removeButtons.forEach((b) => {
+      b.click();
+    });
+
+    button('add-skill-button').click();
+    const nameInput = document.querySelector<HTMLInputElement>('#skills-list [data-field="name"]');
+    if (nameInput === null) throw new Error('skill name input missing');
+    // 「Rust」「Erlang」は sample fixture や他 section に含まれない一意な値として選択
+    nameInput.value = 'Rust';
+    dispatchInput(nameInput);
+
+    const levelInput = document.querySelector<HTMLInputElement>(
+      '#skills-list [data-field="level"]',
+    );
+    if (levelInput === null) throw new Error('skill level input missing');
+    levelInput.value = '中級';
+    dispatchInput(levelInput);
+
+    button('save-button').click();
+    await flushPromises();
+
+    // 編集を加える (未保存状態)
+    nameInput.value = 'Erlang';
+    dispatchInput(nameInput);
+    expect(preview().srcdoc).toContain('Erlang');
+
+    // load で復元
+    select('saved-profile-select').value = 'profile-1';
+    button('load-button').click();
+    await flushPromises();
+
+    const restored = document.querySelector<HTMLInputElement>('#skills-list [data-field="name"]');
+    expect(restored?.value).toBe('Rust');
+    const restoredLevel = document.querySelector<HTMLInputElement>(
+      '#skills-list [data-field="level"]',
+    );
+    expect(restoredLevel?.value).toBe('中級');
+    expect(preview().srcdoc).toContain('Rust');
+    expect(preview().srcdoc).not.toContain('Erlang');
+  });
+
+  it('スキルを全削除 → 保存後の data に sample fixture 由来のスキルが再混入しない', async () => {
+    await importMain();
+
+    // sample fixture 由来のスキル (TypeScript 等) を全削除
+    const removeButtons = document.querySelectorAll<HTMLButtonElement>(
+      '#skills-list [data-action="remove"]',
+    );
+    expect(removeButtons.length).toBeGreaterThan(0);
+    removeButtons.forEach((b) => {
+      b.click();
+    });
+
+    // form 上で削除済みであることを確認 (preview 全体の TypeScript 検査は
+    // 不可: 同 fixture の projects.technologies にも 'TypeScript' が含まれる)
+    expect(document.querySelectorAll('#skills-list [data-index]')).toHaveLength(0);
+
+    button('save-button').click();
+    await flushPromises();
+
+    input('name-family').value = '佐藤';
+    dispatchInput(input('name-family'));
+
+    select('saved-profile-select').value = 'profile-1';
+    button('load-button').click();
+    await flushPromises();
+
+    // load 後もスキル form が空のまま (再混入しない)
+    expect(document.querySelectorAll('#skills-list [data-index]')).toHaveLength(0);
+  });
+
   describe('JSON export / import', () => {
     const fileInput = (): HTMLInputElement => {
       const el = document.getElementById('import-file-input');
@@ -317,9 +408,12 @@ describe('local-web main flow', () => {
       } as unknown as FileList;
       Object.defineProperty(fileInput(), 'files', { value: fileList, configurable: true });
       fileInput().dispatchEvent(new Event('change', { bubbles: true }));
-      // FileReader / Promise / storage 操作を全て流す
-      await flushPromises();
-      await flushPromises();
+      // FileReader.readAsText は jsdom 上で setTimeout ベースの async。
+      // change handler 内の onImportFile は fire-and-forget で await 不可能。
+      // 一定回数 tick を回して安定させる (timing 依存の flake を避ける)。
+      for (let i = 0; i < 10; i++) {
+        await flushPromises();
+      }
     };
 
     it('export ボタン: invalid draft では download せずエラー表示する', async () => {
