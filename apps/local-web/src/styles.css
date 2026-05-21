@@ -56,6 +56,12 @@ body {
   color: #666;
 }
 
+.app__dirty-indicator {
+  font-size: 0.85rem;
+  color: #d36c00;
+  font-weight: 600;
+}
+
 .app__storage {
   display: flex;
   align-items: center;

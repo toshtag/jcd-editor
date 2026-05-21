@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storageState = vi.hoisted(() => {
   type Stored = {
@@ -82,6 +82,7 @@ const setupDom = (): void => {
       <option value="shokumukeirekisho">職務経歴書</option>
     </select>
     <span id="status"></span>
+    <span id="dirty-indicator" hidden>● 未保存</span>
     <button type="button" id="save-button">保存</button>
     <select id="saved-profile-select"><option value="">(選択してください)</option></select>
     <button type="button" id="load-button" disabled>読み込み</button>
@@ -163,6 +164,14 @@ describe('local-web main flow', () => {
   beforeEach(() => {
     storageState.reset();
     document.body.innerHTML = '';
+    // load / delete / import 系で window.confirm が出る経路を default で「承認」
+    // とする。confirm キャンセル経路を test するときは個別 it 内で mockReturnValue
+    // を上書きする。
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('初期 profile を form と preview に反映する', async () => {
@@ -298,6 +307,8 @@ describe('local-web main flow', () => {
     dispatchInput(input('name-family'));
     expect(preview().srcdoc).toContain('田中');
 
+    // 未保存変更があるため load 時に confirm が出るが、beforeEach の global mock
+    // で承認される。
     select('saved-profile-select').value = 'profile-1';
     button('load-button').click();
     await flushPromises();
@@ -593,6 +604,125 @@ describe('local-web main flow', () => {
     // load 後もプロジェクトが空のまま (再混入しない)
     expect(document.querySelectorAll('#projects-list [data-index]')).toHaveLength(0);
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
+  });
+
+  describe('dirty state', () => {
+    const dirtyIndicator = (): HTMLElement => {
+      const el = document.getElementById('dirty-indicator');
+      if (el === null) throw new Error('Missing dirty-indicator');
+      return el;
+    };
+
+    it('初期 mount 時: indicator は非表示 (sample fixture は未編集扱い)', async () => {
+      await importMain();
+      expect(dirtyIndicator().hidden).toBe(true);
+    });
+
+    it('user 入力後: indicator が表示される', async () => {
+      await importMain();
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      expect(dirtyIndicator().hidden).toBe(false);
+    });
+
+    it('save 成功後: indicator が非表示に戻る', async () => {
+      await importMain();
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      expect(dirtyIndicator().hidden).toBe(false);
+
+      button('save-button').click();
+      await flushPromises();
+      expect(dirtyIndicator().hidden).toBe(true);
+    });
+
+    it('load 成功後: indicator が非表示に戻る', async () => {
+      await importMain();
+      // 一度 save して保存済み profile を 1 件作る
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+      // 編集して dirty にする
+      input('name-family').value = '田中';
+      dispatchInput(input('name-family'));
+      expect(dirtyIndicator().hidden).toBe(false);
+
+      // load (beforeEach の global mock で confirm 承認される)
+      select('saved-profile-select').value = 'profile-1';
+      button('load-button').click();
+      await flushPromises();
+
+      expect(dirtyIndicator().hidden).toBe(true);
+    });
+
+    it('invalid draft 中も dirty 判定は維持される', async () => {
+      await importMain();
+      // 無効な birthDate で invalid 状態にする
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      expect(dirtyIndicator().hidden).toBe(false);
+      expect(button('save-button').disabled).toBe(true);
+    });
+
+    it('load 時に未保存変更があると confirm が表示される。承認するとロードが進む', async () => {
+      await importMain();
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+
+      // dirty にする
+      input('name-family').value = '田中';
+      dispatchInput(input('name-family'));
+
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      select('saved-profile-select').value = 'profile-1';
+      button('load-button').click();
+      await flushPromises();
+
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+      expect(confirmSpy.mock.calls[0]?.[0]).toContain('未保存の変更があります');
+      expect(input('name-family').value).toBe('佐藤');
+    });
+
+    it('load 時に confirm キャンセル: form / preview が維持されてロードは skip される', async () => {
+      await importMain();
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+      input('name-family').value = '田中';
+      dispatchInput(input('name-family'));
+      const dirtyBefore = preview().srcdoc;
+
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      select('saved-profile-select').value = 'profile-1';
+      button('load-button').click();
+      await flushPromises();
+
+      expect(input('name-family').value).toBe('田中');
+      expect(preview().srcdoc).toBe(dirtyBefore);
+      expect(dirtyIndicator().hidden).toBe(false);
+      expect(document.getElementById('status')?.textContent).toBe('読み込みをキャンセルしました');
+    });
+
+    it('未保存変更がない状態での load: confirm は呼ばれない (新規 mount 後すぐ等)', async () => {
+      await importMain();
+      // 初期 save (dirty なし状態を作るため、まず編集 → save する)
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+      // ここで dirty=false。load 時に confirm は呼ばれない
+
+      const confirmSpy = vi.spyOn(window, 'confirm');
+      select('saved-profile-select').value = 'profile-1';
+      button('load-button').click();
+      await flushPromises();
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('プロファイル削除', () => {

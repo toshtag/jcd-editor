@@ -123,8 +123,9 @@ const exportButton = requireElement('export-button', HTMLButtonElement);
 const importFileInput = requireElement('import-file-input', HTMLInputElement);
 const statusEl = document.getElementById('status');
 const errorArea = document.getElementById('error-area');
+const dirtyIndicator = document.getElementById('dirty-indicator');
 
-if (statusEl === null || errorArea === null) {
+if (statusEl === null || errorArea === null || dirtyIndicator === null) {
   throw new Error('Required DOM elements are missing in index.html.');
 }
 
@@ -213,6 +214,11 @@ if (!parsed.success) {
   let draftBase: Record<string, unknown> = sampleProfileInput;
   let isCurrentDraftValid = true;
   let isStorageBusy = false;
+  // isDirty: form 内容が「最後の save / load / import 成功時点」から変化したか。
+  // 初期 mount 時 (sample fixture) は false。user 入力で true、save / load /
+  // import 成功時に false に戻る。invalid draft 中も dirty 判定は維持する
+  // (input 自体が user の保存意図とは独立)。
+  let isDirty = false;
 
   const registry = createDefaultTemplateRegistry();
   const storage = createIndexedDbStorageAdapter();
@@ -253,6 +259,24 @@ if (!parsed.success) {
     deleteButton.disabled = profileSelect.value === '' || isStorageBusy;
   };
 
+  const updateDirtyIndicator = (): void => {
+    dirtyIndicator.hidden = !isDirty;
+  };
+
+  const markDirty = (): void => {
+    if (!isDirty) {
+      isDirty = true;
+      updateDirtyIndicator();
+    }
+  };
+
+  const markClean = (): void => {
+    if (isDirty) {
+      isDirty = false;
+      updateDirtyIndicator();
+    }
+  };
+
   const handleStorageError = (error: unknown, userMessage: string): void => {
     const detail = error instanceof Error ? error.message : String(error);
     showError(userMessage, detail);
@@ -284,6 +308,8 @@ if (!parsed.success) {
   };
 
   const onFormInput = (): void => {
+    // user 入力は常に dirty 判定。invalid draft 中も維持する。
+    markDirty();
     const basics = buildBasicsFromForm(readFormValues());
     const workExperiences = buildWorkExperiencesFromForm(
       readWorkExperiencesFromForm(workExperiencesList),
@@ -324,6 +350,7 @@ if (!parsed.success) {
       currentProfileId = stored.metadata.id;
       await refreshSavedProfileList();
       profileSelect.value = currentProfileId;
+      markClean();
       showStatus('保存しました');
     } catch (error) {
       handleStorageError(error, '保存に失敗しました');
@@ -417,6 +444,7 @@ if (!parsed.success) {
       currentProfileId = stored.metadata.id;
       await refreshSavedProfileList();
       profileSelect.value = currentProfileId;
+      markClean();
       showStatus('import して保存しました');
     } catch (error) {
       handleStorageError(error, 'import 後の保存に失敗しました');
@@ -430,6 +458,19 @@ if (!parsed.success) {
     if (isStorageBusy) return;
     const id = profileSelect.value;
     if (id === '') return;
+
+    // 未保存変更があれば確認してから上書きする (load は form 内容を完全に
+    // 置き換えるため、user の編集が失われる経路)。
+    if (isDirty) {
+      const confirmed = window.confirm(
+        '未保存の変更があります。読み込むと現在の編集内容は失われます。続行しますか?',
+      );
+      if (!confirmed) {
+        showStatus('読み込みをキャンセルしました');
+        return;
+      }
+    }
+
     isStorageBusy = true;
     updateButtonStates();
     try {
@@ -441,6 +482,7 @@ if (!parsed.success) {
       populateAll(stored.profile);
       clearValidationIssues();
       renderAndUpdate(currentKind);
+      markClean();
       showStatus('保存済みプロフィールを読み込みました');
     } catch (error) {
       handleStorageError(error, '読み込みに失敗しました');
@@ -677,7 +719,19 @@ if (!parsed.success) {
     });
   });
 
+  // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を
+  // 表示する。最新ブラウザはカスタム message を表示しない (browser 既定文言)
+  // が、確認 dialog 自体は出る。
+  window.addEventListener('beforeunload', (e) => {
+    if (isDirty) {
+      e.preventDefault();
+      // 一部 browser 互換のため returnValue にも空文字をセットする。
+      e.returnValue = '';
+    }
+  });
+
   renderAndUpdate(currentKind);
   updateButtonStates();
+  updateDirtyIndicator();
   void refreshSavedProfileList();
 }
