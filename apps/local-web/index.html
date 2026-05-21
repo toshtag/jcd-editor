@@ -19,13 +19,134 @@
         </div>
       </header>
       <main class="app__main">
-        <iframe
-          id="preview-frame"
-          class="app__preview"
-          title="ドキュメントプレビュー"
-          sandbox=""
-        ></iframe>
-        <pre id="error-area" class="app__error" hidden></pre>
+        <section class="app__form-pane" aria-label="基本情報フォーム">
+          <form id="basics-form" class="basics-form" autocomplete="off" novalidate>
+            <h2 class="basics-form__title">基本情報</h2>
+
+            <div class="basics-form__row">
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="name-family">姓</label>
+                <input
+                  id="name-family"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="name-given">名</label>
+                <input
+                  id="name-given"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+            </div>
+
+            <div class="basics-form__row">
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="name-kana-family">セイ</label>
+                <input
+                  id="name-kana-family"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="name-kana-given">メイ</label>
+                <input
+                  id="name-kana-given"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+            </div>
+
+            <div class="basics-form__field">
+              <label class="basics-form__label" for="birth-date">生年月日</label>
+              <input id="birth-date" class="basics-form__input" type="date" />
+            </div>
+
+            <div class="basics-form__field">
+              <label class="basics-form__label" for="email">メールアドレス</label>
+              <input
+                id="email"
+                class="basics-form__input"
+                type="email"
+                inputmode="email"
+                spellcheck="false"
+              />
+            </div>
+
+            <div class="basics-form__field">
+              <label class="basics-form__label" for="phone">電話番号</label>
+              <input
+                id="phone"
+                class="basics-form__input"
+                type="tel"
+                inputmode="tel"
+                spellcheck="false"
+              />
+            </div>
+
+            <div class="basics-form__field">
+              <label class="basics-form__label" for="postal-code">郵便番号</label>
+              <input
+                id="postal-code"
+                class="basics-form__input"
+                type="text"
+                inputmode="text"
+                spellcheck="false"
+              />
+            </div>
+
+            <div class="basics-form__field">
+              <label class="basics-form__label" for="prefecture">都道府県</label>
+              <input
+                id="prefecture"
+                class="basics-form__input"
+                type="text"
+                inputmode="text"
+                spellcheck="false"
+              />
+            </div>
+
+            <div class="basics-form__field">
+              <label class="basics-form__label" for="city-and-rest">住所</label>
+              <input
+                id="city-and-rest"
+                class="basics-form__input"
+                type="text"
+                inputmode="text"
+                spellcheck="false"
+              />
+            </div>
+
+            <pre
+              id="basics-validation-issues"
+              class="basics-form__validation"
+              role="status"
+              aria-live="polite"
+              hidden
+            ></pre>
+          </form>
+        </section>
+        <section class="app__preview-pane" aria-label="プレビュー">
+          <iframe
+            id="preview-frame"
+            class="app__preview"
+            title="ドキュメントプレビュー"
+            sandbox=""
+          ></iframe>
+          <pre id="error-area" class="app__error" hidden></pre>
+        </section>
       </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
