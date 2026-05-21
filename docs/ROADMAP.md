@@ -123,14 +123,16 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 - `feat/local-web-skeleton` (PR #22): `apps/local-web` に Vite + Vanilla TS の最小 skeleton を立て、`safeParseCareerProfile` → `renderDocument` → iframe `srcdoc` (`sandbox=""`) で A4 preview を表示。履歴書 / 職務経歴書 の kind switcher。**`@jcd-editor/pdf` は import しない** (Playwright は browser bundle に入らない)。React/Vue/Svelte/UI ライブラリ/state ライブラリ/router 一切なし。編集 / 保存 / PDF export なし。root `tsconfig.json` の `include` から `apps/*` を除外し、app は per-app tsconfig (DOM lib + `vite/client` types) + CI の app typecheck step で覆う
 - `feat/local-web-edit-form-basics` (PR #23): `apps/local-web` を「sample fixture 固定表示」から「basics-only edit + live preview」に進める。編集対象は basics の **10 fields** (name 2 / nameKana 2 / birthDate / email / phone / address 3)、他 section (work / education / skills / certifications / projects) は sample fixture を維持。`<form>` input event ごとに raw draft を構築 → `safeParseCareerProfile` → success なら preview 更新、failure なら validation issues を form 下に表示 + 前回成功 preview を保持 (invalid draft は renderer に渡さない)。`profile-draft.ts` helper を `_internal/` 外に追加 (`{ ...baseFixture, basics }` shallow spread で section 名独立性を確保)。draft は raw input、`CareerProfile` 型として扱わず `as const satisfies CareerProfile` / `structuredClone` 不使用
+- `feat/local-web-save-load-profile` (PR #26): `apps/local-web` に **`@jcd-editor/storage` 経由の manual Save / Load** を導入。Save button + saved-profile-select + Load button を header に追加、`createIndexedDbStorageAdapter()` を default options で生成。state 拡張 (`currentProfileId` / `draftBase` / `isCurrentDraftValid` / `isStorageBusy`)、再 Save 時は同 profile を update (`saveProfile` upsert)。**`draftBase` state を導入**することで、load 後の form 編集で他 section が sample fixture に戻る重大バグを防止 (form input 成功時 / load 成功時に `draftBase = result.data as unknown as Record<string, unknown>`)。保存対象は **last-valid `profile` のみ** (Save button は invalid 中 disable)。**`@jcd-editor/pdf` は引き続き 0 行 import**。autosave / dirty state / delete / new / rename / duplicate ボタン 一切なし。localStorage / FileSystemAccess / Node fs / fetch / WebSocket / IndexedDB wrapper library 一切なし。DOM 操作は `replaceChildren()` + `createElement` + `textContent` のみ (innerHTML 不使用、XSS 回避)。`packages/storage` を **1 行も変更しない** (StoragePort / StorageError / IndexedDB adapter すべて完全無変更)。CI 変更なし
 
 ### 進行中 / 直近マージ予定
 
-- `feat/local-web-save-load-profile` (PR #26): `apps/local-web` に **`@jcd-editor/storage` 経由の manual Save / Load** を導入。Save button + saved-profile-select + Load button を header に追加、`createIndexedDbStorageAdapter()` を default options で生成。state 拡張 (`currentProfileId` / `draftBase` / `isCurrentDraftValid` / `isStorageBusy`)、再 Save 時は同 profile を update (`saveProfile` upsert)。**`draftBase` state を導入**することで、load 後の form 編集で他 section が sample fixture に戻る重大バグを防止 (form input 成功時 / load 成功時に `draftBase = result.data as unknown as Record<string, unknown>`)。保存対象は **last-valid `profile` のみ** (Save button は invalid 中 disable)。**`@jcd-editor/pdf` は引き続き 0 行 import**。autosave / dirty state / delete / new / rename / duplicate ボタン 一切なし。localStorage / FileSystemAccess / Node fs / fetch / WebSocket / IndexedDB wrapper library 一切なし。DOM 操作は `replaceChildren()` + `createElement` + `textContent` のみ (innerHTML 不使用、XSS 回避)。`packages/storage` を **1 行も変更しない** (StoragePort / StorageError / IndexedDB adapter すべて完全無変更)。CI 変更なし
+- `feat/local-web-edit-work-experiences` (PR #27): `apps/local-web` に **最初の配列編集 UI** として workExperiences の編集を導入。各 work experience entry の add / remove / 各 field 編集 (companyName / position / employmentType / period.startDate / period.endDate / period.isCurrent / summary / responsibilities / achievements)。`buildDraft` signature を `(sections: { basics, workExperiences? }, baseFixture)` に拡張し、`DraftSections` 型を将来 section 追加に future-proof。**`draftBase` 戦略を維持** (PR #26 継承、form input 成功時 / load 成功時に最新 profile を base に update)。**完全空の work experience entry は draft に流さない** (`buildWorkExperiencesFromForm` は `flatMap` で `Object.keys(item).length > 0` のみ残す、UI には空フォームが残るが何か入力するまで preview / 保存対象には現れない)。**DOM を state として扱う pattern** (event delegation + `readWorkExperiencesFromForm()` で DOM walk、UI rebuild は add / remove / load 時のみ、focus 保持)。`responsibilities` / `achievements` は textarea + 改行区切り (個別 add/remove UI のネスト過剰を回避)。`<input type="month">` で `WorkPeriod.startDate` / `endDate` を入力 (`IsoYearMonthString` 完全互換)。`isCurrent` と `endDate` の相互排他は core が validation。**`@jcd-editor/pdf` は引き続き 0 行 import**。`packages/core` / `packages/renderer` / `packages/pdf` / `packages/templates` / `packages/storage` を **1 行も変更しない**。DOM 操作は `createElement` + `appendChild` + `replaceChildren` + `textContent` のみ (`innerHTML` 不使用)。DOM テスト / jsdom / e2e / Playwright 一切導入しない。CI 変更なし
 
 ### 次 PR 候補
 
-- `feat/local-web-edit-work-experiences`: work experience 編集 form (配列 / add/remove UI を導入する初の PR)
+- `feat/local-web-edit-education`: education 編集 form (同じ array + add/remove pattern を education に適用、`DraftSections` 拡張で最小差分を想定)
+- `feat/local-web-edit-skills-certifications`: skills / certifications 編集
 - `feat/local-web-delete-profile-button`: Delete profile UI (本 PR で扱わない、別 PR で議論)
 - `feat/local-web-new-profile-button`: New profile ボタン (current state を reset して sample fixture から再開、別 PR)
 - `feat/local-web-preview-sizing`: A4 比率 preview / CSS aspect-ratio / iframe zoom / page break preview
@@ -141,16 +143,20 @@ Foundation validation は PR #3 でカバー済みです。template / export 固
 
 - A4 比率の preview sizing 戦略 (CSS aspect-ratio / iframe zoom / 印刷時の page break preview)
 - sample fixture の構造化 (`packages/test-fixtures` 等への抽出を将来検討)
-- app-local state management の必要性 (本 PR の判断: module-level + `let` で十分、edit field が増えたら再評価)
-- delete / new / rename / duplicate UI を本 PR で扱わない判断 (別 PR で議論)
+- app-local state management の必要性 (PR #26 / #27 の判断: module-level + `let` + DOM-as-state で十分、edit field が増えたら再評価)
+- delete / new / rename / duplicate UI を扱わない判断 (別 PR で議論)
 - autosave / dirty state indicator の必要性 (現在は手動 Save、UX 問題が顕在化したら別 PR)
 - `formatStoredProfileOption` の表示形式 (現在は `YYYY-MM-DD HH:MM:SS (id 先頭 8)`、user の好みで調整余地)
-- `draftBase` state の管理が複雑化するか (work 編集 PR で再評価)
-- input debounce の必要性 (本 PR で見送り、性能問題が顕在化したら別 PR)
+- `draftBase` state の管理 (PR #27 で work 編集の `DraftSections` 拡張に追従、education / skills 編集 PR で再評価)
+- input debounce の必要性 (見送り、性能問題が顕在化したら別 PR)
 - basics に profilePhoto 編集を追加する判断 (sandbox / asset-resolver 設計と連動するため別 PR)
-- `name` / `nameKana` の片方空入力時の UX (本 PR では validation error 表示で受容、core schema 変更には別議論が必要)
+- `name` / `nameKana` の片方空入力時の UX (validation error 表示で受容、core schema 変更には別議論が必要)
 - `apps/local-web` から `@jcd-editor/pdf` を呼ぶ architecture (Playwright は Node 専用、browser から PDF 生成を triggers するための bridge 設計 = local server / Tauri 等が別 PR の課題)
 - root `tsconfig.json` から apps を除外した分の典型化 (将来 app が増えた時に root config をどう扱うか)
+- `responsibilities` / `achievements` の編集 UX (PR #27 で textarea + 改行区切りを採用、個別 add/remove は UX 改善 PR で議論)
+- work experience entry の reorder UI (PR #27 では扱わない、必要なら別 PR で drag-and-drop or up/down ボタンを議論)
+- `<input type="month">` を採用 (PR #27、`IsoYearMonthString` と完全互換、native UX)
+- 完全に空の work experience entry を `buildWorkExperiencesFromForm` で除外する方針を採用 (PR #27、UX ノイズ回避、core schema 自体は `{}` を valid と判定する点との非対称を許容)
 
 ## Phase 5 — ローカル PDF 生成
 
