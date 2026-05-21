@@ -10,8 +10,8 @@ packages/
                純粋なドメイン関数。I/O・UI・アダプタを含まない。
   renderer/    CareerProfile を RenderedDocument (HTML + CSS + メタデータ)
                に変換する。PDF は生成しない。
-  templates/   HTML + CSS + manifest.json のテンプレート資産。
-               React / Vue / Svelte のランタイムを必要としない。
+  templates/   将来のテンプレート資産パッケージ用に予約。
+               現時点の built-in template は renderer 内に置く。
   storage/     StoragePort と、CareerProfile を永続化するアダプタ。
   pdf/         PdfPort と、RenderedDocument を PDF 化するアダプタ。
   ai/          AiPort とアダプタ。デフォルトで無効。
@@ -56,7 +56,7 @@ packages/core
 4. `packages/renderer` は `RenderedDocument` (HTML + CSS + メタデータ) を生成します。PDF は生成**しません**。
 5. `packages/pdf` は `RenderedDocument` を受け取って PDF を生成します。`CareerProfile` に直接依存**しません**。
 6. `packages/storage` はデータの永続化方法を知っています。`packages/core` はストレージ形式を知**りません**。
-7. `packages/templates` のテンプレートは HTML + CSS + `manifest.json` で構成します。React、Vue、Svelte のランタイムを必要**としません**。
+7. `packages/templates` は将来のテンプレート資産パッケージ用に予約します。テンプレートを分離する場合も、React、Vue、Svelte のランタイムを必要**としません**。
 8. `apps/local-web` はパッケージとアダプタを組み合わせる役割を持ちます。ドメインロジックを含**みません**。
 9. `packages/core` は **foundation parsing と domain validation を所有します**。`parseCareerProfile` / `safeParseCareerProfile` が外部入力および永続化との境界です。これらの parse 関数を通っていないオブジェクトを `CareerProfile` 型として扱ってはなりません。
 10. `packages/core` は **template-specific な export readiness を所有しません**。「特定の履歴書テンプレートに対して提出可能か」のような判定は、テンプレートが具体化する `packages/renderer` または template 側で実装します。core に export-specific validation 関数を追加してはなりません。
