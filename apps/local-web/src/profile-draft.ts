@@ -70,6 +70,7 @@ export type DraftSections = {
   educationHistory?: readonly Record<string, unknown>[];
   skills?: readonly Record<string, unknown>[];
   certifications?: readonly Record<string, unknown>[];
+  projects?: readonly Record<string, unknown>[];
 };
 
 export const buildDraft = (
@@ -91,6 +92,9 @@ export const buildDraft = (
   }
   if (sections.certifications !== undefined) {
     result.certifications = sections.certifications;
+  }
+  if (sections.projects !== undefined) {
+    result.projects = sections.projects;
   }
   return result;
 };
