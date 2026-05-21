@@ -91,6 +91,26 @@ describe('shokumukeirekishoBasicTemplate - 直接 render の基本契約', () =>
     expect(result.css.length).toBeGreaterThan(0);
   });
 
+  it('css に印刷時の改ページ制御が含まれる (h2 widow / li break)', () => {
+    // 詳細な設計判断は docs/investigations/preview-pagination.md を参照。
+    // 構造的依存を捕捉するため、CSS literal が変更されたときに test を更新する
+    // 必要があることを明示する目的で regex assertion を置く。
+    const result = shokumukeirekishoBasicTemplate.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'shokumukeirekisho',
+    });
+    // h2 後の改ページ抑制 (heading widow 防止)
+    expect(result.css).toMatch(/\.jcd-shokumukeirekisho__section\s+h2[^}]*break-after:\s*avoid/);
+    expect(result.css).toMatch(
+      /\.jcd-shokumukeirekisho__section\s+h2[^}]*page-break-after:\s*avoid/,
+    );
+    // section li (workExperiences / projects / skills / certifications entry) の途中改ページ抑制
+    expect(result.css).toMatch(/\.jcd-shokumukeirekisho__section\s+li[^}]*break-inside:\s*avoid/);
+    expect(result.css).toMatch(
+      /\.jcd-shokumukeirekisho__section\s+li[^}]*page-break-inside:\s*avoid/,
+    );
+  });
+
   it('html に "undefined" / "null" / "[object Object]" 文字列が含まれない', () => {
     const result = shokumukeirekishoBasicTemplate.render({
       careerProfile: MIN_PROFILE,

@@ -87,6 +87,31 @@ describe('rirekishoBasicTemplate - 直接 render の基本契約', () => {
     expect(result.css.length).toBeGreaterThan(0);
   });
 
+  it('css に印刷時の改ページ制御が含まれる (h2 widow / li break / table row break / thead 再表示)', () => {
+    // 詳細な設計判断は docs/investigations/preview-pagination.md を参照。
+    // 構造的依存を捕捉するため、CSS literal が変更されたときに test を更新する
+    // 必要があることを明示する目的で regex assertion を置く。
+    const result = rirekishoBasicTemplate.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+    });
+    // h2 後の改ページ抑制 (heading widow 防止)
+    expect(result.css).toMatch(/\.jcd-rirekisho__section\s+h2[^}]*break-after:\s*avoid/);
+    expect(result.css).toMatch(/\.jcd-rirekisho__section\s+h2[^}]*page-break-after:\s*avoid/);
+    // section li (skills / certifications / projects entry) の途中改ページ抑制
+    expect(result.css).toMatch(/\.jcd-rirekisho__section\s+li[^}]*break-inside:\s*avoid/);
+    expect(result.css).toMatch(/\.jcd-rirekisho__section\s+li[^}]*page-break-inside:\s*avoid/);
+    // 学歴・職歴年表 tr の途中改ページ抑制
+    expect(result.css).toMatch(/\.jcd-rirekisho__history-table\s+tr[^}]*break-inside:\s*avoid/);
+    expect(result.css).toMatch(
+      /\.jcd-rirekisho__history-table\s+tr[^}]*page-break-inside:\s*avoid/,
+    );
+    // 多ページ時に thead を 2 ページ目以降にも出す
+    expect(result.css).toMatch(
+      /\.jcd-rirekisho__history-table\s+thead[^}]*display:\s*table-header-group/,
+    );
+  });
+
   it('html に "undefined" / "null" / "[object Object]" 文字列が含まれない', () => {
     const result = rirekishoBasicTemplate.render({
       careerProfile: MIN_PROFILE,
