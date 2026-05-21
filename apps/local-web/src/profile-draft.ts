@@ -69,6 +69,7 @@ export type DraftSections = {
   // 側のキーを使い、中間マッピングを発明しない。
   educationHistory?: readonly Record<string, unknown>[];
   skills?: readonly Record<string, unknown>[];
+  certifications?: readonly Record<string, unknown>[];
 };
 
 export const buildDraft = (
@@ -87,6 +88,9 @@ export const buildDraft = (
   }
   if (sections.skills !== undefined) {
     result.skills = sections.skills;
+  }
+  if (sections.certifications !== undefined) {
+    result.certifications = sections.certifications;
   }
   return result;
 };

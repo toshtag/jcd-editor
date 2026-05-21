@@ -106,6 +106,8 @@ const setupDom = (): void => {
     <div id="education-list"></div>
     <button type="button" id="add-skill-button">スキルを追加</button>
     <div id="skills-list"></div>
+    <button type="button" id="add-certification-button">資格を追加</button>
+    <div id="certifications-list"></div>
     <iframe id="preview-frame" sandbox=""></iframe>
     <pre id="error-area" hidden></pre>
   `;
@@ -389,6 +391,101 @@ describe('local-web main flow', () => {
 
     // load 後もスキル form が空のまま (再混入しない)
     expect(document.querySelectorAll('#skills-list [data-index]')).toHaveLength(0);
+  });
+
+  it('初期 profile に sample fixture 由来の資格が反映される', async () => {
+    await importMain();
+
+    const items = document.querySelectorAll('#certifications-list [data-index]');
+    expect(items).toHaveLength(1);
+    const nameInput = items[0]?.querySelector<HTMLInputElement>('[data-field="name"]');
+    expect(nameInput?.value).toBe('基本情報技術者試験');
+    expect(preview().srcdoc).toContain('基本情報技術者試験');
+  });
+
+  it('資格を入力して保存 → 読み込みで資格 form が復元される (round-trip)', async () => {
+    await importMain();
+
+    // 既存 entry を削除して空にする
+    const removeButtons = document.querySelectorAll<HTMLButtonElement>(
+      '#certifications-list [data-action="remove"]',
+    );
+    removeButtons.forEach((b) => {
+      b.click();
+    });
+
+    button('add-certification-button').click();
+    // sample fixture や他 section に含まれない一意な値 (CISSP / Wakanda)
+    const nameInput = document.querySelector<HTMLInputElement>(
+      '#certifications-list [data-field="name"]',
+    );
+    if (nameInput === null) throw new Error('certification name input missing');
+    nameInput.value = 'CISSP';
+    dispatchInput(nameInput);
+
+    const issuerInput = document.querySelector<HTMLInputElement>(
+      '#certifications-list [data-field="issuer"]',
+    );
+    if (issuerInput === null) throw new Error('certification issuer input missing');
+    issuerInput.value = 'ISC2';
+    dispatchInput(issuerInput);
+
+    button('save-button').click();
+    await flushPromises();
+
+    // 編集を加える (未保存状態)
+    nameInput.value = 'WakandaCert';
+    dispatchInput(nameInput);
+    expect(preview().srcdoc).toContain('WakandaCert');
+
+    // load で復元
+    select('saved-profile-select').value = 'profile-1';
+    button('load-button').click();
+    await flushPromises();
+
+    const restored = document.querySelector<HTMLInputElement>(
+      '#certifications-list [data-field="name"]',
+    );
+    expect(restored?.value).toBe('CISSP');
+    const restoredIssuer = document.querySelector<HTMLInputElement>(
+      '#certifications-list [data-field="issuer"]',
+    );
+    expect(restoredIssuer?.value).toBe('ISC2');
+    expect(preview().srcdoc).toContain('CISSP');
+    expect(preview().srcdoc).not.toContain('WakandaCert');
+  });
+
+  it('資格を全削除 → 保存後の data に sample fixture 由来の資格が再混入しない', async () => {
+    await importMain();
+
+    // sample fixture 由来の資格 (基本情報技術者試験) を全削除
+    const removeButtons = document.querySelectorAll<HTMLButtonElement>(
+      '#certifications-list [data-action="remove"]',
+    );
+    expect(removeButtons.length).toBeGreaterThan(0);
+    removeButtons.forEach((b) => {
+      b.click();
+    });
+
+    // この時点で preview に「基本情報技術者試験」が残っていないこと
+    expect(document.querySelectorAll('#certifications-list [data-index]')).toHaveLength(0);
+    expect(preview().srcdoc).not.toContain('基本情報技術者試験');
+
+    // 保存して load し直す
+    button('save-button').click();
+    await flushPromises();
+
+    // 編集中の draft をリセットするため、別 profile の編集状態を経由してから load
+    input('name-family').value = '佐藤';
+    dispatchInput(input('name-family'));
+
+    select('saved-profile-select').value = 'profile-1';
+    button('load-button').click();
+    await flushPromises();
+
+    // load 後も資格が空のまま (再混入しない)
+    expect(document.querySelectorAll('#certifications-list [data-index]')).toHaveLength(0);
+    expect(preview().srcdoc).not.toContain('基本情報技術者試験');
   });
 
   describe('JSON export / import', () => {
