@@ -261,6 +261,15 @@ const renderEducation = (entries: Education[] | undefined): string => {
 
 // === CSS ===
 
+// 改ページ制御 (印刷 / PDF) について:
+// - h2 widow (heading が前ページ末尾に取り残されて本文が次ページに行く) を防ぐため
+//   break-after: avoid を section h2 に適用する
+// - section の各 li (workExperiences / projects の entry は summary + 担当業務
+//   list + 成果 list 等で複数行になる) は entry 途中で改ページされないように
+//   break-inside: avoid を適用する
+// - legacy 互換のため page-break-* property も併記する (古い WebKit 系 PDF
+//   generator は break-* property を解釈しないことがある)
+// 詳細な設計判断は docs/investigations/preview-pagination.md を参照。
 const CSS = `@page { size: A4; margin: 15mm; }
 .jcd-shokumukeirekisho { font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 10.5pt; color: #000; line-height: 1.6; }
 .jcd-shokumukeirekisho__title { font-size: 18pt; font-weight: bold; text-align: center; margin: 0 0 1em; }
@@ -268,9 +277,9 @@ const CSS = `@page { size: A4; margin: 15mm; }
 .jcd-shokumukeirekisho__basics dt { font-weight: normal; color: #444; }
 .jcd-shokumukeirekisho__basics dd { margin: 0; }
 .jcd-shokumukeirekisho__section { margin-block-start: 1.5em; }
-.jcd-shokumukeirekisho__section h2 { font-size: 13pt; border-bottom: 1pt solid #000; margin: 0 0 0.6em; padding-bottom: 0.2em; }
+.jcd-shokumukeirekisho__section h2 { font-size: 13pt; border-bottom: 1pt solid #000; margin: 0 0 0.6em; padding-bottom: 0.2em; break-after: avoid; page-break-after: avoid; }
 .jcd-shokumukeirekisho__section ul { margin: 0; padding-inline-start: 1.5em; }
-.jcd-shokumukeirekisho__section li { margin-block-end: 0.6em; }
+.jcd-shokumukeirekisho__section li { margin-block-end: 0.6em; break-inside: avoid; page-break-inside: avoid; }
 .jcd-shokumukeirekisho__detail { margin-block-start: 0.2em; }
 .jcd-shokumukeirekisho__detail ul { margin: 0.2em 0; }
 `;
