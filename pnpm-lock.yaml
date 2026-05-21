@@ -21,7 +21,18 @@ importers:
         specifier: ^4.1.6
         version: 4.1.6(@vitest/coverage-v8@4.1.6)(vite@8.0.13)
 
-  apps/local-web: {}
+  apps/local-web:
+    dependencies:
+      '@jcd-editor/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@jcd-editor/renderer':
+        specifier: workspace:*
+        version: link:../../packages/renderer
+    devDependencies:
+      vite:
+        specifier: ^8.0.0
+        version: 8.0.13
 
   packages/ai: {}
 

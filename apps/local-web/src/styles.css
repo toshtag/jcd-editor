@@ -1,0 +1,84 @@
+/* App shell CSS。preview iframe 内には届かない (iframe srcdoc は独立 document)。 */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  background: #f4f4f4;
+  color: #222;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+.app__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.app__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app__kind-label {
+  font-size: 0.9rem;
+}
+
+.app__kind-select {
+  font-size: 0.9rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.app__status {
+  margin-inline-start: auto;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.app__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  min-height: 0;
+}
+
+.app__preview {
+  flex: 1;
+  width: 100%;
+  border: 1px solid #ccc;
+  background: #fff;
+  min-height: 0;
+}
+
+.app__error {
+  flex: 1;
+  padding: 1rem;
+  background: #fff5f5;
+  border: 1px solid #d33;
+  color: #a00;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  overflow: auto;
+}

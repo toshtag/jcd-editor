@@ -43,3 +43,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Typecheck local web app
+        run: pnpm --filter @jcd-editor/local-web typecheck
+
+      - name: Build local web app
+        run: pnpm --filter @jcd-editor/local-web build

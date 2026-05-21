@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>jcd-editor (local-web)</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="app__header">
+        <h1 class="app__title">jcd-editor (local-web)</h1>
+        <div class="app__controls">
+          <label class="app__kind-label" for="kind-selector">種別:</label>
+          <select id="kind-selector" class="app__kind-select">
+            <option value="rirekisho">履歴書</option>
+            <option value="shokumukeirekisho">職務経歴書</option>
+          </select>
+          <span id="status" class="app__status" role="status" aria-live="polite"></span>
+        </div>
+      </header>
+      <main class="app__main">
+        <iframe
+          id="preview-frame"
+          class="app__preview"
+          title="ドキュメントプレビュー"
+          sandbox=""
+        ></iframe>
+        <pre id="error-area" class="app__error" hidden></pre>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
