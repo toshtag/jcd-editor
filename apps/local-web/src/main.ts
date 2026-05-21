@@ -65,6 +65,13 @@ import {
 } from './education-form';
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import {
+  buildSkillsFromForm,
+  createSkillItemElement,
+  emptySkillFormValues,
+  populateSkillsForm,
+  readSkillsFromForm,
+} from './skills-form';
+import {
   buildWorkExperiencesFromForm,
   createWorkExperienceItemElement,
   emptyWorkExperienceFormValues,
@@ -91,6 +98,8 @@ const workExperiencesList = requireElement('work-experiences-list', HTMLDivEleme
 const addWorkExperienceButton = requireElement('add-work-experience-button', HTMLButtonElement);
 const educationList = requireElement('education-list', HTMLDivElement);
 const addEducationButton = requireElement('add-education-button', HTMLButtonElement);
+const skillsList = requireElement('skills-list', HTMLDivElement);
+const addSkillButton = requireElement('add-skill-button', HTMLButtonElement);
 const exportButton = requireElement('export-button', HTMLButtonElement);
 const importFileInput = requireElement('import-file-input', HTMLInputElement);
 const statusEl = document.getElementById('status');
@@ -193,6 +202,7 @@ if (!parsed.success) {
     populateForm(loaded.basics);
     populateWorkExperiencesForm(workExperiencesList, loaded.workExperiences);
     populateEducationForm(educationList, loaded.educationHistory);
+    populateSkillsForm(skillsList, loaded.skills);
   };
 
   populateAll(profile);
@@ -257,7 +267,8 @@ if (!parsed.success) {
       readWorkExperiencesFromForm(workExperiencesList),
     );
     const educationHistory = buildEducationFromForm(readEducationFromForm(educationList));
-    const draft = buildDraft({ basics, workExperiences, educationHistory }, draftBase);
+    const skills = buildSkillsFromForm(readSkillsFromForm(skillsList));
+    const draft = buildDraft({ basics, workExperiences, educationHistory, skills }, draftBase);
     const result = safeParseCareerProfile(draft);
     if (result.success) {
       profile = result.data;
@@ -430,11 +441,23 @@ if (!parsed.success) {
     });
   };
 
+  const renumberSkillItems = (): void => {
+    skillsList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
+      el.dataset.index = String(i);
+      const legend = el.querySelector('.skill-item__legend');
+      if (legend !== null) {
+        legend.textContent = `スキル ${i + 1}`;
+      }
+    });
+  };
+
   formEl.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('change', onFormInput);
   educationList.addEventListener('input', onFormInput);
   educationList.addEventListener('change', onFormInput);
+  skillsList.addEventListener('input', onFormInput);
+  skillsList.addEventListener('change', onFormInput);
 
   workExperiencesList.addEventListener('click', (e) => {
     const target = e.target;
@@ -458,6 +481,17 @@ if (!parsed.success) {
     onFormInput();
   });
 
+  skillsList.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action !== 'remove') return;
+    const item = target.closest<HTMLElement>('[data-index]');
+    if (item === null) return;
+    item.remove();
+    renumberSkillItems();
+    onFormInput();
+  });
+
   addWorkExperienceButton.addEventListener('click', () => {
     const currentCount = workExperiencesList.querySelectorAll('[data-index]').length;
     const element = createWorkExperienceItemElement(currentCount, emptyWorkExperienceFormValues());
@@ -469,6 +503,13 @@ if (!parsed.success) {
     const currentCount = educationList.querySelectorAll('[data-index]').length;
     const element = createEducationItemElement(currentCount, emptyEducationFormValues());
     educationList.appendChild(element);
+    onFormInput();
+  });
+
+  addSkillButton.addEventListener('click', () => {
+    const currentCount = skillsList.querySelectorAll('[data-index]').length;
+    const element = createSkillItemElement(currentCount, emptySkillFormValues());
+    skillsList.appendChild(element);
     onFormInput();
   });
 
