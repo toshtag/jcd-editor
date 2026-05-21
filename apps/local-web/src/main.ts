@@ -57,6 +57,13 @@ import {
 import { sampleProfileInput } from './sample-profile';
 import { formatStoredProfileOption } from './storage-ui';
 import {
+  buildCertificationsFromForm,
+  createCertificationItemElement,
+  emptyCertificationFormValues,
+  populateCertificationsForm,
+  readCertificationsFromForm,
+} from './certifications-form';
+import {
   buildEducationFromForm,
   createEducationItemElement,
   emptyEducationFormValues,
@@ -100,6 +107,8 @@ const educationList = requireElement('education-list', HTMLDivElement);
 const addEducationButton = requireElement('add-education-button', HTMLButtonElement);
 const skillsList = requireElement('skills-list', HTMLDivElement);
 const addSkillButton = requireElement('add-skill-button', HTMLButtonElement);
+const certificationsList = requireElement('certifications-list', HTMLDivElement);
+const addCertificationButton = requireElement('add-certification-button', HTMLButtonElement);
 const exportButton = requireElement('export-button', HTMLButtonElement);
 const importFileInput = requireElement('import-file-input', HTMLInputElement);
 const statusEl = document.getElementById('status');
@@ -203,6 +212,7 @@ if (!parsed.success) {
     populateWorkExperiencesForm(workExperiencesList, loaded.workExperiences);
     populateEducationForm(educationList, loaded.educationHistory);
     populateSkillsForm(skillsList, loaded.skills);
+    populateCertificationsForm(certificationsList, loaded.certifications);
   };
 
   populateAll(profile);
@@ -268,7 +278,13 @@ if (!parsed.success) {
     );
     const educationHistory = buildEducationFromForm(readEducationFromForm(educationList));
     const skills = buildSkillsFromForm(readSkillsFromForm(skillsList));
-    const draft = buildDraft({ basics, workExperiences, educationHistory, skills }, draftBase);
+    const certifications = buildCertificationsFromForm(
+      readCertificationsFromForm(certificationsList),
+    );
+    const draft = buildDraft(
+      { basics, workExperiences, educationHistory, skills, certifications },
+      draftBase,
+    );
     const result = safeParseCareerProfile(draft);
     if (result.success) {
       profile = result.data;
@@ -451,6 +467,16 @@ if (!parsed.success) {
     });
   };
 
+  const renumberCertificationItems = (): void => {
+    certificationsList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
+      el.dataset.index = String(i);
+      const legend = el.querySelector('.certification-item__legend');
+      if (legend !== null) {
+        legend.textContent = `資格 ${i + 1}`;
+      }
+    });
+  };
+
   formEl.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('input', onFormInput);
   workExperiencesList.addEventListener('change', onFormInput);
@@ -458,6 +484,8 @@ if (!parsed.success) {
   educationList.addEventListener('change', onFormInput);
   skillsList.addEventListener('input', onFormInput);
   skillsList.addEventListener('change', onFormInput);
+  certificationsList.addEventListener('input', onFormInput);
+  certificationsList.addEventListener('change', onFormInput);
 
   workExperiencesList.addEventListener('click', (e) => {
     const target = e.target;
@@ -492,6 +520,17 @@ if (!parsed.success) {
     onFormInput();
   });
 
+  certificationsList.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action !== 'remove') return;
+    const item = target.closest<HTMLElement>('[data-index]');
+    if (item === null) return;
+    item.remove();
+    renumberCertificationItems();
+    onFormInput();
+  });
+
   addWorkExperienceButton.addEventListener('click', () => {
     const currentCount = workExperiencesList.querySelectorAll('[data-index]').length;
     const element = createWorkExperienceItemElement(currentCount, emptyWorkExperienceFormValues());
@@ -510,6 +549,13 @@ if (!parsed.success) {
     const currentCount = skillsList.querySelectorAll('[data-index]').length;
     const element = createSkillItemElement(currentCount, emptySkillFormValues());
     skillsList.appendChild(element);
+    onFormInput();
+  });
+
+  addCertificationButton.addEventListener('click', () => {
+    const currentCount = certificationsList.querySelectorAll('[data-index]').length;
+    const element = createCertificationItemElement(currentCount, emptyCertificationFormValues());
+    certificationsList.appendChild(element);
     onFormInput();
   });
 
