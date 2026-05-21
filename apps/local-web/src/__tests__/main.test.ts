@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storageState = vi.hoisted(() => {
   type Stored = {
@@ -164,6 +164,14 @@ describe('local-web main flow', () => {
   beforeEach(() => {
     storageState.reset();
     document.body.innerHTML = '';
+    // load / delete / import 系で window.confirm が出る経路を default で「承認」
+    // とする。confirm キャンセル経路を test するときは個別 it 内で mockReturnValue
+    // を上書きする。
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('初期 profile を form と preview に反映する', async () => {
@@ -299,6 +307,8 @@ describe('local-web main flow', () => {
     dispatchInput(input('name-family'));
     expect(preview().srcdoc).toContain('田中');
 
+    // 未保存変更があるため load 時に confirm が出るが、beforeEach の global mock
+    // で承認される。
     select('saved-profile-select').value = 'profile-1';
     button('load-button').click();
     await flushPromises();

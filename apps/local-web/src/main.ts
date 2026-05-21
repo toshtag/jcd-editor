@@ -458,6 +458,19 @@ if (!parsed.success) {
     if (isStorageBusy) return;
     const id = profileSelect.value;
     if (id === '') return;
+
+    // 未保存変更があれば確認してから上書きする (load は form 内容を完全に
+    // 置き換えるため、user の編集が失われる経路)。
+    if (isDirty) {
+      const confirmed = window.confirm(
+        '未保存の変更があります。読み込むと現在の編集内容は失われます。続行しますか?',
+      );
+      if (!confirmed) {
+        showStatus('読み込みをキャンセルしました');
+        return;
+      }
+    }
+
     isStorageBusy = true;
     updateButtonStates();
     try {
@@ -706,7 +719,19 @@ if (!parsed.success) {
     });
   });
 
+  // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を
+  // 表示する。最新ブラウザはカスタム message を表示しない (browser 既定文言)
+  // が、確認 dialog 自体は出る。
+  window.addEventListener('beforeunload', (e) => {
+    if (isDirty) {
+      e.preventDefault();
+      // 一部 browser 互換のため returnValue にも空文字をセットする。
+      e.returnValue = '';
+    }
+  });
+
   renderAndUpdate(currentKind);
   updateButtonStates();
+  updateDirtyIndicator();
   void refreshSavedProfileList();
 }
