@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { safeParseCareerProfile } from '@jcd-editor/core';
+import { parseCareerProfile, safeParseCareerProfile, type CareerProfile } from '@jcd-editor/core';
 
-import { buildBasicsFromForm, buildDraft, type BasicsFormValues } from '../profile-draft';
+import {
+  buildBasicsFromForm,
+  buildDraft,
+  buildSaveProfileInput,
+  type BasicsFormValues,
+} from '../profile-draft';
 import { sampleProfileInput } from '../sample-profile';
 
 const emptyForm: BasicsFormValues = {
@@ -120,5 +125,30 @@ describe('buildDraft', () => {
     const draft = buildDraft({}, sampleProfileInput);
     const result = safeParseCareerProfile(draft);
     expect(result.success).toBe(true);
+  });
+});
+
+describe('buildSaveProfileInput', () => {
+  // minimal valid CareerProfile を 1 度生成 (parse 経由、test 間で参照共有)
+  const validProfile: CareerProfile = parseCareerProfile({ schemaVersion: 1, basics: {} });
+
+  it('currentProfileId が undefined のとき: id field が結果 object に含まれない (omit pattern)', () => {
+    const result = buildSaveProfileInput(validProfile, undefined);
+    expect('id' in result).toBe(false);
+    expect(result.profile).toBe(validProfile);
+  });
+
+  it('currentProfileId が指定されたとき: id field が結果 object に含まれる', () => {
+    const result = buildSaveProfileInput(validProfile, 'my-profile-id');
+    expect(result.id).toBe('my-profile-id');
+    expect(result.profile).toBe(validProfile);
+  });
+
+  it('profile field が常に保持される (参照同一性)', () => {
+    const a = buildSaveProfileInput(validProfile, undefined);
+    const b = buildSaveProfileInput(validProfile, 'some-id');
+    expect(a.profile).toBe(validProfile);
+    expect(b.profile).toBe(validProfile);
+    expect(a.profile.schemaVersion).toBe(1);
   });
 });
