@@ -15,6 +15,12 @@
 //   section 名 (workExperiences / educationHistory / 等) を helper 側で再列挙
 //   **しない** ことで、core schema / sample fixture の将来変更に対する drift
 //   リスクを排除する。
+// - buildSaveProfileInput は exactOptionalPropertyTypes 制約下で
+//   currentProfileId が undefined のとき id field を omit する conditional spread
+//   を集約 (caller が `{ id: maybeUndefined, profile }` で型エラーになる罠を回避)。
+
+import type { CareerProfile } from '@jcd-editor/core';
+import type { SaveProfileInput, StoredProfileId } from '@jcd-editor/storage';
 
 export type BasicsFormValues = {
   nameFamily: string;
@@ -59,4 +65,12 @@ export const buildDraft = (
 ): Record<string, unknown> => ({
   ...baseFixture,
   basics,
+});
+
+export const buildSaveProfileInput = (
+  profile: CareerProfile,
+  currentProfileId: StoredProfileId | undefined,
+): SaveProfileInput => ({
+  ...(currentProfileId !== undefined ? { id: currentProfileId } : {}),
+  profile,
 });

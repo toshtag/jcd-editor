@@ -56,6 +56,45 @@ body {
   color: #666;
 }
 
+.app__storage {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.app__storage-label {
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.app__storage-select {
+  font-size: 0.9rem;
+  padding: 0.25rem 0.5rem;
+  min-width: 14rem;
+}
+
+.app__storage-button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #4a90e2;
+  border-radius: 2px;
+  background: #fff;
+  color: #4a90e2;
+  cursor: pointer;
+}
+
+.app__storage-button:hover:not(:disabled) {
+  background: #f0f6fd;
+}
+
+.app__storage-button:disabled {
+  border-color: #ccc;
+  color: #999;
+  cursor: not-allowed;
+}
+
 .app__main {
   flex: 1;
   display: flex;

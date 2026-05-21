@@ -17,6 +17,16 @@
           </select>
           <span id="status" class="app__status" role="status" aria-live="polite"></span>
         </div>
+        <div class="app__storage">
+          <button type="button" id="save-button" class="app__storage-button">保存</button>
+          <label class="app__storage-label" for="saved-profile-select">保存済み:</label>
+          <select id="saved-profile-select" class="app__storage-select">
+            <option value="">(選択してください)</option>
+          </select>
+          <button type="button" id="load-button" class="app__storage-button" disabled>
+            読み込み
+          </button>
+        </div>
       </header>
       <main class="app__main">
         <section class="app__form-pane" aria-label="基本情報フォーム">

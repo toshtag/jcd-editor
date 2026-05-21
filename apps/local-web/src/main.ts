@@ -6,14 +6,23 @@
 //   - createDefaultTemplateRegistry + renderDocument で render
 //   - iframe.srcdoc に preview として表示 (buildPreviewDocument で完全 HTML 化)
 //   - 履歴書 / 職務経歴書 の kind switcher
+//   - manual Save / Load via IndexedDB (本 PR で追加)
 //
 // 制約:
 //   - @jcd-editor/pdf は import しない (Playwright は browser bundle に入らない)
-//   - localStorage / fetch / file API なし
+//   - localStorage / sessionStorage / FileSystemAccess / fetch / file API なし
 //   - state library / router / UI library なし
+//   - IndexedDB API を app source で直接呼ばない (@jcd-editor/storage port 経由)
 //   - draft は raw input、CareerProfile 型として扱わない (safeParseCareerProfile 経由で type-safe に)
 //   - invalid draft は renderer に渡さない (parsed.success === true の時のみ renderDocument を呼ぶ)
 //   - invalid draft 時は前回成功 preview を保持、validation issues を画面下部に表示
+//   - 保存対象は last-valid profile のみ (Save button は invalid 中 disable)
+//   - DOM 操作は createElement + textContent + replaceChildren のみ、innerHTML 不使用 (XSS 回避)
+//
+// draftBase 問題への対応 (本 PR の核心):
+//   - form input 成功時 / load 成功時に draftBase を current profile に update
+//   - 初期は sampleProfileInput を base、load 後は loaded profile を base
+//   - これにより load 後の form 編集で他 section が sample fixture に戻る重大バグを防止
 
 import { safeParseCareerProfile, type CareerProfile, type ValidationIssue } from '@jcd-editor/core';
 import {
@@ -22,12 +31,19 @@ import {
   RendererError,
   type DocumentKind,
 } from '@jcd-editor/renderer';
+import { createIndexedDbStorageAdapter, type StoredProfileId } from '@jcd-editor/storage';
 
 import './styles.css';
 
 import { buildPreviewDocument } from './preview-document';
-import { buildBasicsFromForm, buildDraft, type BasicsFormValues } from './profile-draft';
+import {
+  buildBasicsFromForm,
+  buildDraft,
+  buildSaveProfileInput,
+  type BasicsFormValues,
+} from './profile-draft';
 import { sampleProfileInput } from './sample-profile';
+import { formatStoredProfileOption } from './storage-ui';
 
 const requireElement = <T extends Element>(id: string, ctor: new () => T): T => {
   const el = document.getElementById(id);
@@ -41,6 +57,9 @@ const previewFrame = requireElement('preview-frame', HTMLIFrameElement);
 const kindSelector = requireElement('kind-selector', HTMLSelectElement);
 const formEl = requireElement('basics-form', HTMLFormElement);
 const validationIssuesPre = requireElement('basics-validation-issues', HTMLPreElement);
+const saveButton = requireElement('save-button', HTMLButtonElement);
+const loadButton = requireElement('load-button', HTMLButtonElement);
+const profileSelect = requireElement('saved-profile-select', HTMLSelectElement);
 const statusEl = document.getElementById('status');
 const errorArea = document.getElementById('error-area');
 
@@ -101,8 +120,7 @@ const readFormValues = (): BasicsFormValues => ({
   cityAndRest: cityAndRestInput.value,
 });
 
-const populateForm = (): void => {
-  const basics = sampleProfileInput.basics;
+const populateForm = (basics: CareerProfile['basics']): void => {
   nameFamilyInput.value = basics.name?.family ?? '';
   nameGivenInput.value = basics.name?.given ?? '';
   nameKanaFamilyInput.value = basics.nameKana?.family ?? '';
@@ -128,11 +146,17 @@ if (!parsed.success) {
   showStatus('fixture 不正');
   console.error('sample fixture failed to parse:', parsed.issues);
 } else {
-  populateForm();
-
   let profile: CareerProfile = parsed.data;
   let currentKind: DocumentKind = 'rirekisho';
+  let currentProfileId: StoredProfileId | undefined;
+  let draftBase: Record<string, unknown> = sampleProfileInput;
+  let isCurrentDraftValid = true;
+  let isStorageBusy = false;
+
   const registry = createDefaultTemplateRegistry();
+  const storage = createIndexedDbStorageAdapter();
+
+  populateForm(profile.basics);
 
   const renderAndUpdate = (kind: DocumentKind): void => {
     try {
@@ -153,18 +177,100 @@ if (!parsed.success) {
     }
   };
 
+  const updateButtonStates = (): void => {
+    saveButton.disabled = !isCurrentDraftValid || isStorageBusy;
+    loadButton.disabled = profileSelect.value === '' || isStorageBusy;
+  };
+
+  const handleStorageError = (error: unknown, userMessage: string): void => {
+    const detail = error instanceof Error ? error.message : String(error);
+    showError(userMessage, detail);
+    // profile data は log しない (privacy)
+    console.error(`storage operation failed: ${userMessage}`);
+  };
+
+  const refreshSavedProfileList = async (): Promise<void> => {
+    try {
+      const list = await storage.listProfiles();
+      // replaceChildren() で安全に既存 option を全削除 (innerHTML 不使用、XSS 回避)
+      profileSelect.replaceChildren();
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent =
+        list.length === 0 ? '保存済みプロフィールはありません' : '(選択してください)';
+      profileSelect.appendChild(placeholder);
+
+      for (const metadata of list) {
+        const option = document.createElement('option');
+        option.value = metadata.id;
+        option.textContent = formatStoredProfileOption(metadata);
+        profileSelect.appendChild(option);
+      }
+    } catch (error) {
+      handleStorageError(error, '保存済みプロフィール一覧の取得に失敗しました');
+    }
+  };
+
   const onFormInput = (): void => {
     const basics = buildBasicsFromForm(readFormValues());
-    const draft = buildDraft(basics, sampleProfileInput);
+    const draft = buildDraft(basics, draftBase);
     const result = safeParseCareerProfile(draft);
     if (result.success) {
       profile = result.data;
+      draftBase = result.data as unknown as Record<string, unknown>;
+      isCurrentDraftValid = true;
       clearValidationIssues();
       renderAndUpdate(currentKind);
     } else {
+      isCurrentDraftValid = false;
       showValidationIssues(result.issues);
       showStatus(STATUS_INVALID);
       // preview は前回成功状態を保持 (srcdoc 触らない)
+    }
+    updateButtonStates();
+  };
+
+  const onSave = async (): Promise<void> => {
+    if (!isCurrentDraftValid || isStorageBusy) return;
+    isStorageBusy = true;
+    updateButtonStates();
+    try {
+      const input = buildSaveProfileInput(profile, currentProfileId);
+      const stored = await storage.saveProfile(input);
+      currentProfileId = stored.metadata.id;
+      await refreshSavedProfileList();
+      profileSelect.value = currentProfileId;
+      showStatus('保存しました');
+    } catch (error) {
+      handleStorageError(error, '保存に失敗しました');
+    } finally {
+      isStorageBusy = false;
+      updateButtonStates();
+    }
+  };
+
+  const onLoad = async (): Promise<void> => {
+    if (isStorageBusy) return;
+    const id = profileSelect.value;
+    if (id === '') return;
+    isStorageBusy = true;
+    updateButtonStates();
+    try {
+      const stored = await storage.loadProfile(id);
+      profile = stored.profile;
+      currentProfileId = stored.metadata.id;
+      draftBase = stored.profile as unknown as Record<string, unknown>;
+      isCurrentDraftValid = true;
+      populateForm(stored.profile.basics);
+      clearValidationIssues();
+      renderAndUpdate(currentKind);
+      showStatus('保存済みプロフィールを読み込みました');
+    } catch (error) {
+      handleStorageError(error, '読み込みに失敗しました');
+    } finally {
+      isStorageBusy = false;
+      updateButtonStates();
     }
   };
 
@@ -178,5 +284,17 @@ if (!parsed.success) {
     }
   });
 
+  saveButton.addEventListener('click', () => {
+    void onSave();
+  });
+
+  loadButton.addEventListener('click', () => {
+    void onLoad();
+  });
+
+  profileSelect.addEventListener('change', updateButtonStates);
+
   renderAndUpdate(currentKind);
+  updateButtonStates();
+  void refreshSavedProfileList();
 }
