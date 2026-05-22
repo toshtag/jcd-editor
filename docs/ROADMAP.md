@@ -95,7 +95,7 @@
 
 ## Phase 4 — local-web UI
 
-**状態:** 進行中 (全 section 編集 + JSON I/O + 削除 UI まで完了)
+**状態:** 進行中 (全 section 編集 + JSON I/O + 削除 UI + dirty state + 写真入力まで完了)
 
 バックエンドなしでローカル実行できるブラウザ UI を提供します。左側で構造化入力、右側で HTML プレビューを表示します。
 
@@ -103,29 +103,29 @@
 
 - Vite + Vanilla TypeScript の UI
 - basics / work experiences / education / skills / certifications / projects の編集
+- 証明写真 input (data URI 化、3 MB 上限、image/jpeg | image/png 限定)
 - renderer 経由の live preview (履歴書 / 職務経歴書 切替)
 - IndexedDB 経由の manual save / load
 - 保存済み profile の削除 UI (confirm 必須 / undo なし)
 - JSON export / import (`safeParseCareerProfile` で検証、上書き confirm 必須)
+- dirty state 追跡と未保存変更がある状態での load / reload 時の confirm
 - invalid draft 時の preview 保持
-- DOM 結合テスト (round-trip / sample fixture 残留防止 / 削除フロー / JSON I/O)
+- DOM 結合テスト (round-trip / sample fixture 残留防止 / 削除 / JSON I/O / dirty state / 写真)
 - `@jcd-editor/pdf` を browser bundle に含めない境界
 
 残課題:
 
-- dirty state / autosave
-- 未保存変更がある状態での load / delete / reload 時の confirm
-- 写真入力 (data URI 化、サイズ上限、MIME type 限定)
+- autosave (現状は manual save のみ)
 - new / rename / duplicate
 - A4 preview sizing
 - validation issues の section 単位での集約表示
 - section 単位の navigation
 - accessibility audit (aria 属性、キーボード操作、focus 管理)
-- PDF export UI
+- local-web から PDF 出力 (現状は CLI 経由のみ)
 
 ## Phase 5 — ローカル PDF 生成
 
-**状態:** 基盤実装済み、UI 統合未実装
+**状態:** 基盤 + CLI 経由の呼び出しまで完了、local-web UI 統合は未実装
 
 `RenderedDocument` を完全ローカルで PDF 化します。外部サービスへキャリア情報を送信しません。
 
@@ -136,12 +136,14 @@
 - JavaScript 無効化
 - `data:` / `about:` 以外の request blocking
 - `<base>` を含めない HTML 生成
+- `apps/cli` 経由の JSON → PDF 生成 (履歴書 / 職務経歴書 切替対応、利用方法は `docs/cli.md`)
+- short / long profile fixture + 各種 error 経路の integration test
 
 残課題:
 
-- local-web / desktop / CLI からの呼び出し設計
+- local-web からの呼び出し UI (ボタン経由で CLI 相当を実行する Node 連携 / Web Worker / WASM 化など)
 - 日本語フォントと印刷互換性の検証
-- PDF options
+- PDF options (font subsetting、metadata 付与など)
 - browser lifecycle / pooling の判断
 - page count 取得の要否
 
@@ -195,21 +197,21 @@ AI は中核ではなく補助機能です。導入する場合も optional adap
 
 Phase 4 (local-web UI) と Phase 5 (PDF) の間を埋める、MVP の信頼性・実用性を上げるための具体的な次ステップです。Phase 区切りに沿って整理した上記とは別に、直近の実装順序を明示します。
 
-### 直近で着手するもの (順序固定)
+### 直近で完了済み
 
-1. **dirty state** — 未保存変更の追跡と、load / delete / reload / import 前の confirm。section が増えたことで「未保存編集の喪失」リスクが顕在化したため、PDF / 写真 / template 切替の前に固める
-2. **profile photo input** — 日本式履歴書において写真は構造的に必須レベル。renderer 側で data URI 対応は既にあるため、local-web 側で input + size limit + MIME type 限定を実装する。写真は個人情報として UI / docs に明記
-3. **CLI PDF** — JSON file → `safeParseCareerProfile` → renderer → Playwright PDF。local-web に PDF ボタンを生やすより先に CLI 経由で出力できる導線を作る。short / long / 写真あり fixture で最低限 QA を含める
+1. ✅ **dirty state** — 未保存変更の追跡と load / reload 前の confirm
+2. ✅ **profile photo input** — 証明写真の data URI 入力 (3 MB 上限、image/jpeg | image/png)
+3. ✅ **CLI PDF** — `apps/cli` 経由で JSON → PDF (履歴書 / 職務経歴書、short / long fixture と各種 error 経路の test 付き)
 
-### QA / 実データ運用後に判断するもの
+### 次に着手するもの (順序未確定)
 
-実際に手動 QA や実データでの利用を経てから着手判断するもの。先に設計しない。
+実装が進んで実データでの利用感が見えてきたフェーズ。次の候補:
 
-- validation issues の section 単位での集約表示と該当 section への jump
-- section 単位の form navigation
-- accessibility audit (aria, keyboard, focus)
-- error message の user-facing 化 (dot path から日本語表記へ)
-- JSON export schema の公開ドキュメント化
+- **手動 QA + 実 PDF の品質確認** — 実データで PDF を生成して、日本語フォント / 余白 / 改ページ位置が実用に耐えるかを観察する。問題が見えたら renderer template の小規模調整 PR を立てる
+- **JSON export schema の公開ドキュメント化** — CLI 利用者 (および将来の external integration) が JSON 形式を理解できるよう `docs/data-format.md` を作る
+- **accessibility audit** — aria 属性 / keyboard 操作 / focus 管理を一通り見直す
+- **error message の user-facing 化** — 現状の dot path (例 `educationHistory.0.endDate`) を日本語に翻訳する layer を入れる
+- **validation issues の section 単位集約 + jump** — long profile で error 位置がわかりにくい問題への対処
 
 ### 当面着手しないもの
 
