@@ -168,6 +168,10 @@ const createPeriodRow = (values: EducationFormValues): HTMLElement => {
   return row;
 };
 
+// a11y: entry section の SR announce 用 aria-label。
+// remove / renumber 時にも更新する (main.ts の renumberEducationItems 参照)。
+export const educationItemAriaLabel = (index: number): string => `学歴 ${index + 1}`;
+
 export const createEducationItemElement = (
   index: number,
   values: EducationFormValues,
@@ -175,13 +179,14 @@ export const createEducationItemElement = (
   const section = document.createElement('section');
   section.className = 'education-item';
   section.dataset.index = String(index);
+  section.setAttribute('aria-label', educationItemAriaLabel(index));
 
   const header = document.createElement('header');
   header.className = 'education-item__header';
 
   const legend = document.createElement('h3');
   legend.className = 'education-item__legend';
-  legend.textContent = `学歴 ${index + 1}`;
+  legend.textContent = educationItemAriaLabel(index);
   header.appendChild(legend);
 
   const removeButton = document.createElement('button');

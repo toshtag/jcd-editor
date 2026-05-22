@@ -219,6 +219,12 @@ const createPeriodRow = (values: WorkExperienceFormValues): HTMLElement => {
   return row;
 };
 
+// a11y: 各 entry section が SR で region として announce されるよう aria-label
+// を付ける。表示順 (1-indexed) を含めて「職歴 1」のような形にし、h3 内 text
+// と整合させる。remove / renumber 時にも aria-label を更新する (main.ts の
+// renumberWorkExperienceItems 参照)。
+export const workExperienceItemAriaLabel = (index: number): string => `職歴 ${index + 1}`;
+
 export const createWorkExperienceItemElement = (
   index: number,
   values: WorkExperienceFormValues,
@@ -226,13 +232,14 @@ export const createWorkExperienceItemElement = (
   const section = document.createElement('section');
   section.className = 'work-experience-item';
   section.dataset.index = String(index);
+  section.setAttribute('aria-label', workExperienceItemAriaLabel(index));
 
   const header = document.createElement('header');
   header.className = 'work-experience-item__header';
 
   const legend = document.createElement('h3');
   legend.className = 'work-experience-item__legend';
-  legend.textContent = `職歴 ${index + 1}`;
+  legend.textContent = workExperienceItemAriaLabel(index);
   header.appendChild(legend);
 
   const removeButton = document.createElement('button');

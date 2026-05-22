@@ -63,6 +63,7 @@ import { sampleProfileInput } from './sample-profile';
 import { formatStoredProfileOption } from './storage-ui';
 import {
   buildCertificationsFromForm,
+  certificationItemAriaLabel,
   createCertificationItemElement,
   emptyCertificationFormValues,
   populateCertificationsForm,
@@ -71,6 +72,7 @@ import {
 import {
   buildEducationFromForm,
   createEducationItemElement,
+  educationItemAriaLabel,
   emptyEducationFormValues,
   populateEducationForm,
   readEducationFromForm,
@@ -84,6 +86,7 @@ import {
   createProjectItemElement,
   emptyProjectFormValues,
   populateProjectsForm,
+  projectItemAriaLabel,
   readProjectsFromForm,
 } from './projects-form';
 import {
@@ -92,6 +95,7 @@ import {
   emptySkillFormValues,
   populateSkillsForm,
   readSkillsFromForm,
+  skillItemAriaLabel,
 } from './skills-form';
 import {
   buildWorkExperiencesFromForm,
@@ -99,6 +103,7 @@ import {
   emptyWorkExperienceFormValues,
   populateWorkExperiencesForm,
   readWorkExperiencesFromForm,
+  workExperienceItemAriaLabel,
 } from './work-experiences-form';
 
 const requireElement = <T extends Element>(id: string, ctor: new () => T): T => {
@@ -680,9 +685,11 @@ if (!parsed.success) {
   const renumberWorkExperienceItems = (): void => {
     workExperiencesList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
       el.dataset.index = String(i);
+      const label = workExperienceItemAriaLabel(i);
+      el.setAttribute('aria-label', label);
       const legend = el.querySelector('.work-experience-item__legend');
       if (legend !== null) {
-        legend.textContent = `職歴 ${i + 1}`;
+        legend.textContent = label;
       }
     });
   };
@@ -690,9 +697,11 @@ if (!parsed.success) {
   const renumberEducationItems = (): void => {
     educationList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
       el.dataset.index = String(i);
+      const label = educationItemAriaLabel(i);
+      el.setAttribute('aria-label', label);
       const legend = el.querySelector('.education-item__legend');
       if (legend !== null) {
-        legend.textContent = `学歴 ${i + 1}`;
+        legend.textContent = label;
       }
     });
   };
@@ -700,9 +709,11 @@ if (!parsed.success) {
   const renumberSkillItems = (): void => {
     skillsList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
       el.dataset.index = String(i);
+      const label = skillItemAriaLabel(i);
+      el.setAttribute('aria-label', label);
       const legend = el.querySelector('.skill-item__legend');
       if (legend !== null) {
-        legend.textContent = `スキル ${i + 1}`;
+        legend.textContent = label;
       }
     });
   };
@@ -710,9 +721,11 @@ if (!parsed.success) {
   const renumberCertificationItems = (): void => {
     certificationsList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
       el.dataset.index = String(i);
+      const label = certificationItemAriaLabel(i);
+      el.setAttribute('aria-label', label);
       const legend = el.querySelector('.certification-item__legend');
       if (legend !== null) {
-        legend.textContent = `資格 ${i + 1}`;
+        legend.textContent = label;
       }
     });
   };
@@ -720,9 +733,11 @@ if (!parsed.success) {
   const renumberProjectItems = (): void => {
     projectsList.querySelectorAll<HTMLElement>('[data-index]').forEach((el, i) => {
       el.dataset.index = String(i);
+      const label = projectItemAriaLabel(i);
+      el.setAttribute('aria-label', label);
       const legend = el.querySelector('.project-item__legend');
       if (legend !== null) {
-        legend.textContent = `プロジェクト ${i + 1}`;
+        legend.textContent = label;
       }
     });
   };

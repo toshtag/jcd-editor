@@ -618,6 +618,48 @@ describe('local-web main flow', () => {
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
   });
 
+  describe('accessibility: entry section aria-label', () => {
+    it('初期 mount の各 section entry に aria-label が付く', async () => {
+      await importMain();
+      // sample fixture 由来の各 section の最初の entry を確認
+      const sections: Array<{ listId: string; expected: string }> = [
+        { listId: 'work-experiences-list', expected: '職歴 1' },
+        { listId: 'education-list', expected: '学歴 1' },
+        { listId: 'skills-list', expected: 'スキル 1' },
+        { listId: 'certifications-list', expected: '資格 1' },
+        { listId: 'projects-list', expected: 'プロジェクト 1' },
+      ];
+      for (const { listId, expected } of sections) {
+        const first = document.querySelector(`#${listId} [data-index="0"]`);
+        expect(first?.getAttribute('aria-label')).toBe(expected);
+      }
+    });
+
+    it('add で追加された entry にも aria-label が付く', async () => {
+      await importMain();
+      button('add-work-experience-button').click();
+      const entries = document.querySelectorAll('#work-experiences-list [data-index]');
+      const last = entries[entries.length - 1];
+      // sample fixture に 1 件あるので index 1 が追加された entry
+      expect(last?.getAttribute('aria-label')).toBe('職歴 2');
+    });
+
+    it('remove で renumber されると aria-label も更新される', async () => {
+      await importMain();
+      // 学歴を 2 件にする (sample fixture に 1 件 + 追加)
+      button('add-education-button').click();
+      // 1 件目 (サンプル大学) を削除
+      const firstRemove = document.querySelector<HTMLButtonElement>(
+        '#education-list [data-index="0"] [data-action="remove"]',
+      );
+      firstRemove?.click();
+
+      // 残った 1 件 (旧 index 1 → 新 index 0) は「学歴 1」になる
+      const remaining = document.querySelector('#education-list [data-index="0"]');
+      expect(remaining?.getAttribute('aria-label')).toBe('学歴 1');
+    });
+  });
+
   describe('accessibility: focus management', () => {
     it('load 成功後: form 先頭 (name-family) に focus が移る', async () => {
       await importMain();

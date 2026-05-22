@@ -214,17 +214,22 @@ const createPeriodRow = (values: ProjectFormValues): HTMLElement => {
   return row;
 };
 
+// a11y: entry section の SR announce 用 aria-label。
+// remove / renumber 時にも更新する (main.ts の renumberProjectItems 参照)。
+export const projectItemAriaLabel = (index: number): string => `プロジェクト ${index + 1}`;
+
 export const createProjectItemElement = (index: number, values: ProjectFormValues): HTMLElement => {
   const section = document.createElement('section');
   section.className = 'project-item';
   section.dataset.index = String(index);
+  section.setAttribute('aria-label', projectItemAriaLabel(index));
 
   const header = document.createElement('header');
   header.className = 'project-item__header';
 
   const legend = document.createElement('h3');
   legend.className = 'project-item__legend';
-  legend.textContent = `プロジェクト ${index + 1}`;
+  legend.textContent = projectItemAriaLabel(index);
   header.appendChild(legend);
 
   const removeButton = document.createElement('button');
