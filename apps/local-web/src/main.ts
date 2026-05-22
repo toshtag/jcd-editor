@@ -187,21 +187,15 @@ const summaryInput = requireElement('summary', HTMLTextAreaElement);
 const personalRequestInput = requireElement('personal-request', HTMLTextAreaElement);
 const preparedOnInput = requireElement('prepared-on', HTMLInputElement);
 
-// === Phase 2.0 WYSIWYG prototype 用 element ===
-// この prototype の目的は「入力 div の表示 = preview iframe の同じセル =
-// PDF 出力結果」が pixel 一致するかの実証。Phase 2.1 で本格実装に進むかの判断材料。
+// === Phase 2.1b WYSIWYG エディタ ===
 //
-// 公式 PersonName 型 (family / given、両方 1 文字以上必須) に整合させるため、
-// 氏名は「姓」「名」 2 つの contenteditable に分割している。空白で分割すると
-// 姓だけ入れた段階で given='' で validation fail → silent skip という悪い UX
-// になることが Phase 2.0 デバッグで判明したため。
-const wysiwygToggleButton = requireElement('wysiwyg-toggle-button', HTMLButtonElement);
-const wysiwygPrototypeSection = requireElement('wysiwyg-prototype', HTMLElement);
-const wysiwygNameFamilyEl = requireElement('wysiwyg-name-family', HTMLDivElement);
-const wysiwygNameGivenEl = requireElement('wysiwyg-name-given', HTMLDivElement);
-const wysiwygNameKanaFamilyEl = requireElement('wysiwyg-name-kana-family', HTMLDivElement);
-const wysiwygNameKanaGivenEl = requireElement('wysiwyg-name-kana-given', HTMLDivElement);
-const wysiwygPrototypePreview = requireElement('wysiwyg-prototype-preview', HTMLIFrameElement);
+// 履歴書 kind 選択時のみ visible になる WYSIWYG container。renderer
+// (editable=true) の出力 HTML をそのまま innerHTML として注入する。
+// 各 [data-field] が contenteditable="plaintext-only" になっており、ユーザーが
+// 直接タイプして CareerProfile を更新できる。
+const wysiwygPane = requireElement('wysiwyg-editor', HTMLElement);
+const addHistoryRowButton = requireElement('add-history-row-button', HTMLButtonElement);
+const addCertificationRowButton = requireElement('add-certification-row-button', HTMLButtonElement);
 
 const showStatus = (text: string): void => {
   statusEl.textContent = text;
@@ -504,10 +498,70 @@ if (!parsed.success) {
 
   populateAll(profile);
 
+  /**
+   * WYSIWYG pane を再描画する。kind=rirekisho の場合に呼ばれる。
+   * 設計: renderer の出力 (escapeHtml 済み) を DOMParser で parse → childNodes
+   * を replaceChildren で wysiwygPane に置く (innerHTML 不使用、コードベース
+   * ポリシー遵守)。DOMParser は script を実行しないので safe。
+   * 入力中の cursor 保持のため、active 要素の data-field を覚えて再描画後に
+   * focus 復帰する。
+   */
+  const renderWysiwyg = (): void => {
+    const rendered = renderDocument(
+      { careerProfile: profile, kind: 'rirekisho', editable: true },
+      registry,
+    );
+    const activeField =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement.getAttribute('data-field')
+        : null;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(
+      `<!doctype html><html><head><style>${rendered.css}</style></head><body>${rendered.html}</body></html>`,
+      'text/html',
+    );
+    const style = doc.head.querySelector('style');
+    const article = doc.body.firstElementChild;
+    if (style === null || article === null) {
+      throw new Error('renderer output could not be parsed for WYSIWYG pane');
+    }
+    const importedStyle = document.importNode(style, true);
+    const importedArticle = document.importNode(article, true);
+    wysiwygPane.replaceChildren(importedStyle, importedArticle);
+    if (activeField !== null) {
+      const target = wysiwygPane.querySelector<HTMLElement>(`[data-field="${activeField}"]`);
+      if (target !== null) {
+        target.focus();
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    }
+  };
+
   const renderAndUpdate = (kind: DocumentKind): void => {
     try {
+      // preview iframe は両 kind で常時更新する (履歴書 kind では WYSIWYG editor
+      // との比較確認のために残す、職務経歴書 kind では従来通り)。
       const rendered = renderDocument({ careerProfile: profile, kind }, registry);
       previewFrame.srcdoc = buildPreviewDocument(rendered);
+
+      // WYSIWYG editor は履歴書 kind のときだけ visible にする (editable HTML
+      // を直接 DOM 注入)。職務経歴書 kind では編集形式が異なるので隠す。
+      if (kind === 'rirekisho') {
+        wysiwygPane.hidden = false;
+        addHistoryRowButton.hidden = false;
+        addCertificationRowButton.hidden = false;
+        renderWysiwyg();
+      } else {
+        wysiwygPane.hidden = true;
+        addHistoryRowButton.hidden = true;
+        addCertificationRowButton.hidden = true;
+      }
+
       hideError();
       showStatus(STATUS_LABELS[kind]);
     } catch (error) {
@@ -1078,56 +1132,206 @@ if (!parsed.success) {
     }
   });
 
-  // === Phase 2.0 WYSIWYG prototype ===
+  // === Phase 2.1b WYSIWYG エディタの input handler ===
   //
-  // Toggle button で section の visibility を切り替え。
-  // contenteditable の input event で basics.name / basics.nameKana を
-  // 切り出して renderDocument → preview iframe (専用) に流す。
-  // 既存 form / preview は触らない (parallel に動作)。
+  // wysiwygPane 内の [data-field] への input event を delegation で listen し、
+  // textContent を取り出して profile を再構築する。
+  //
+  // data-field 値は dot-separated path:
+  //   - "name" / "nameKana" / "gender" / "birthDate" / "preparedOn"
+  //   - "address.full" / "contactAddress.full" / "addressKana" / "contactAddressKana"
+  //   - "phone" / "contactPhone"
+  //   - "summary" / "personalRequest"
+  //   - "historyRows.{idx}.year" / "historyRows.{idx}.month" / "historyRows.{idx}.content"
+  //   - "certificationRows.{idx}.year" / ... .month / ... .content
+  //
+  // 入力直後に CareerProfile を再 parse し、profile state を更新する。
+  // 再描画 (renderWysiwyg) は行わない (cursor が飛ぶため)。
+  // 保存・読み込み・JSON エクスポートのために profile state は最新を保つ。
 
-  const cellText = (el: HTMLDivElement): string => (el.textContent ?? '').trim();
-
-  const renderWysiwygPreview = (): void => {
-    const family = cellText(wysiwygNameFamilyEl);
-    const given = cellText(wysiwygNameGivenEl);
-    const kanaFamily = cellText(wysiwygNameKanaFamilyEl);
-    const kanaGiven = cellText(wysiwygNameKanaGivenEl);
-
-    const draft: Record<string, unknown> = { schemaVersion: 1, basics: {} };
-    const basics: Record<string, unknown> = {};
-    // PersonName / PersonKana は family と given の **両方 1 文字以上** が必須。
-    // 片方だけ入っていても name 自体を omit する (片方ずつ書き進める途中の
-    // 入力で preview を壊さないため)。
-    if (family !== '' && given !== '') {
-      basics.name = { family, given };
-    }
-    if (kanaFamily !== '' && kanaGiven !== '') {
-      basics.nameKana = { family: kanaFamily, given: kanaGiven };
-    }
-    (draft as { basics: typeof basics }).basics = basics;
-
-    const parsed = safeParseCareerProfile(draft);
-    if (!parsed.success) {
-      // prototype では validation エラーを silent に skip (Phase 2.1 で UI 整備)
-      return;
-    }
-    const rendered = renderDocument({ careerProfile: parsed.data, kind: 'rirekisho' }, registry);
-    wysiwygPrototypePreview.srcdoc = buildPreviewDocument(rendered);
+  /** 「山田　太郎」のような全角スペース区切り氏名を family/given に分解。 */
+  const splitJapaneseName = (raw: string): { family: string; given: string } => {
+    const trimmed = raw.trim();
+    if (trimmed === '') return { family: '', given: '' };
+    const parts = trimmed.split(/[　 ]+/);
+    if (parts.length === 1) return { family: parts[0] ?? '', given: '' };
+    return { family: parts[0] ?? '', given: parts.slice(1).join(' ') };
   };
 
-  wysiwygToggleButton.addEventListener('click', () => {
-    const hidden = wysiwygPrototypeSection.hidden;
-    wysiwygPrototypeSection.hidden = !hidden;
-    if (hidden) {
-      // 開いた瞬間に初回描画
-      renderWysiwygPreview();
+  /** 「〒100-0001 東京都千代田区...」のような address.full 文字列を分解。 */
+  const parseAddressFull = (
+    raw: string,
+  ): { postalCode?: string; prefecture?: string; cityAndRest?: string } => {
+    const trimmed = raw.trim();
+    if (trimmed === '') return {};
+    // 〒NNN-NNNN を抽出
+    const postalMatch = trimmed.match(/^〒?(\d{3}-?\d{4})\s*(.*)$/);
+    let rest = trimmed;
+    let postalCode: string | undefined;
+    if (postalMatch !== null) {
+      postalCode = postalMatch[1];
+      rest = (postalMatch[2] ?? '').trim();
+    }
+    // 都道府県を抽出
+    const prefMatch = rest.match(/^(東京都|北海道|大阪府|京都府|[^\s]+?[都道府県])\s*(.*)$/);
+    let prefecture: string | undefined;
+    let cityAndRest: string | undefined;
+    if (prefMatch !== null) {
+      prefecture = prefMatch[1];
+      cityAndRest = (prefMatch[2] ?? '').trim() || undefined;
+    } else {
+      cityAndRest = rest || undefined;
+    }
+    const result: { postalCode?: string; prefecture?: string; cityAndRest?: string } = {};
+    if (postalCode !== undefined) result.postalCode = postalCode;
+    if (prefecture !== undefined) result.prefecture = prefecture;
+    if (cityAndRest !== undefined) result.cityAndRest = cityAndRest;
+    return result;
+  };
+
+  const onWysiwygInput = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const field = target.getAttribute('data-field');
+    if (field === null) return;
+    const value = (target.textContent ?? '').trim();
+
+    // 現在 state を draft object に展開
+    const draft: Record<string, unknown> = JSON.parse(JSON.stringify(profile));
+    const basics = (draft.basics ?? {}) as Record<string, unknown>;
+    draft.basics = basics;
+
+    if (field === 'name') {
+      const { family, given } = splitJapaneseName(value);
+      if (family !== '' && given !== '') {
+        basics.name = { family, given };
+      } else {
+        delete basics.name;
+      }
+    } else if (field === 'nameKana') {
+      const { family, given } = splitJapaneseName(value);
+      if (family !== '' && given !== '') {
+        basics.nameKana = { family, given };
+      } else {
+        delete basics.nameKana;
+      }
+    } else if (field === 'gender') {
+      if (value === '') delete basics.gender;
+      else basics.gender = value;
+    } else if (field === 'birthDate') {
+      if (value === '') delete basics.birthDate;
+      else basics.birthDate = value;
+    } else if (field === 'preparedOn') {
+      const meta = (draft.meta ?? {}) as Record<string, unknown>;
+      if (value === '') {
+        delete meta.preparedOn;
+      } else {
+        meta.preparedOn = value;
+      }
+      if (Object.keys(meta).length === 0) delete draft.meta;
+      else draft.meta = meta;
+    } else if (field === 'address.full') {
+      const parsed = parseAddressFull(value);
+      if (Object.keys(parsed).length === 0) delete basics.address;
+      else basics.address = parsed;
+    } else if (field === 'contactAddress.full') {
+      const parsed = parseAddressFull(value);
+      if (Object.keys(parsed).length === 0) delete basics.contactAddress;
+      else basics.contactAddress = parsed;
+    } else if (field === 'addressKana') {
+      if (value === '') delete basics.addressKana;
+      else basics.addressKana = value;
+    } else if (field === 'contactAddressKana') {
+      if (value === '') delete basics.contactAddressKana;
+      else basics.contactAddressKana = value;
+    } else if (field === 'phone') {
+      if (value === '') delete basics.phone;
+      else basics.phone = value;
+    } else if (field === 'contactPhone') {
+      if (value === '') delete basics.contactPhone;
+      else basics.contactPhone = value;
+    } else if (field === 'summary') {
+      if (value === '') delete basics.summary;
+      else basics.summary = value;
+    } else if (field === 'personalRequest') {
+      if (value === '') delete basics.personalRequest;
+      else basics.personalRequest = value;
+    } else {
+      const histMatch = field.match(/^historyRows\.(\d+)\.(year|month|content)$/);
+      const certMatch = field.match(/^certificationRows\.(\d+)\.(year|month|content)$/);
+      if (histMatch !== null) {
+        const idx = Number(histMatch[1]);
+        const subField = histMatch[2] as 'year' | 'month' | 'content';
+        const rows = ((draft.historyRows as Record<string, unknown>[]) ?? []).slice();
+        while (rows.length <= idx) rows.push({});
+        const row = { ...(rows[idx] as Record<string, unknown>) };
+        if (value === '') delete row[subField];
+        else row[subField] = value;
+        rows[idx] = row;
+        draft.historyRows = rows;
+      } else if (certMatch !== null) {
+        const idx = Number(certMatch[1]);
+        const subField = certMatch[2] as 'year' | 'month' | 'content';
+        const rows = ((draft.certificationRows as Record<string, unknown>[]) ?? []).slice();
+        while (rows.length <= idx) rows.push({});
+        const row = { ...(rows[idx] as Record<string, unknown>) };
+        if (value === '') delete row[subField];
+        else row[subField] = value;
+        rows[idx] = row;
+        draft.certificationRows = rows;
+      }
+    }
+
+    // 再 parse して profile state を更新
+    const parsed = safeParseCareerProfile(draft);
+    if (parsed.success) {
+      profile = parsed.data;
+      draftBase = draft;
+      isCurrentDraftValid = true;
+      clearValidationIssues();
+      markDirty();
+      updateButtonStates();
+    } else {
+      isCurrentDraftValid = false;
+      showValidationIssues(parsed.issues);
+      showStatus(STATUS_INVALID);
+      updateButtonStates();
+    }
+  };
+
+  wysiwygPane.addEventListener('input', onWysiwygInput);
+
+  // 「学歴・職歴 1 行追加」 / 「資格 1 行追加」 button — historyRows /
+  // certificationRows に空 entry を push し、再描画して新しい行を出す。
+  addHistoryRowButton.addEventListener('click', () => {
+    const draft: Record<string, unknown> = JSON.parse(JSON.stringify(profile));
+    const rows = ((draft.historyRows as Record<string, unknown>[]) ?? []).slice();
+    rows.push({});
+    draft.historyRows = rows;
+    const parsed = safeParseCareerProfile(draft);
+    if (parsed.success) {
+      profile = parsed.data;
+      draftBase = draft;
+      markDirty();
+      renderWysiwyg();
+      updateButtonStates();
     }
   });
 
-  wysiwygNameFamilyEl.addEventListener('input', renderWysiwygPreview);
-  wysiwygNameGivenEl.addEventListener('input', renderWysiwygPreview);
-  wysiwygNameKanaFamilyEl.addEventListener('input', renderWysiwygPreview);
-  wysiwygNameKanaGivenEl.addEventListener('input', renderWysiwygPreview);
+  addCertificationRowButton.addEventListener('click', () => {
+    const draft: Record<string, unknown> = JSON.parse(JSON.stringify(profile));
+    const rows = ((draft.certificationRows as Record<string, unknown>[]) ?? []).slice();
+    rows.push({});
+    draft.certificationRows = rows;
+    const parsed = safeParseCareerProfile(draft);
+    if (parsed.success) {
+      profile = parsed.data;
+      draftBase = draft;
+      markDirty();
+      renderWysiwyg();
+      updateButtonStates();
+    }
+  });
 
   renderAndUpdate(currentKind);
   updateButtonStates();

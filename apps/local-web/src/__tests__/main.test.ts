@@ -137,15 +137,10 @@ const setupDom = (): void => {
     <div id="projects-list" data-section="projects"></div>
     <iframe id="preview-frame" sandbox=""></iframe>
     <pre id="error-area" hidden></pre>
-    <!-- Phase 2.0 WYSIWYG prototype DOM (toggle button + 編集 div + 専用 preview) -->
-    <button type="button" id="wysiwyg-toggle-button">WYSIWYG プロトタイプ</button>
-    <section id="wysiwyg-prototype" hidden>
-      <div id="wysiwyg-name-family" contenteditable="plaintext-only"></div>
-      <div id="wysiwyg-name-given" contenteditable="plaintext-only"></div>
-      <div id="wysiwyg-name-kana-family" contenteditable="plaintext-only"></div>
-      <div id="wysiwyg-name-kana-given" contenteditable="plaintext-only"></div>
-      <iframe id="wysiwyg-prototype-preview" sandbox=""></iframe>
-    </section>
+    <!-- Phase 2.1b WYSIWYG editor DOM (履歴書 kind 選択時のみ visible) -->
+    <button type="button" id="add-history-row-button" hidden>学歴・職歴 1 行追加</button>
+    <button type="button" id="add-certification-row-button" hidden>資格 1 行追加</button>
+    <section id="wysiwyg-editor" hidden></section>
   `;
 };
 
@@ -1638,82 +1633,70 @@ describe('local-web main flow', () => {
     });
   });
 
-  // ===== Phase 2.0 — WYSIWYG feasibility prototype =====
-  //
-  // 目的: contenteditable div で入力 → preview iframe に流し込む round-trip が
-  // 動作することの最低保証。視覚的な「pixel 一致」は test では不可能なので
-  // ブラウザでの目視検証 (PR description) で行う。本 test は smoke level。
+  // ===== Phase 2.1b — WYSIWYG エディタ (履歴書 kind) =====
 
-  describe('WYSIWYG prototype (Phase 2.0 feasibility)', () => {
+  describe('WYSIWYG エディタ (Phase 2.1b)', () => {
     const wysiwygSection = (): HTMLElement => {
-      const el = document.getElementById('wysiwyg-prototype');
-      if (!(el instanceof HTMLElement)) throw new Error('Missing wysiwyg-prototype');
+      const el = document.getElementById('wysiwyg-editor');
+      if (!(el instanceof HTMLElement)) throw new Error('Missing wysiwyg-editor');
       return el;
     };
 
-    const wysiwygPreview = (): HTMLIFrameElement => {
-      const el = document.getElementById('wysiwyg-prototype-preview');
-      if (!(el instanceof HTMLIFrameElement)) throw new Error('Missing wysiwyg-prototype-preview');
-      return el;
+    const findField = (field: string): HTMLElement | null => {
+      return wysiwygSection().querySelector<HTMLElement>(`[data-field="${field}"]`);
     };
 
-    const wysiwygDiv = (id: string): HTMLDivElement => {
-      const el = document.getElementById(id);
-      if (!(el instanceof HTMLDivElement)) throw new Error(`Missing ${id}`);
-      return el;
+    const typeIn = (field: string, value: string): void => {
+      const el = findField(field);
+      if (el === null) throw new Error(`Missing [data-field="${field}"]`);
+      el.textContent = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
     };
 
-    const setCell = (id: string, value: string): void => {
-      const div = wysiwygDiv(id);
-      div.textContent = value;
-      div.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-
-    it('初期は hidden で toggle button で表示される', async () => {
+    it('履歴書 kind 選択時に wysiwyg-editor が visible になる', async () => {
       await importMain();
-      expect(wysiwygSection().hidden).toBe(true);
-      button('wysiwyg-toggle-button').click();
+      // sample fixture は kind=rirekisho で初期化される
       expect(wysiwygSection().hidden).toBe(false);
     });
 
-    it('toggle button で再度 hidden に戻る', async () => {
+    it('職務経歴書 kind に切り替えると wysiwyg-editor が hidden になる', async () => {
       await importMain();
-      const btn = button('wysiwyg-toggle-button');
-      btn.click();
-      btn.click();
+      const selector = select('kind-selector');
+      selector.value = 'shokumukeirekisho';
+      dispatchChange(selector);
       expect(wysiwygSection().hidden).toBe(true);
     });
 
-    it('開いた直後に専用 preview iframe に履歴書が描画される', async () => {
+    it('WYSIWYG editor に [data-field="name"] が描画されている (sample fixture 由来の氏名)', async () => {
       await importMain();
-      button('wysiwyg-toggle-button').click();
-      expect(wysiwygPreview().srcdoc).toContain('履歴書');
+      const nameEl = findField('name');
+      expect(nameEl).not.toBeNull();
+      expect(nameEl?.textContent).toContain('山田');
     });
 
-    it('姓と名の両方を入力すると専用 preview に反映される', async () => {
+    it('氏名セルに 山田　次郎 と入力すると CareerProfile が更新される', async () => {
       await importMain();
-      button('wysiwyg-toggle-button').click();
-      setCell('wysiwyg-name-family', '山田');
-      setCell('wysiwyg-name-given', '太郎');
-      expect(wysiwygPreview().srcdoc).toContain('山田');
-      expect(wysiwygPreview().srcdoc).toContain('太郎');
+      typeIn('name', '山田　次郎');
+      // dirty indicator が更新されるはず
+      const dirty = document.getElementById('dirty-indicator');
+      expect(dirty?.hidden).toBe(false);
     });
 
-    it('姓だけ入力した状態では name 自体を omit する (validation fail を回避)', async () => {
+    it('historyRows.0.content に入力すると CareerProfile に反映される', async () => {
       await importMain();
-      button('wysiwyg-toggle-button').click();
-      setCell('wysiwyg-name-family', '山田');
-      // 姓のみ → name 未構築 → preview は履歴書として描画されるが氏名は出ない
-      expect(wysiwygPreview().srcdoc).toContain('履歴書');
-      expect(wysiwygPreview().srcdoc).not.toContain('山田');
+      // sample fixture は historyRows を持たないので、まず追加 button を押す
+      button('add-history-row-button').click();
+      typeIn('historyRows.0.content', '◯◯大学 入学');
+      const dirty = document.getElementById('dirty-indicator');
+      expect(dirty?.hidden).toBe(false);
     });
 
-    it('全フィールド空にしても preview は履歴書を保つ', async () => {
+    it('certificationRows.0.content に入力すると CareerProfile に反映される', async () => {
       await importMain();
-      button('wysiwyg-toggle-button').click();
-      setCell('wysiwyg-name-family', '');
-      setCell('wysiwyg-name-given', '');
-      expect(wysiwygPreview().srcdoc).toContain('履歴書');
+      button('add-certification-row-button').click();
+      typeIn('certificationRows.0.content', '基本情報技術者試験');
+      const dirty = document.getElementById('dirty-indicator');
+      expect(dirty?.hidden).toBe(false);
     });
   });
 });

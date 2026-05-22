@@ -1269,3 +1269,19 @@ body {
   border: 1px solid #888;
   background: #fff;
 }
+
+/* ===== Phase 2.1b — WYSIWYG エディタ =====
+   履歴書 kind 選択時のみ visible。renderer (editable=true) の出力 HTML を
+   そのまま innerHTML として注入する。各 [data-field] が contenteditable。 */
+.app__wysiwyg-pane {
+  background: #f5f5f7;
+  padding: 1rem;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+}
+.app__wysiwyg-pane > article {
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
