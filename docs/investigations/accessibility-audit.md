@@ -55,9 +55,9 @@ apps/local-web の form / validation summary / save-load / 写真入力 / 削除
 
 現状: 各 entry (`work-experience-item` / `education-item` / `skill-item` / `certification-item` / `project-item`) は `<section data-index="N">` で h3 を内包する。SR は implicit に h3 を section の名前として announce することが多いが、すべての SR / version で安定するわけではない。
 
-対応: factory で h3 に動的 id (`data-section-name-${index}-heading` 等) を付与し、section に `aria-labelledby` で参照させる。本 PR ではこれは form helper の変更が広範囲になるため **deferred** とし、別 PR で対応する。本 PR では audit ドキュメントに「現状は implicit heading 解釈に依存」と明記するに留める。
+対応: factory で h3 に動的 id を付与して section に `aria-labelledby` で参照させる方向で当初検討したが、renumber (削除後の index 詰め) 時の id 同期コストを避けるため **`aria-label` 直接設定** に変更した。各 form factory に `xxxItemAriaLabel(index)` helper を追加し、section に `aria-label="職歴 1"` のように index 連動の文字列を直接持たせる方式。
 
-→ **本 PR では対応しない、課題として記録のみ**。
+→ **PR #48 で対応済み**。本 PR (一次対応) の射程外。
 
 ### B. 本 PR で対応する (focus 管理)
 
@@ -94,13 +94,21 @@ apps/local-web の form / validation summary / save-load / 写真入力 / 削除
 
 → **本 PR では変更しない** (save は同じ場所で繰り返したい操作のため)。
 
-### C. 課題として記録、本 PR では対応しない
+### C. 一次対応 PR (#47) の後に別 PR で対応した項目
 
-- `aria-invalid="true"` を validation エラーを持つ input に付ける (state 管理が広範囲、validation-summary で動線確保済み)
-- `aria-describedby` で input と該当 issue を連結する (同上)
-- 各 entry section の `aria-labelledby` 連携 (form factory 全体の改修)
-- `<input type="file">` を実態として隠す代わりに visually-hidden / SR-only パターンに揃える (UX 上の差は微小)
-- color contrast の WCAG 数値監査 (Lighthouse / axe を CI に追加するタイミングで対応)
+audit doc 作成時は別 PR としていたが、後続で次の通り完了している:
+
+- ✅ **各 entry section の `aria-label`** (PR #48): aria-labelledby ではなく aria-label を採用 (renumber 時の id 同期コストを避ける判断)
+- ✅ **`aria-invalid="true"` を validation エラーを持つ input に付ける** (PR #49)
+- ✅ **`aria-describedby` で input と該当 summary item を連結する** (PR #50)
+- ✅ **input 直下に inline error message を表示する** (PR #51): sighted user / 低視力ユーザーが該当 input のすぐ下で error を視認できる
+- ✅ **`<input type="file">` の visually-hidden パターン化** (PR #53): `display: none` だと keyboard focus が機能しないため
+- ✅ **axe-core を CI で自動検出する** (PR #52): 上記の regression を防ぐ
+
+### D. 引き続き本 PR / 後続 PR でも対応しないもの
+
+- color contrast の WCAG 数値監査 (Lighthouse / Playwright での実描画が必要、jsdom + axe では検査不能)
+- 実 SR (NVDA / JAWS / VoiceOver / TalkBack) でのテスト (人手)
 - focus trap (modal がそもそも無い、`window.confirm` は browser ネイティブのため考慮不要)
 - 高コントラストモード / dark mode 対応 (UI 全体の design system を持つタイミングで)
 - 各種 SR (NVDA / JAWS / VoiceOver / TalkBack) での実テスト (人手)
