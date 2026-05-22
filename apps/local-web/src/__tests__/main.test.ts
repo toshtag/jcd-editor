@@ -618,6 +618,75 @@ describe('local-web main flow', () => {
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
   });
 
+  describe('validation summary', () => {
+    const summaryEl = (): HTMLElement => {
+      const el = document.getElementById('validation-summary');
+      if (el === null) throw new Error('Missing validation-summary');
+      return el;
+    };
+
+    const summaryItems = (): HTMLLIElement[] =>
+      Array.from(document.querySelectorAll<HTMLLIElement>('#validation-summary-list > li'));
+
+    it('valid 状態では summary は hidden', async () => {
+      await importMain();
+      expect(summaryEl().hidden).toBe(true);
+    });
+
+    it('invalid 入力で summary が表示され、jump button が li ごとに描画される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+
+      expect(summaryEl().hidden).toBe(false);
+      const items = summaryItems();
+      expect(items.length).toBeGreaterThan(0);
+      const buttons = items.map((li) =>
+        li.querySelector<HTMLButtonElement>('button[data-validation-anchor]'),
+      );
+      expect(buttons[0]?.dataset.validationAnchor).toBe('[data-section="basics"]');
+      expect(buttons[0]?.textContent).toContain('基本情報 > 生年月日');
+    });
+
+    it('jump button クリックで該当 section の scrollIntoView が呼ばれる', async () => {
+      await importMain();
+
+      // jsdom は scrollIntoView を実装しないため spy を仕込む
+      const scrollSpy = vi.fn();
+      const origScroll = HTMLElement.prototype.scrollIntoView;
+      HTMLElement.prototype.scrollIntoView = scrollSpy;
+
+      try {
+        input('birth-date').value = '1800-01-01';
+        dispatchInput(input('birth-date'));
+
+        const firstButton = document.querySelector<HTMLButtonElement>(
+          '#validation-summary-list button[data-validation-anchor]',
+        );
+        firstButton?.click();
+
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+        expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+      } finally {
+        HTMLElement.prototype.scrollIntoView = origScroll;
+      }
+    });
+
+    it('valid 状態に戻ると summary は hidden、items はクリアされる', async () => {
+      await importMain();
+
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      expect(summaryEl().hidden).toBe(false);
+      expect(summaryItems().length).toBeGreaterThan(0);
+
+      input('birth-date').value = '1993-04-01';
+      dispatchInput(input('birth-date'));
+      expect(summaryEl().hidden).toBe(true);
+      expect(summaryItems().length).toBe(0);
+    });
+  });
+
   describe('dirty state', () => {
     const dirtyIndicator = (): HTMLElement => {
       const el = document.getElementById('dirty-indicator');
