@@ -36,7 +36,6 @@ import {
   buildWorkRows,
   computeAgeOnDate,
   type CertificationRow,
-  type HistoryRow,
 } from '../_internal/rirekisho-mhlw-shared';
 import { formatAddress, isNonEmpty } from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
@@ -399,12 +398,28 @@ const renderAddress = (basics: CareerProfile['basics'], editable: boolean): stri
   );
 };
 
-// === 学歴・職歴 表 (Phase 2.1a では editable mode 未対応、Phase 2.1b で対応) ===
+// === 学歴・職歴 表 (Phase 2.1b で editable mode 対応) ===
+//
+// historyRows が存在すればそれを優先 (WYSIWYG エディタの出力)。
+// 未指定なら educationHistory + workExperiences から旧来通り合成する。
+
+type HistoryRowOrEntry =
+  | { kind: 'heading'; label: '学歴' | '職歴' }
+  | {
+      kind: 'entry';
+      year: string;
+      month: string;
+      content: string;
+      // editable mode で WYSIWYG 側の historyRows array index を data-field に
+      // 反映するため、source row index を保持する。
+      sourceIndex?: number;
+    };
 
 const renderHistoryRowAt = (
-  row: HistoryRow,
+  row: HistoryRowOrEntry,
   x: { yearX: number; monthX: number; contentX: number },
   yMm: number,
+  editable: boolean,
 ): string => {
   if (row.kind === 'heading') {
     const { left, top } = placeOnA4(x.contentX + 2, yMm);
@@ -413,22 +428,56 @@ const renderHistoryRowAt = (
   const yearPos = placeOnA4(x.yearX + 2, yMm);
   const monthPos = placeOnA4(x.monthX + 2, yMm);
   const contentPos = placeOnA4(x.contentX + 2, yMm);
+  const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
+  const yearAttrs = hasSourceIndex
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.year`)
+    : '';
+  const monthAttrs = hasSourceIndex
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.month`)
+    : '';
+  const contentAttrs = hasSourceIndex
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.content`)
+    : '';
+
+  // editable mode のときは空セルでも div を出す (placeholder 表示)
+  const showEmpty = editable && hasSourceIndex;
   const yearHtml =
-    row.year === ''
+    row.year === '' && !showEmpty
       ? ''
-      : `<div class="jcd-mhlw-a4__history-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;">${escapeHtml(row.year)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
   const monthHtml =
-    row.month === ''
+    row.month === '' && !showEmpty
       ? ''
-      : `<div class="jcd-mhlw-a4__history-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;">${escapeHtml(row.month)}</div>`;
-  const contentHtml = `<div class="jcd-mhlw-a4__history-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;">${escapeHtml(row.content)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
+  const contentHtml = `<div class="jcd-mhlw-a4__history-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;min-width:130mm;"${contentAttrs}>${escapeHtml(row.content)}</div>`;
   return yearHtml + monthHtml + contentHtml;
 };
 
-const renderHistorySection = (careerProfile: CareerProfile): string => {
-  const educationRows = buildEducationRows(careerProfile.educationHistory);
-  const workRows = buildWorkRows(careerProfile.workExperiences);
-  const allRows = [...educationRows, ...workRows];
+const renderHistorySection = (careerProfile: CareerProfile, editable: boolean): string => {
+  let allRows: HistoryRowOrEntry[];
+
+  if (careerProfile.historyRows !== undefined) {
+    // WYSIWYG モード相当: 各 row に source index を持たせて data-field 化可能に
+    allRows = careerProfile.historyRows.map((r, idx) => ({
+      kind: 'entry' as const,
+      year: r.year ?? '',
+      month: r.month ?? '',
+      content: r.content ?? '',
+      sourceIndex: idx,
+    }));
+  } else {
+    // legacy: educationHistory + workExperiences から合成 (read-only)
+    const educationRows = buildEducationRows(careerProfile.educationHistory);
+    const workRows = buildWorkRows(careerProfile.workExperiences);
+    allRows = [...educationRows, ...workRows] as HistoryRowOrEntry[];
+  }
+
+  // editable mode で historyRows が無い (= 完全新規) なら空 row を 1 つ追加して
+  // クリック対象を提供。local-web 側が「+追加」ボタンで row を増やす想定だが、
+  // safety net として常に「最後の空行」を表示する選択肢もある (本 PR では
+  // 何もしない、空 row は local-web が historyRows に push して renderer に
+  // 再渡しすれば現れる)。
+
   if (allRows.length === 0) return '';
   const left = HISTORY_LAYOUT.leftPage;
   const right = HISTORY_LAYOUT.rightPage;
@@ -438,13 +487,13 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
   const rowsToRender = allRows.slice(0, totalCapacity);
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {
-    const row = rowsToRender[i] as HistoryRow;
+    const row = rowsToRender[i] as HistoryRowOrEntry;
     if (i < leftCapacity) {
       const y = left.firstRowY + i * left.rowHeight;
-      html.push(renderHistoryRowAt(row, left, y));
+      html.push(renderHistoryRowAt(row, left, y, editable));
     } else {
       const y = right.firstRowY + (i - leftCapacity) * right.rowHeight;
-      html.push(renderHistoryRowAt(row, right, y));
+      html.push(renderHistoryRowAt(row, right, y, editable));
     }
   }
   return html.join('');
@@ -452,30 +501,60 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
 
 // === 免許・資格 ===
 
-const renderCertificationSection = (careerProfile: CareerProfile): string => {
-  const rows = buildCertificationRows(careerProfile.certifications);
+type CertRow = { year: string; month: string; content: string; sourceIndex?: number };
+
+const renderCertificationSection = (careerProfile: CareerProfile, editable: boolean): string => {
+  let rows: CertRow[];
+  if (careerProfile.certificationRows !== undefined) {
+    rows = careerProfile.certificationRows.map((r, idx) => ({
+      year: r.year ?? '',
+      month: r.month ?? '',
+      content: r.content ?? '',
+      sourceIndex: idx,
+    }));
+  } else {
+    rows = (buildCertificationRows(careerProfile.certifications) as CertificationRow[]).map(
+      (r) => ({
+        year: r.year,
+        month: r.month,
+        content: r.content,
+      }),
+    );
+  }
   if (rows.length === 0) return '';
   const layout = CERTIFICATION_LAYOUT;
   const rowsToRender = rows.slice(0, layout.maxRows);
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {
-    const row = rowsToRender[i] as CertificationRow;
+    const row = rowsToRender[i] as CertRow;
     const y = layout.firstRowY + i * layout.rowHeight;
     const yearPos = placeOnA4(layout.yearX + 2, y);
     const monthPos = placeOnA4(layout.monthX + 2, y);
     const contentPos = placeOnA4(layout.contentX + 2, y);
+    const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
+    const yearAttrs = hasSourceIndex
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.year`)
+      : '';
+    const monthAttrs = hasSourceIndex
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.month`)
+      : '';
+    const contentAttrs = hasSourceIndex
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.content`)
+      : '';
+
+    const showEmpty = editable && hasSourceIndex;
     const yearHtml =
-      row.year === ''
+      row.year === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;">${escapeHtml(row.year)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
     const monthHtml =
-      row.month === ''
+      row.month === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;">${escapeHtml(row.month)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
     const contentHtml =
-      row.content === ''
+      row.content === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;">${escapeHtml(row.content)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;min-width:130mm;"${contentAttrs}>${escapeHtml(row.content)}</div>`;
     html.push(yearHtml + monthHtml + contentHtml);
   }
   return html.join('');
@@ -617,8 +696,8 @@ const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
   const prepared = renderPreparedOn(preparedOn, editable);
   const address = renderAddress(careerProfile.basics, editable);
   // Phase 2.1a スコープ: 学歴職歴 / 免許資格 表は editable 未対応 (Phase 2.1b)
-  const history = renderHistorySection(careerProfile);
-  const certifications = renderCertificationSection(careerProfile);
+  const history = renderHistorySection(careerProfile, editable);
+  const certifications = renderCertificationSection(careerProfile, editable);
   const summary = renderFreeTextBox(
     'jcd-mhlw-a4__summary',
     SUMMARY_BOX_MM,
