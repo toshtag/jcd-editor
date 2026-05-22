@@ -100,16 +100,16 @@ const setupDom = (): void => {
         <button type="button" id="profile-photo-remove-button" disabled>写真を削除</button>
         <p id="profile-photo-error" hidden></p>
       </div>
-      <input id="name-family" />
-      <input id="name-given" />
-      <input id="name-kana-family" />
-      <input id="name-kana-given" />
-      <input id="birth-date" />
-      <input id="email" />
-      <input id="phone" />
-      <input id="postal-code" />
-      <input id="prefecture" />
-      <input id="city-and-rest" />
+      <div class="basics-form__field"><input id="name-family" /></div>
+      <div class="basics-form__field"><input id="name-given" /></div>
+      <div class="basics-form__field"><input id="name-kana-family" /></div>
+      <div class="basics-form__field"><input id="name-kana-given" /></div>
+      <div class="basics-form__field"><input id="birth-date" /></div>
+      <div class="basics-form__field"><input id="email" /></div>
+      <div class="basics-form__field"><input id="phone" /></div>
+      <div class="basics-form__field"><input id="postal-code" /></div>
+      <div class="basics-form__field"><input id="prefecture" /></div>
+      <div class="basics-form__field"><input id="city-and-rest" /></div>
     </form>
     <button type="button" id="add-work-experience-button">職歴を追加</button>
     <div id="work-experiences-list" data-section="workExperiences"></div>
@@ -616,6 +616,76 @@ describe('local-web main flow', () => {
     // load 後もプロジェクトが空のまま (再混入しない)
     expect(document.querySelectorAll('#projects-list [data-index]')).toHaveLength(0);
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
+  });
+
+  describe('accessibility: inline field error', () => {
+    const inlineErrorIn = (inputId: string): HTMLElement | null => {
+      const wrapper = document.getElementById(inputId)?.closest('.basics-form__field');
+      return wrapper?.querySelector<HTMLElement>('.field-error') ?? null;
+    };
+
+    it('invalid 入力で input 直下に .field-error が挿入され、message を含む', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+
+      const err = inlineErrorIn('birth-date');
+      expect(err).not.toBeNull();
+      expect(err?.textContent).toContain('実在しない');
+    });
+
+    it('valid に戻ると .field-error は除去される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      expect(inlineErrorIn('birth-date')).not.toBeNull();
+
+      input('birth-date').value = '1993-04-01';
+      dispatchInput(input('birth-date'));
+      expect(inlineErrorIn('birth-date')).toBeNull();
+    });
+
+    it('複数 input の invalid: それぞれの直下に独立した .field-error', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      input('email').value = 'not-an-email';
+      dispatchInput(input('email'));
+
+      const birthErr = inlineErrorIn('birth-date');
+      const emailErr = inlineErrorIn('email');
+      expect(birthErr).not.toBeNull();
+      expect(emailErr).not.toBeNull();
+      expect(birthErr).not.toBe(emailErr);
+    });
+
+    it('片方が valid に戻ると、その input の .field-error だけ除去される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      input('email').value = 'not-an-email';
+      dispatchInput(input('email'));
+
+      input('birth-date').value = '1993-04-01';
+      dispatchInput(input('birth-date'));
+
+      expect(inlineErrorIn('birth-date')).toBeNull();
+      expect(inlineErrorIn('email')).not.toBeNull();
+    });
+
+    it('validation 解消 + 再発: .field-error が重複せず最新だけ表示される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      input('birth-date').value = '1993-04-01';
+      dispatchInput(input('birth-date'));
+      input('birth-date').value = '1700-01-01';
+      dispatchInput(input('birth-date'));
+
+      const wrapper = input('birth-date').closest('.basics-form__field');
+      const allErrors = wrapper?.querySelectorAll('.field-error');
+      expect(allErrors?.length).toBe(1);
+    });
   });
 
   describe('accessibility: aria-describedby on inputs', () => {
