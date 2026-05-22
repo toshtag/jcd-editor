@@ -1,5 +1,21 @@
 # 厚労省 履歴書様式例 (シンプル版) — 完全再現のための spec
 
+## Phase 0 達成記録
+
+ground truth-driven approach により、罫線レベルでの完全一致を達成:
+
+| 項目 | 結果 |
+|---|---|
+| 水平罫線 (41 本) | mean 0.00mm / max 0.00mm / ±1mm 内 100% |
+| 垂直罫線 (10 本) | mean 0.00mm / max 0.00mm / ±1mm 内 100% |
+
+達成手段:
+- `measure-pdf-rules.py` で公式 PDF を 300dpi PNG にレンダリングし、ピクセル単位で罫線座標を実測 → `mhlw-pdf-rules.json`
+- `extract-text-bbox.py` で `pdftotext -bbox-layout` を使い、テキストブロックの bbox を実測 → `mhlw-text-bbox.json`
+- `generate-prototype.py` がこの 2 つの ground truth から `position: absolute` で直接 HTML を生成 (table/grid を使わない)
+
+Web font (Noto Serif JP / Klee One) と公式の MS 系/HG正楷書体 では字形が異なるため、文字の細部 (太さ・字幅) は完全一致しない。これは Web 環境の原理的制約であり、Phase 1 でも改善できない。
+
 ## このドキュメントの位置付け
 
 本ドキュメントは Phase 0 の調査成果物である。`docs/CONCEPT.md` で宣言した「日本式の書類 (JIS 様式)」スコープを正しく満たすために、現行の `packages/renderer/src/templates/rirekisho-basic.ts` を **厚労省履歴書様式例 (2021年公開)** と寸法レベルで一致するよう Phase 1 で再実装する、その準拠仕様を定義する。
