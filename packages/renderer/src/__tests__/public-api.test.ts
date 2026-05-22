@@ -19,7 +19,6 @@ import {
   createTemplateRegistry,
   renderDocument,
   RendererError,
-  rirekishoBasicTemplate,
   rirekishoMhlwA3Template,
   rirekishoMhlwA4Template,
   shokumukeirekishoBasicTemplate,
@@ -130,14 +129,6 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(typeof renderDocument).toBe('function');
   });
 
-  it('rirekishoBasicTemplate を runtime 値として export する (legacy、registry 未登録)', () => {
-    expect(typeof rirekishoBasicTemplate).toBe('object');
-    expect(rirekishoBasicTemplate.id).toBe('rirekisho-basic');
-    expect(rirekishoBasicTemplate.kind).toBe('rirekisho');
-    expect(rirekishoBasicTemplate.name).toBe('履歴書（基本）');
-    expect(typeof rirekishoBasicTemplate.render).toBe('function');
-  });
-
   it('rirekishoMhlwA3Template を runtime 値として export する (A3 横 / templateId 明示で利用可)', () => {
     expect(typeof rirekishoMhlwA3Template).toBe('object');
     expect(rirekishoMhlwA3Template.id).toBe('rirekisho-mhlw-a3');
@@ -217,7 +208,6 @@ describe('@jcd-editor/renderer 公開 API', () => {
       'createDefaultTemplateRegistry',
       'createTemplateRegistry',
       'renderDocument',
-      'rirekishoBasicTemplate',
       'rirekishoMhlwA3Template',
       'rirekishoMhlwA4Template',
       'shokumukeirekishoBasicTemplate',

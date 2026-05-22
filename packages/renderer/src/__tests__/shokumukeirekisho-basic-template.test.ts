@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { RendererError } from '../errors';
 import { renderDocument } from '../render-document';
 import { createTemplateRegistry } from '../template-registry';
-import { rirekishoBasicTemplate } from '../templates/rirekisho-basic';
+import { rirekishoMhlwA4Template } from '../templates/rirekisho-mhlw-a4';
 import { shokumukeirekishoBasicTemplate } from '../templates/shokumukeirekisho-basic';
 
 const MIN_PROFILE = parseCareerProfile({
@@ -830,13 +830,13 @@ describe('shokumukeirekishoBasicTemplate - registry 統合', () => {
 
 describe('rirekisho と shokumukeirekisho の共存 (registry レベル)', () => {
   const bothRegistry = createTemplateRegistry([
-    rirekishoBasicTemplate,
+    rirekishoMhlwA4Template,
     shokumukeirekishoBasicTemplate,
   ]);
 
-  it('rirekisho の implicit 選択で rirekisho-basic が使われる', () => {
+  it('rirekisho の implicit 選択で rirekisho-mhlw-a4 が使われる', () => {
     const result = renderDocument({ careerProfile: MIN_PROFILE, kind: 'rirekisho' }, bothRegistry);
-    expect(result.metadata.templateId).toBe('rirekisho-basic');
+    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a4');
     expect(result.kind).toBe('rirekisho');
     expect(result.title).toBe('履歴書');
   });
@@ -851,16 +851,16 @@ describe('rirekisho と shokumukeirekisho の共存 (registry レベル)', () =>
     expect(result.title).toBe('職務経歴書');
   });
 
-  it('明示 templateId で rirekisho-basic を選べる', () => {
+  it('明示 templateId で rirekisho-mhlw-a4 を選べる', () => {
     const result = renderDocument(
       {
         careerProfile: MIN_PROFILE,
         kind: 'rirekisho',
-        templateId: 'rirekisho-basic',
+        templateId: 'rirekisho-mhlw-a4',
       },
       bothRegistry,
     );
-    expect(result.metadata.templateId).toBe('rirekisho-basic');
+    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a4');
   });
 
   it('明示 templateId で shokumukeirekisho-basic を選べる', () => {

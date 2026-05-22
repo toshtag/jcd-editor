@@ -20,7 +20,7 @@ const baseDocument: RenderedDocument = {
   metadata: {
     language: 'ja-JP',
     page: { size: 'A4', orientation: 'portrait' },
-    templateId: 'rirekisho-basic',
+    templateId: 'rirekisho-mhlw-a4',
   },
 };
 
@@ -90,7 +90,7 @@ describe('PdfPort contract', () => {
 
   it('metadata.templateId が RenderedDocument.metadata.templateId を引き写す', async () => {
     const result = await fakePortWithPageCount.renderPdf(baseDocument);
-    expect(result.metadata.templateId).toBe('rirekisho-basic');
+    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a4');
   });
 
   it('RenderedDocument.metadata.templateId が undefined なら、結果 metadata に templateId が含まれない (omit pattern)', async () => {
