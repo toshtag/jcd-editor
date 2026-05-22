@@ -103,17 +103,22 @@ const createTextareaField = (label: string, field: string, value: string): HTMLE
   return wrapper;
 };
 
+// a11y: entry section の SR announce 用 aria-label。
+// remove / renumber 時にも更新する (main.ts の renumberSkillItems 参照)。
+export const skillItemAriaLabel = (index: number): string => `スキル ${index + 1}`;
+
 export const createSkillItemElement = (index: number, values: SkillFormValues): HTMLElement => {
   const section = document.createElement('section');
   section.className = 'skill-item';
   section.dataset.index = String(index);
+  section.setAttribute('aria-label', skillItemAriaLabel(index));
 
   const header = document.createElement('header');
   header.className = 'skill-item__header';
 
   const legend = document.createElement('h3');
   legend.className = 'skill-item__legend';
-  legend.textContent = `スキル ${index + 1}`;
+  legend.textContent = skillItemAriaLabel(index);
   header.appendChild(legend);
 
   const removeButton = document.createElement('button');

@@ -157,6 +157,10 @@ const createPeriodRow = (values: CertificationFormValues): HTMLElement => {
   return row;
 };
 
+// a11y: entry section の SR announce 用 aria-label。
+// remove / renumber 時にも更新する (main.ts の renumberCertificationItems 参照)。
+export const certificationItemAriaLabel = (index: number): string => `資格 ${index + 1}`;
+
 export const createCertificationItemElement = (
   index: number,
   values: CertificationFormValues,
@@ -164,13 +168,14 @@ export const createCertificationItemElement = (
   const section = document.createElement('section');
   section.className = 'certification-item';
   section.dataset.index = String(index);
+  section.setAttribute('aria-label', certificationItemAriaLabel(index));
 
   const header = document.createElement('header');
   header.className = 'certification-item__header';
 
   const legend = document.createElement('h3');
   legend.className = 'certification-item__legend';
-  legend.textContent = `資格 ${index + 1}`;
+  legend.textContent = certificationItemAriaLabel(index);
   header.appendChild(legend);
 
   const removeButton = document.createElement('button');
