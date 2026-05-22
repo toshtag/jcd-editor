@@ -91,4 +91,35 @@ describe('createPlaywrightPdfAdapter', () => {
     const result = await adapter.renderPdf(baseFixture);
     expect('pageCount' in result.metadata).toBe(false);
   });
+
+  // ===== Phase 1.4: A3 / A4 両対応 =====
+
+  it('A3 landscape RenderedDocument を渡しても PDF を出力する', { timeout: 60_000 }, async () => {
+    const adapter = createPlaywrightPdfAdapter();
+    const a3Fixture: RenderedDocument = {
+      kind: 'rirekisho',
+      title: '履歴書',
+      html: '<article style="width:420mm;height:297mm;"><h1>履歴書 A3</h1></article>',
+      css: '@page { size: A3 landscape; margin: 0; }',
+      metadata: {
+        language: 'ja-JP',
+        page: { size: 'A3', orientation: 'landscape' },
+        templateId: 'rirekisho-mhlw-a3',
+      },
+    };
+    const result = await adapter.renderPdf(a3Fixture);
+    expect(Array.from(result.bytes.slice(0, 4))).toEqual(PDF_HEADER);
+    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a3');
+  });
+
+  it('A4 portrait の RenderedDocument では landscape: false で出力する', {
+    timeout: 60_000,
+  }, async () => {
+    // 既存 baseFixture が A4 portrait なので、PDF が成功生成されるだけで OK
+    // (landscape オプションが影響しないことは pdf bytes parse なしでは厳密検証
+    // できないが、format/landscape を正しく渡している smoke 確認)
+    const adapter = createPlaywrightPdfAdapter();
+    const result = await adapter.renderPdf(baseFixture);
+    expect(Array.from(result.bytes.slice(0, 4))).toEqual(PDF_HEADER);
+  });
 });
