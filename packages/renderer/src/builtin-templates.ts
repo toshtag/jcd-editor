@@ -21,11 +21,15 @@ import {
   type TemplateDefinition,
   type TemplateRegistry,
 } from './template-registry';
-import { rirekishoBasicTemplate } from './templates/rirekisho-basic';
+import { rirekishoMhlwA3Template } from './templates/rirekisho-mhlw-a3';
 import { shokumukeirekishoBasicTemplate } from './templates/shokumukeirekisho-basic';
 
+// rirekisho の default は 'rirekisho-mhlw-a3' (公式 厚労省様式 A3 横)。
+// 旧 'rirekisho-basic' は CONCEPT.md の JIS 様式スコープと乖離していたため、
+// registry から外している。実装ファイル自体は Phase 1.5 で削除予定だが、
+// 本 PR では残している (本ファイルから import しないので registry には載らない)。
 export const builtinTemplates: readonly TemplateDefinition[] = Object.freeze([
-  rirekishoBasicTemplate,
+  rirekishoMhlwA3Template,
   shokumukeirekishoBasicTemplate,
 ]);
 

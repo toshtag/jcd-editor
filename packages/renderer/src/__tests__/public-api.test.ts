@@ -20,6 +20,7 @@ import {
   renderDocument,
   RendererError,
   rirekishoBasicTemplate,
+  rirekishoMhlwA3Template,
   shokumukeirekishoBasicTemplate,
 } from '../index';
 
@@ -128,12 +129,20 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(typeof renderDocument).toBe('function');
   });
 
-  it('rirekishoBasicTemplate を runtime 値として export する', () => {
+  it('rirekishoBasicTemplate を runtime 値として export する (legacy、registry 未登録)', () => {
     expect(typeof rirekishoBasicTemplate).toBe('object');
     expect(rirekishoBasicTemplate.id).toBe('rirekisho-basic');
     expect(rirekishoBasicTemplate.kind).toBe('rirekisho');
     expect(rirekishoBasicTemplate.name).toBe('履歴書（基本）');
     expect(typeof rirekishoBasicTemplate.render).toBe('function');
+  });
+
+  it('rirekishoMhlwA3Template を runtime 値として export する (default の rirekisho template)', () => {
+    expect(typeof rirekishoMhlwA3Template).toBe('object');
+    expect(rirekishoMhlwA3Template.id).toBe('rirekisho-mhlw-a3');
+    expect(rirekishoMhlwA3Template.kind).toBe('rirekisho');
+    expect(rirekishoMhlwA3Template.name).toBe('履歴書（厚労省様式 A3）');
+    expect(typeof rirekishoMhlwA3Template.render).toBe('function');
   });
 
   it('shokumukeirekishoBasicTemplate を runtime 値として export する', () => {
@@ -200,6 +209,7 @@ describe('@jcd-editor/renderer 公開 API', () => {
       'createTemplateRegistry',
       'renderDocument',
       'rirekishoBasicTemplate',
+      'rirekishoMhlwA3Template',
       'shokumukeirekishoBasicTemplate',
     ]);
   });

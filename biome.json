@@ -17,7 +17,8 @@
       "!**/*.yml",
       "!pnpm-lock.yaml",
       "!docs/investigations/rirekisho-mhlw/scripts/*.json",
-      "!docs/investigations/rirekisho-mhlw/prototype-blank.html"
+      "!docs/investigations/rirekisho-mhlw/prototype-blank.html",
+      "!packages/renderer/src/templates/data/*.json"
     ]
   },
   "formatter": {

@@ -12,4 +12,5 @@ export {
   type TemplateRenderer,
 } from './template-registry';
 export { rirekishoBasicTemplate } from './templates/rirekisho-basic';
+export { rirekishoMhlwA3Template } from './templates/rirekisho-mhlw-a3';
 export { shokumukeirekishoBasicTemplate } from './templates/shokumukeirekisho-basic';
