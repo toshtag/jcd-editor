@@ -80,8 +80,8 @@ import {
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import { validatePhotoFile } from './profile-photo';
 import { formatTranslatedIssue } from './validation-labels';
-import { collectInvalidInputSelectors } from './validation-inputs';
-import { summarizeIssues } from './validation-summary';
+import { buildIssueInputSelector } from './validation-inputs';
+import { issueElementId, summarizeIssues } from './validation-summary';
 import {
   buildProjectsFromForm,
   createProjectItemElement,
@@ -179,26 +179,44 @@ const showError = (title: string, body: string): void => {
 const formatIssues = (issues: readonly ValidationIssue[]): string =>
   issues.map(formatTranslatedIssue).join('\n');
 
-// aria-invalid を付けた input element を覚えておき、次回 issues 更新時に
-// 一括 clear する。新しい entry が追加 / 削除されると element 参照が無効に
-// なる場合があるため、毎回 querySelectorAll で取り直す方が安全だが、
-// 一般的には現在 mount されている DOM への参照は維持されるため Set で保持する。
+// aria-invalid / aria-describedby を付けた input element を覚えておき、次回
+// issues 更新時に一括 clear する。本 Set は「主に self が触った input」を
+// 表す: clear するときも removeAttribute('aria-invalid') と removeAttribute
+// ('aria-describedby') を同じ Set 経由で行うことで、自分が触ったものだけを
+// 戻す (将来 hint 用の describedby が別系統で付いたときに上書き合戦に
+// ならないように)。
 const currentInvalidInputs = new Set<HTMLElement>();
 
 const clearInvalidInputMarks = (): void => {
   for (const el of currentInvalidInputs) {
     el.removeAttribute('aria-invalid');
+    el.removeAttribute('aria-describedby');
   }
   currentInvalidInputs.clear();
 };
 
 const markInputsInvalid = (issues: readonly ValidationIssue[]): void => {
   clearInvalidInputMarks();
-  const selectors = collectInvalidInputSelectors(issues);
-  for (const selector of selectors) {
+  // selector ごとに、対応する summary item id を集める (同じ input に複数
+  // issue がある場合の aria-describedby に半角 space 区切りで全 id を出す)
+  const selectorToIds = new Map<string, string[]>();
+  issues.forEach((issue, index) => {
+    const selector = buildIssueInputSelector(issue.path);
+    if (selector === null) return;
+    const id = issueElementId(index);
+    const existing = selectorToIds.get(selector);
+    if (existing === undefined) {
+      selectorToIds.set(selector, [id]);
+    } else {
+      existing.push(id);
+    }
+  });
+
+  for (const [selector, ids] of selectorToIds) {
     const el = document.querySelector(selector);
     if (el instanceof HTMLElement) {
       el.setAttribute('aria-invalid', 'true');
+      el.setAttribute('aria-describedby', ids.join(' '));
       currentInvalidInputs.add(el);
     }
   }
@@ -213,18 +231,21 @@ const clearValidationIssues = (): void => {
 const showValidationIssues = (issues: readonly ValidationIssue[]): void => {
   validationSummaryEl.hidden = false;
   const summaries = summarizeIssues(issues);
-  const items = summaries.map((summary) => {
+  const items = summaries.map((summary, index) => {
+    const id = issueElementId(index);
     const li = document.createElement('li');
     li.className = 'validation-summary__item';
     if (summary.anchor === null) {
       // jump 不能 (schemaVersion / 未知 path): plain text のみ
       const span = document.createElement('span');
+      span.id = id;
       span.className = 'validation-summary__static';
       span.textContent = `${summary.pathLabel}: ${summary.message}`;
       li.appendChild(span);
     } else {
       const button = document.createElement('button');
       button.type = 'button';
+      button.id = id;
       button.className = 'validation-summary__jump';
       button.dataset.validationAnchor = summary.anchor.selector;
       button.textContent = `${summary.pathLabel}: ${summary.message}`;
