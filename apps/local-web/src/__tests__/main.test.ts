@@ -90,6 +90,11 @@ const setupDom = (): void => {
     <button type="button" id="export-button">JSON エクスポート</button>
     <input type="file" id="import-file-input" />
     <form id="basics-form">
+      <img id="profile-photo-thumbnail" alt="" hidden />
+      <span id="profile-photo-placeholder">証明写真</span>
+      <input type="file" id="profile-photo-input" />
+      <button type="button" id="profile-photo-remove-button" disabled>写真を削除</button>
+      <p id="profile-photo-error" hidden></p>
       <input id="name-family" />
       <input id="name-given" />
       <input id="name-kana-family" />

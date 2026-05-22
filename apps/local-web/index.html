@@ -61,6 +61,45 @@
           <form id="basics-form" class="basics-form" autocomplete="off" novalidate>
             <h2 class="basics-form__title">基本情報</h2>
 
+            <div class="profile-photo">
+              <div class="profile-photo__thumbnail-wrapper">
+                <img id="profile-photo-thumbnail" class="profile-photo__thumbnail" alt="" hidden />
+                <span id="profile-photo-placeholder" class="profile-photo__placeholder"
+                  >証明写真</span
+                >
+              </div>
+              <div class="profile-photo__controls">
+                <label class="profile-photo__select-label">
+                  <span class="profile-photo__select-label-text">写真を選択</span>
+                  <input
+                    type="file"
+                    id="profile-photo-input"
+                    class="profile-photo__file"
+                    accept="image/jpeg,image/png"
+                  />
+                </label>
+                <button
+                  type="button"
+                  id="profile-photo-remove-button"
+                  class="profile-photo__remove-button"
+                  disabled
+                >
+                  写真を削除
+                </button>
+                <p class="profile-photo__hint">
+                  対応形式: JPEG / PNG、最大 3 MB。写真は個人情報として扱われ、ブラウザ内で
+                  data URI 化されます (外部送信なし)。
+                </p>
+                <p
+                  id="profile-photo-error"
+                  class="profile-photo__error"
+                  role="status"
+                  aria-live="polite"
+                  hidden
+                ></p>
+              </div>
+            </div>
+
             <div class="basics-form__row">
               <div class="basics-form__field">
                 <label class="basics-form__label" for="name-family">姓</label>
