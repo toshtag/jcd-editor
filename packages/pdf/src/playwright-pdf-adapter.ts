@@ -41,8 +41,16 @@ const renderPdfWithPlaywright = async (document: RenderedDocument): Promise<PdfR
     });
     const page = await context.newPage();
     await page.setContent(html, { waitUntil: 'load' });
+    // metadata.page.size から format を決める (CSS @page が優先されるが、CSS で
+    // @page が無い template にもフォールバックとして渡しておく)。
+    // metadata.page.orientation は preferCSSPageSize: true の下では Playwright
+    // で landscape option を渡さなくても CSS が反映される。defensive のため、
+    // CSS @page が無いケースに備えて Playwright の landscape option も伝える。
+    const pageSize = document.metadata.page.size;
+    const isLandscape = document.metadata.page.orientation === 'landscape';
     const pdfBuffer = await page.pdf({
-      format: 'A4',
+      format: pageSize,
+      landscape: isLandscape,
       printBackground: true,
       preferCSSPageSize: true,
     });

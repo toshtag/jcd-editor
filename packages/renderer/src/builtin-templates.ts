@@ -21,15 +21,17 @@ import {
   type TemplateDefinition,
   type TemplateRegistry,
 } from './template-registry';
-import { rirekishoMhlwA3Template } from './templates/rirekisho-mhlw-a3';
+import { rirekishoMhlwA4Template } from './templates/rirekisho-mhlw-a4';
 import { shokumukeirekishoBasicTemplate } from './templates/shokumukeirekisho-basic';
 
-// rirekisho の default は 'rirekisho-mhlw-a3' (公式 厚労省様式 A3 横)。
+// rirekisho の default は 'rirekisho-mhlw-a4' (公式 厚労省様式 A4 縦 2 ページ)。
+// 実運用で一般的な A4 印刷 / メール提出に合わせ default に採用。
+// A3 横 (見開き) 版 'rirekisho-mhlw-a3' は templateId 明示で選択可能だが、
+// kind=rirekisho の implicit selection が ambiguous にならないよう registry には載せていない。
 // 旧 'rirekisho-basic' は CONCEPT.md の JIS 様式スコープと乖離していたため、
-// registry から外している。実装ファイル自体は Phase 1.5 で削除予定だが、
-// 本 PR では残している (本ファイルから import しないので registry には載らない)。
+// 同じく registry から外している (file 自体は Phase 1.5 で削除予定)。
 export const builtinTemplates: readonly TemplateDefinition[] = Object.freeze([
-  rirekishoMhlwA3Template,
+  rirekishoMhlwA4Template,
   shokumukeirekishoBasicTemplate,
 ]);
 

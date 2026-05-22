@@ -1,28 +1,27 @@
-// rirekisho-mhlw-a3 は厚生労働省「履歴書様式例 (シンプル版・希望職種記入欄なし)」
-// を罫線レベルで再現する template。
+// rirekisho-mhlw-a4 は厚生労働省「履歴書様式例 (シンプル版)」を **A4 縦 2 ページ**
+// として再現する template。
+//
+// === A3 版との関係 ===
+//
+// 設計データ (mhlw-pdf-rules.json / mhlw-text-bbox.json) は A3 横 (420×297mm)
+// 基準。本 A4 版は同データを使い、座標変換で A4 縦 2 ページに分割する:
+//
+//   - x < 210mm (公式 A3 の左ページ) → そのまま A4 page 1 (top y そのまま)
+//   - x >= 210mm (公式 A3 の右ページ) → x' = x - 205.23mm, y' = y + 297mm
+//     (A4 page 2 へ。x オフセットの 205.23 は A3 の右ページ左端 228.85mm から
+//     A4 の左マージン 23.62mm に揃えるための差)
+//
+// この座標変換だけで A3 と全く同じ罫線・テキスト・写真欄が A4 2 ページに
+// 再構成される。data / ロジックは _internal/rirekisho-mhlw-shared.ts と共有。
 //
 // === 設計の核心 ===
 //
-// - **A3 横、見開き 1 枚** で出力する。CSS は @page { size: A3 landscape }。
-// - **罫線は ground truth JSON (mhlw-pdf-rules.json) から position: absolute
-//   で直接 div として描画する**。table / grid layout は使わない。
-//   Phase 0 で罫線位置 ±0mm を達成した手法。
-// - **公式のラベルテキスト** (ふりがな / 氏名 / 学　歴・職　歴 など) は
-//   公式 PDF の text bbox 実測値 (mhlw-text-bbox.json) を使って配置する。
-// - **写真欄** は Excel autoshape (dashed box) で PDF text として抽出できなかった
-//   ため、実測 bbox を photo box として個別配置。
-// - **ユーザーデータの流し込み** (氏名 / 生年月日 / 住所 / 学歴職歴 / 免許資格 /
-//   志望動機 / 本人希望 / 写真) は、公式様式の各欄に対応する座標に position:
-//   absolute で配置する。座標は mhlw-pdf-rules.json の罫線 / mhlw-text-bbox.json
-//   の label 位置を基準に算出 (詳細は本 file の HISTORY_LAYOUT_MM / etc. 定数)。
-//
-// === Phase 1.x で「履歴書では描画しない」と決めたもの (CONCEPT 整合) ===
-//
-// - WorkExperience.responsibilities / achievements / summary / tags
-// - Project.* / Skill.* 全般 (本様式に列がない)
-// - Certification.credentialId / credentialUrl / expirationDate / description
-//
-// これらは職務経歴書 (shokumukeirekisho-basic) の責務として明確に役割分担する。
+// - **A4 縦 portrait、2 ページ**。CSS は @page { size: A4 portrait } + .jcd-mhlw-a4 を
+//   594mm (= 297 × 2) 高さの container として position 計算に使う。
+// - PDF 出力時は @page と CSS で改ページ。preview 表示時は 1 つの長い container
+//   として上下に並ぶ。
+// - 写真欄は A3 の左ページ (x=154.77mm) に含まれるので A4 page 1 に残る。
+// - 各 user data 流し込み座標は A3 と同じ logic を A4 座標変換に通す。
 
 import type { CareerProfile } from '@jcd-editor/core';
 
@@ -42,19 +41,32 @@ import type { TemplateDefinition } from '../template-registry';
 import pdfRules from './data/mhlw-pdf-rules.json' with { type: 'json' };
 import textBbox from './data/mhlw-text-bbox.json' with { type: 'json' };
 
-const TEMPLATE_ID = 'rirekisho-mhlw-a3';
+const TEMPLATE_ID = 'rirekisho-mhlw-a4';
 const TEMPLATE_TITLE = '履歴書';
 const PROFILE_PHOTO_DEFAULT_ALT_TEXT = '証明写真';
 
-// === Ground truth (公式 PDF 実測値、改変禁止) ===
+// === Ground truth ===
 
 const DPI = pdfRules.dpi;
-const PAGE_W_MM = pdfRules.page_w_mm;
-const PAGE_H_MM = pdfRules.page_h_mm;
+const A4_PAGE_W_MM = 210;
+const A4_PAGE_H_MM = 297;
 
 const pxToMm = (px: number): number => (px / DPI) * 25.4;
 
-// 写真欄 (Excel autoshape dashed box、PDF 300dpi 画像から個別実測)
+// === A3 → A4 座標変換 ===
+
+const RIGHT_PAGE_THRESHOLD_MM = 210;
+const RIGHT_PAGE_X_OFFSET_MM = 205.23; // 228.85 - 23.62
+const PAGE2_Y_OFFSET_MM = 297;
+
+const isRightPage = (xMm: number): boolean => xMm >= RIGHT_PAGE_THRESHOLD_MM;
+
+const transformX = (xMm: number): number => (isRightPage(xMm) ? xMm - RIGHT_PAGE_X_OFFSET_MM : xMm);
+
+const transformY = (xMm: number, yMm: number): number =>
+  isRightPage(xMm) ? yMm + PAGE2_Y_OFFSET_MM : yMm;
+
+// 写真欄 (A3 の左ページに収まるので x はそのまま、y もそのまま = page 1)
 const PHOTO_BOX_MM = {
   x: 154.77,
   y: 27.69,
@@ -62,20 +74,11 @@ const PHOTO_BOX_MM = {
   h: 38.69,
 } as const;
 
-// === 学歴・職歴 表の座標 (公式 PDF 罫線実測値ベース) ===
-//
-// 学歴・職歴は 2 ブロックにまたがる:
-//   - 左ページ下表: heading y=131.885, 行 y=137.58〜219.29mm (約 9 行)
-//   - 右ページ上表: heading y=29.512, 行 y=35.31〜126.15mm (約 11 行)
-//
-// 列構成は両ブロックで同じ寸法:
-//   - 年セル: 約 19.6mm 幅
-//   - 月セル: 約 9.1mm 幅
-//   - 内容セル: 約 143mm 幅
-//
-// 行は 罫線間隔 約 9.06mm = 25.7pt。文字サイズ 10pt 程度で配置。
+// === 学歴・職歴 表の座標 ===
+// A3 と同じ寸法だが、右ページ表は変換後の座標で配置される。
+
 const HISTORY_LAYOUT = {
-  // 左ページ下表
+  // A3 の左ページ下表 → A4 page 1 下部
   leftPage: {
     yearX: 23.62,
     monthX: 43.26,
@@ -85,7 +88,7 @@ const HISTORY_LAYOUT = {
     rowHeight: 9.06,
     maxRows: 9,
   },
-  // 右ページ上表 (左ページ末尾から連続)
+  // A3 の右ページ上表 → A4 page 2 上部 (transformY で +297)
   rightPage: {
     yearX: 228.85,
     monthX: 248.5,
@@ -97,7 +100,6 @@ const HISTORY_LAYOUT = {
   },
 } as const;
 
-// 免許・資格 表 (右ページ中段、heading y=100.85, 行 y=106.6-160.95mm)
 const CERTIFICATION_LAYOUT = {
   yearX: 228.85,
   monthX: 248.5,
@@ -108,10 +110,7 @@ const CERTIFICATION_LAYOUT = {
   maxRows: 6,
 } as const;
 
-// 志望の動機 欄 (右ページ、y=164.76-225.98mm、x=228.85-400.98mm)
 const SUMMARY_BOX_MM = { x: 230, y: 172, w: 169, h: 53 } as const;
-
-// 本人希望記入欄 (右ページ、y=229.79-273.90mm)
 const PERSONAL_REQUEST_BOX_MM = { x: 230, y: 237, w: 169, h: 37 } as const;
 
 // === HTML helpers ===
@@ -122,25 +121,29 @@ const renderHorizontalRule = (rule: Rule): string => {
   const y = rule.y_mm as number;
   return rule.spans_px
     .map(([s, e]) => {
-      const x = pxToMm(s as number);
-      const w = pxToMm((e as number) - (s as number));
-      return `<div class="jcd-mhlw__rule jcd-mhlw__rule--h" style="left:${x.toFixed(3)}mm;top:${y.toFixed(3)}mm;width:${w.toFixed(3)}mm;"></div>`;
+      const xRaw = pxToMm(s as number);
+      const wMm = pxToMm((e as number) - (s as number));
+      const x = transformX(xRaw);
+      const yT = transformY(xRaw, y);
+      return `<div class="jcd-mhlw-a4__rule jcd-mhlw-a4__rule--h" style="left:${x.toFixed(3)}mm;top:${yT.toFixed(3)}mm;width:${wMm.toFixed(3)}mm;"></div>`;
     })
     .join('');
 };
 
 const renderVerticalRule = (rule: Rule): string => {
-  const x = rule.x_mm as number;
+  const xRaw = rule.x_mm as number;
   return rule.spans_px
     .map(([s, e]) => {
-      const y = pxToMm(s as number);
-      const h = pxToMm((e as number) - (s as number));
-      return `<div class="jcd-mhlw__rule jcd-mhlw__rule--v" style="left:${x.toFixed(3)}mm;top:${y.toFixed(3)}mm;height:${h.toFixed(3)}mm;"></div>`;
+      const yRaw = pxToMm(s as number);
+      const hMm = pxToMm((e as number) - (s as number));
+      const x = transformX(xRaw);
+      const yT = transformY(xRaw, yRaw);
+      return `<div class="jcd-mhlw-a4__rule jcd-mhlw-a4__rule--v" style="left:${x.toFixed(3)}mm;top:${yT.toFixed(3)}mm;height:${hMm.toFixed(3)}mm;"></div>`;
     })
     .join('');
 };
 
-// === 公式ラベル (固定 phrase) 描画 ===
+// === 公式ラベル ===
 
 type TextBlock = {
   x_mm: number;
@@ -161,7 +164,7 @@ const isInsidePhotoBox = (t: TextBlock): boolean => {
 };
 
 const labelFontClass = (text: string): string => {
-  if (text === '履歴書') return 'jcd-mhlw__label jcd-mhlw__label--title';
+  if (text === '履歴書') return 'jcd-mhlw-a4__label jcd-mhlw-a4__label--title';
   if (
     text.includes('ふりがな') ||
     text.includes('※') ||
@@ -169,9 +172,9 @@ const labelFontClass = (text: string): string => {
     text.includes('写真') ||
     text.includes('性別')
   ) {
-    return 'jcd-mhlw__label jcd-mhlw__label--gothic';
+    return 'jcd-mhlw-a4__label jcd-mhlw-a4__label--gothic';
   }
-  return 'jcd-mhlw__label';
+  return 'jcd-mhlw-a4__label';
 };
 
 const labelFontSizePt = (text: string): number => {
@@ -189,12 +192,14 @@ const renderOfficialLabels = (): string => {
       const cls = labelFontClass(t.text);
       const size = labelFontSizePt(t.text);
       const safe = escapeHtml(t.text).replace(/\n/g, '<br>');
-      return `<div class="${cls}" style="left:${t.x_mm.toFixed(3)}mm;top:${t.y_mm.toFixed(3)}mm;font-size:${size}pt;">${safe}</div>`;
+      const x = transformX(t.x_mm);
+      const y = transformY(t.x_mm, t.y_mm);
+      return `<div class="${cls}" style="left:${x.toFixed(3)}mm;top:${y.toFixed(3)}mm;font-size:${size}pt;">${safe}</div>`;
     })
     .join('');
 };
 
-// === 写真欄 (dashed box + 内部見出し + ユーザー画像) ===
+// === 写真欄 (左ページ = page 1、座標変換不要) ===
 
 type ProfilePhoto = NonNullable<CareerProfile['basics']['profilePhoto']>;
 
@@ -209,7 +214,7 @@ const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
     !isNonEmpty(profilePhoto.source.dataUri);
 
   if (showGuide) {
-    return `<div class="jcd-mhlw__photo" style="${style}"><div class="jcd-mhlw__photo-heading">写真をはる位置</div><div class="jcd-mhlw__photo-body">写真をはる必要が<br>ある場合<br>1.&nbsp;縦<br>&nbsp;&nbsp;&nbsp;横<br>2.本人単身胸から上<br>3.裏面のりづけ</div></div>`;
+    return `<div class="jcd-mhlw-a4__photo" style="${style}"><div class="jcd-mhlw-a4__photo-heading">写真をはる位置</div><div class="jcd-mhlw-a4__photo-body">写真をはる必要が<br>ある場合<br>1.&nbsp;縦<br>&nbsp;&nbsp;&nbsp;横<br>2.本人単身胸から上<br>3.裏面のりづけ</div></div>`;
   }
 
   const photo = profilePhoto as ProfilePhoto;
@@ -218,23 +223,30 @@ const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
     return '';
   }
   const altText = isNonEmpty(photo.altText) ? photo.altText : PROFILE_PHOTO_DEFAULT_ALT_TEXT;
-  return `<div class="jcd-mhlw__photo jcd-mhlw__photo--filled" style="${style}"><img class="jcd-mhlw__photo-image" src="${escapeHtml(source.dataUri)}" alt="${escapeHtml(altText)}"></div>`;
+  return `<div class="jcd-mhlw-a4__photo jcd-mhlw-a4__photo--filled" style="${style}"><img class="jcd-mhlw-a4__photo-image" src="${escapeHtml(source.dataUri)}" alt="${escapeHtml(altText)}"></div>`;
 };
 
-// === basics 流し込み ===
+// === basics 流し込み (座標変換) ===
+
+const placeOnA4 = (xMm: number, yMm: number): { left: string; top: string } => ({
+  left: `${transformX(xMm).toFixed(3)}mm`,
+  top: `${transformY(xMm, yMm).toFixed(3)}mm`,
+});
 
 const renderUserName = (basics: CareerProfile['basics']): string => {
   if (basics.name === undefined) return '';
   const family = escapeHtml(basics.name.family);
   const given = escapeHtml(basics.name.given);
-  return `<div class="jcd-mhlw__name" style="left:60mm;top:44.80mm;font-size:14pt;">${family}　${given}</div>`;
+  const { left, top } = placeOnA4(60, 44.8);
+  return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:14pt;">${family}　${given}</div>`;
 };
 
 const renderUserNameKana = (basics: CareerProfile['basics']): string => {
   if (basics.nameKana === undefined) return '';
   const family = escapeHtml(basics.nameKana.family);
   const given = escapeHtml(basics.nameKana.given);
-  return `<div class="jcd-mhlw__name-kana" style="left:60mm;top:39.87mm;font-size:9pt;">${family}　${given}</div>`;
+  const { left, top } = placeOnA4(60, 39.87);
+  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;">${family}　${given}</div>`;
 };
 
 const renderBirthDateAndAge = (
@@ -242,12 +254,6 @@ const renderBirthDateAndAge = (
   preparedOn: string | undefined,
 ): string => {
   if (basics.birthDate === undefined) return '';
-  // 公式: y=74.30mm に「年 月 日生 (満　歳)」label がある。
-  // それぞれの label の右隣に数字を入れる位置:
-  //   年: x=68mm (label「年」x=60.63)
-  //   月: x=83mm (label「月」x=76.21)
-  //   日: x=99mm (label「日生」x=91.79)
-  //   満N歳: x=110mm (label「(満」x=107.36, 「歳）」x=122.94)
   const m = basics.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m === null) return '';
   const y = Number(m[1]);
@@ -260,34 +266,40 @@ const renderBirthDateAndAge = (
           return a === undefined ? '' : String(a);
         })()
       : '';
+  const yPos = placeOnA4(68, 74.3);
+  const mPos = placeOnA4(83, 74.3);
+  const dPos = placeOnA4(99, 74.3);
+  const aPos = placeOnA4(113, 74.3);
   return (
-    `<div class="jcd-mhlw__birth-year" style="left:68mm;top:74.30mm;font-size:11pt;">${y}</div>` +
-    `<div class="jcd-mhlw__birth-month" style="left:83mm;top:74.30mm;font-size:11pt;">${mo}</div>` +
-    `<div class="jcd-mhlw__birth-day" style="left:99mm;top:74.30mm;font-size:11pt;">${d}</div>` +
+    `<div class="jcd-mhlw-a4__birth-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;">${y}</div>` +
+    `<div class="jcd-mhlw-a4__birth-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;">${mo}</div>` +
+    `<div class="jcd-mhlw-a4__birth-day" style="left:${dPos.left};top:${dPos.top};font-size:11pt;">${d}</div>` +
     (ageStr === ''
       ? ''
-      : `<div class="jcd-mhlw__age" style="left:113mm;top:74.30mm;font-size:11pt;">${ageStr}</div>`)
+      : `<div class="jcd-mhlw-a4__age" style="left:${aPos.left};top:${aPos.top};font-size:11pt;">${ageStr}</div>`)
   );
 };
 
 const renderGender = (basics: CareerProfile['basics']): string => {
   if (!isNonEmpty(basics.gender)) return '';
-  // 「※性別」label: x=139.89, y=71.72mm。その下の欄に書く想定 → y=81mm 程度
-  return `<div class="jcd-mhlw__gender" style="left:147mm;top:71.72mm;font-size:11pt;">${escapeHtml(basics.gender)}</div>`;
+  const { left, top } = placeOnA4(147, 71.72);
+  return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;">${escapeHtml(basics.gender)}</div>`;
 };
 
 const renderPreparedOn = (preparedOn: string | undefined): string => {
   if (preparedOn === undefined) return '';
-  // 「年 月 日現在」label の左側 (右上隅): y=31.33mm
   const m = preparedOn.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m === null) return '';
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
+  const yPos = placeOnA4(104, 31.33);
+  const mPos = placeOnA4(118, 31.33);
+  const dPos = placeOnA4(130, 31.33);
   return (
-    `<div class="jcd-mhlw__prepared-year" style="left:104mm;top:31.33mm;font-size:11pt;">${y}</div>` +
-    `<div class="jcd-mhlw__prepared-month" style="left:118mm;top:31.33mm;font-size:11pt;">${mo}</div>` +
-    `<div class="jcd-mhlw__prepared-day" style="left:130mm;top:31.33mm;font-size:11pt;">${d}</div>`
+    `<div class="jcd-mhlw-a4__prepared-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;">${y}</div>` +
+    `<div class="jcd-mhlw-a4__prepared-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;">${mo}</div>` +
+    `<div class="jcd-mhlw-a4__prepared-day" style="left:${dPos.left};top:${dPos.top};font-size:11pt;">${d}</div>`
   );
 };
 
@@ -300,23 +312,24 @@ const renderAddressBlock = (
 ): string => {
   let html = '';
   if (isNonEmpty(addressKana)) {
-    html += `<div class="jcd-mhlw__${prefix}-kana" style="left:46mm;top:${(baseY - 7).toFixed(2)}mm;font-size:9pt;">${escapeHtml(addressKana)}</div>`;
+    const { left, top } = placeOnA4(46, baseY - 7);
+    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;">${escapeHtml(addressKana)}</div>`;
   }
   if (address !== undefined) {
     const addr = formatAddress(address);
     if (addr.length > 0) {
-      html += `<div class="jcd-mhlw__${prefix}" style="left:46mm;top:${baseY}mm;font-size:11pt;">${escapeHtml(addr)}</div>`;
+      const { left, top } = placeOnA4(46, baseY);
+      html += `<div class="jcd-mhlw-a4__${prefix}" style="left:${left};top:${top};font-size:11pt;">${escapeHtml(addr)}</div>`;
     }
   }
   if (isNonEmpty(phone)) {
-    html += `<div class="jcd-mhlw__${prefix}-phone" style="left:175mm;top:${baseY}mm;font-size:11pt;">${escapeHtml(phone)}</div>`;
+    const { left, top } = placeOnA4(175, baseY);
+    html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;">${escapeHtml(phone)}</div>`;
   }
   return html;
 };
 
 const renderAddress = (basics: CareerProfile['basics']): string => {
-  // 現住所欄: ふりがな (y=81.95mm の label の右)、〒住所 (y=87mm 程度)、電話 (y=87mm 右)
-  // 連絡先欄: ふりがな (y=104.48mm), 〒住所 (y=109.66mm), 電話 (y=109.66mm 右)
   return (
     renderAddressBlock('address', 87, basics.address, basics.addressKana, basics.phone) +
     renderAddressBlock(
@@ -329,25 +342,29 @@ const renderAddress = (basics: CareerProfile['basics']): string => {
   );
 };
 
-// === 学歴・職歴 表 === (row 構築ロジックは _internal/rirekisho-mhlw-shared.ts)
+// === 学歴・職歴 表 ===
 
 const renderHistoryRowAt = (
   row: HistoryRow,
   x: { yearX: number; monthX: number; contentX: number },
-  y: number,
+  yMm: number,
 ): string => {
   if (row.kind === 'heading') {
-    return `<div class="jcd-mhlw__history-heading" style="left:${x.contentX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${row.label}</div>`;
+    const { left, top } = placeOnA4(x.contentX + 2, yMm);
+    return `<div class="jcd-mhlw-a4__history-heading" style="left:${left};top:${top};font-size:11pt;">${row.label}</div>`;
   }
+  const yearPos = placeOnA4(x.yearX + 2, yMm);
+  const monthPos = placeOnA4(x.monthX + 2, yMm);
+  const contentPos = placeOnA4(x.contentX + 2, yMm);
   const yearHtml =
     row.year === ''
       ? ''
-      : `<div class="jcd-mhlw__history-year" style="left:${x.yearX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.year)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;">${escapeHtml(row.year)}</div>`;
   const monthHtml =
     row.month === ''
       ? ''
-      : `<div class="jcd-mhlw__history-month" style="left:${x.monthX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.month)}</div>`;
-  const contentHtml = `<div class="jcd-mhlw__history-content" style="left:${x.contentX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.content)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;">${escapeHtml(row.month)}</div>`;
+  const contentHtml = `<div class="jcd-mhlw-a4__history-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;">${escapeHtml(row.content)}</div>`;
   return yearHtml + monthHtml + contentHtml;
 };
 
@@ -356,18 +373,12 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
   const workRows = buildWorkRows(careerProfile.workExperiences);
   const allRows = [...educationRows, ...workRows];
   if (allRows.length === 0) return '';
-
-  // 公式様式の行数 (左 9 行 + 右 11 行 = 20 行) を超えた分は切り捨て。
-  // 切り捨て発生時は最後の行に「(他 N 件は紙面上限により非表示)」を入れる
-  // ことも考えられるが、Phase 1.3-a では単純切り捨て + console.warn なし。
-  // 将来 Phase 1.4 (A4 縦 2 ページ版) ではあふれ分も自然に出る。
   const left = HISTORY_LAYOUT.leftPage;
   const right = HISTORY_LAYOUT.rightPage;
   const leftCapacity = left.maxRows;
   const rightCapacity = right.maxRows;
   const totalCapacity = leftCapacity + rightCapacity;
   const rowsToRender = allRows.slice(0, totalCapacity);
-
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {
     const row = rowsToRender[i] as HistoryRow;
@@ -382,7 +393,7 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
   return html.join('');
 };
 
-// === 免許・資格 表 === (row 構築ロジックは _internal/rirekisho-mhlw-shared.ts)
+// === 免許・資格 表 ===
 
 const renderCertificationSection = (careerProfile: CareerProfile): string => {
   const rows = buildCertificationRows(careerProfile.certifications);
@@ -393,24 +404,27 @@ const renderCertificationSection = (careerProfile: CareerProfile): string => {
   for (let i = 0; i < rowsToRender.length; i += 1) {
     const row = rowsToRender[i] as CertificationRow;
     const y = layout.firstRowY + i * layout.rowHeight;
+    const yearPos = placeOnA4(layout.yearX + 2, y);
+    const monthPos = placeOnA4(layout.monthX + 2, y);
+    const contentPos = placeOnA4(layout.contentX + 2, y);
     const yearHtml =
       row.year === ''
         ? ''
-        : `<div class="jcd-mhlw__cert-year" style="left:${layout.yearX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.year)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;">${escapeHtml(row.year)}</div>`;
     const monthHtml =
       row.month === ''
         ? ''
-        : `<div class="jcd-mhlw__cert-month" style="left:${layout.monthX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.month)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;">${escapeHtml(row.month)}</div>`;
     const contentHtml =
       row.content === ''
         ? ''
-        : `<div class="jcd-mhlw__cert-content" style="left:${layout.contentX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.content)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;">${escapeHtml(row.content)}</div>`;
     html.push(yearHtml + monthHtml + contentHtml);
   }
   return html.join('');
 };
 
-// === 志望の動機 + 本人希望記入欄 (フリーテキスト) ===
+// === 志望の動機 + 本人希望記入欄 ===
 
 const renderFreeTextBox = (
   cls: string,
@@ -419,25 +433,29 @@ const renderFreeTextBox = (
 ): string => {
   if (!isNonEmpty(text)) return '';
   const safe = escapeHtml(text).replace(/\n/g, '<br>');
-  return `<div class="jcd-mhlw__free-text ${cls}" style="left:${box.x}mm;top:${box.y}mm;width:${box.w}mm;height:${box.h}mm;">${safe}</div>`;
+  const { left, top } = placeOnA4(box.x, box.y);
+  return `<div class="jcd-mhlw-a4__free-text ${cls}" style="left:${left};top:${top};width:${box.w}mm;height:${box.h}mm;">${safe}</div>`;
 };
 
 // === CSS ===
+//
+// container は 高さ A4×2 = 594mm。@page で改ページ。preview 表示時は 1 つの
+// 縦長 container が見える。print 時は 2 ページに分かれる。
 
-const CSS = `@page { size: A3 landscape; margin: 0; }
-.jcd-mhlw {
+const CSS = `@page { size: A4 portrait; margin: 0; }
+.jcd-mhlw-a4 {
   position: relative;
-  width: ${PAGE_W_MM}mm;
-  height: ${PAGE_H_MM}mm;
+  width: ${A4_PAGE_W_MM}mm;
+  height: ${A4_PAGE_H_MM * 2}mm;
   background: #fff;
   color: #000;
   font-family: "Noto Serif JP", "Yu Mincho", "MS Mincho", "Hiragino Mincho ProN", serif;
 }
-.jcd-mhlw__rule { position: absolute; background: #000; }
-.jcd-mhlw__rule--h { height: 0.5pt; }
-.jcd-mhlw__rule--v { width: 0.5pt; }
+.jcd-mhlw-a4__rule { position: absolute; background: #000; }
+.jcd-mhlw-a4__rule--h { height: 0.5pt; }
+.jcd-mhlw-a4__rule--v { width: 0.5pt; }
 
-.jcd-mhlw__label {
+.jcd-mhlw-a4__label {
   position: absolute;
   z-index: 3;
   font-size: 11pt;
@@ -445,10 +463,10 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
   white-space: nowrap;
   color: #000;
 }
-.jcd-mhlw__label--gothic {
+.jcd-mhlw-a4__label--gothic {
   font-family: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
 }
-.jcd-mhlw__label--title {
+.jcd-mhlw-a4__label--title {
   font-family: "Klee One", "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-weight: 500;
   letter-spacing: 0.2em;
@@ -457,26 +475,25 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
   margin-top: -1.5mm;
 }
 
-/* ユーザーデータ流し込み — 全て position: absolute、罫線内に収まる前提 */
-.jcd-mhlw__name, .jcd-mhlw__name-kana,
-.jcd-mhlw__birth-year, .jcd-mhlw__birth-month, .jcd-mhlw__birth-day, .jcd-mhlw__age,
-.jcd-mhlw__gender,
-.jcd-mhlw__prepared-year, .jcd-mhlw__prepared-month, .jcd-mhlw__prepared-day,
-.jcd-mhlw__address, .jcd-mhlw__address-kana, .jcd-mhlw__address-phone,
-.jcd-mhlw__contact-address, .jcd-mhlw__contact-address-kana, .jcd-mhlw__contact-address-phone,
-.jcd-mhlw__history-heading, .jcd-mhlw__history-year, .jcd-mhlw__history-month, .jcd-mhlw__history-content,
-.jcd-mhlw__cert-year, .jcd-mhlw__cert-month, .jcd-mhlw__cert-content {
+.jcd-mhlw-a4__name, .jcd-mhlw-a4__name-kana,
+.jcd-mhlw-a4__birth-year, .jcd-mhlw-a4__birth-month, .jcd-mhlw-a4__birth-day, .jcd-mhlw-a4__age,
+.jcd-mhlw-a4__gender,
+.jcd-mhlw-a4__prepared-year, .jcd-mhlw-a4__prepared-month, .jcd-mhlw-a4__prepared-day,
+.jcd-mhlw-a4__address, .jcd-mhlw-a4__address-kana, .jcd-mhlw-a4__address-phone,
+.jcd-mhlw-a4__contact-address, .jcd-mhlw-a4__contact-address-kana, .jcd-mhlw-a4__contact-address-phone,
+.jcd-mhlw-a4__history-heading, .jcd-mhlw-a4__history-year, .jcd-mhlw-a4__history-month, .jcd-mhlw-a4__history-content,
+.jcd-mhlw-a4__cert-year, .jcd-mhlw-a4__cert-month, .jcd-mhlw-a4__cert-content {
   position: absolute;
   z-index: 4;
   line-height: 1.1;
   white-space: nowrap;
   color: #000;
 }
-.jcd-mhlw__history-heading {
+.jcd-mhlw-a4__history-heading {
   font-weight: 500;
   letter-spacing: 0.2em;
 }
-.jcd-mhlw__free-text {
+.jcd-mhlw-a4__free-text {
   position: absolute;
   z-index: 4;
   font-size: 10pt;
@@ -488,7 +505,7 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
   box-sizing: border-box;
 }
 
-.jcd-mhlw__photo {
+.jcd-mhlw-a4__photo {
   position: absolute;
   box-sizing: border-box;
   border: 0.75pt dashed #808080;
@@ -500,20 +517,20 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
   color: #000;
   overflow: hidden;
 }
-.jcd-mhlw__photo--filled { padding: 0; }
-.jcd-mhlw__photo-heading {
+.jcd-mhlw-a4__photo--filled { padding: 0; }
+.jcd-mhlw-a4__photo-heading {
   text-align: center;
   font-size: 8.5pt;
   margin-bottom: 1.5mm;
   letter-spacing: 0.08em;
 }
-.jcd-mhlw__photo-body { font-size: 7pt; }
-.jcd-mhlw__photo-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.jcd-mhlw-a4__photo-body { font-size: 7pt; }
+.jcd-mhlw-a4__photo-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 `;
 
 // === Render entrypoint ===
 
-const renderRirekishoMhlwA3 = (input: RenderInput): RenderedDocument => {
+const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
   const { careerProfile } = input;
   const preparedOn = careerProfile.meta?.preparedOn;
 
@@ -533,17 +550,16 @@ const renderRirekishoMhlwA3 = (input: RenderInput): RenderedDocument => {
   const history = renderHistorySection(careerProfile);
   const certifications = renderCertificationSection(careerProfile);
   const summary = renderFreeTextBox(
-    'jcd-mhlw__summary',
+    'jcd-mhlw-a4__summary',
     SUMMARY_BOX_MM,
     careerProfile.basics.summary,
   );
   const personalRequest = renderFreeTextBox(
-    'jcd-mhlw__personal-request',
+    'jcd-mhlw-a4__personal-request',
     PERSONAL_REQUEST_BOX_MM,
     careerProfile.basics.personalRequest,
   );
 
-  // 1 つの大きなテキストとして結合 (order は意味なし、全て absolute positioning)
   const userData =
     photo +
     userNameKana +
@@ -557,7 +573,7 @@ const renderRirekishoMhlwA3 = (input: RenderInput): RenderedDocument => {
     summary +
     personalRequest;
 
-  const html = `<article class="jcd-mhlw">${rules}${labels}${userData}</article>`;
+  const html = `<article class="jcd-mhlw-a4">${rules}${labels}${userData}</article>`;
 
   return {
     kind: input.kind,
@@ -566,15 +582,15 @@ const renderRirekishoMhlwA3 = (input: RenderInput): RenderedDocument => {
     css: CSS,
     metadata: {
       language: 'ja-JP',
-      page: { size: 'A3', orientation: 'landscape' },
+      page: { size: 'A4', orientation: 'portrait' },
       templateId: TEMPLATE_ID,
     },
   };
 };
 
-export const rirekishoMhlwA3Template: TemplateDefinition = {
+export const rirekishoMhlwA4Template: TemplateDefinition = {
   id: TEMPLATE_ID,
   kind: 'rirekisho',
-  name: '履歴書（厚労省様式 A3）',
-  render: renderRirekishoMhlwA3,
+  name: '履歴書（厚労省様式 A4 縦 2 ページ）',
+  render: renderRirekishoMhlwA4,
 };

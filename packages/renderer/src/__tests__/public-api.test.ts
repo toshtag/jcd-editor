@@ -21,6 +21,7 @@ import {
   RendererError,
   rirekishoBasicTemplate,
   rirekishoMhlwA3Template,
+  rirekishoMhlwA4Template,
   shokumukeirekishoBasicTemplate,
 } from '../index';
 
@@ -137,12 +138,20 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(typeof rirekishoBasicTemplate.render).toBe('function');
   });
 
-  it('rirekishoMhlwA3Template を runtime 値として export する (default の rirekisho template)', () => {
+  it('rirekishoMhlwA3Template を runtime 値として export する (A3 横 / templateId 明示で利用可)', () => {
     expect(typeof rirekishoMhlwA3Template).toBe('object');
     expect(rirekishoMhlwA3Template.id).toBe('rirekisho-mhlw-a3');
     expect(rirekishoMhlwA3Template.kind).toBe('rirekisho');
     expect(rirekishoMhlwA3Template.name).toBe('履歴書（厚労省様式 A3）');
     expect(typeof rirekishoMhlwA3Template.render).toBe('function');
+  });
+
+  it('rirekishoMhlwA4Template を runtime 値として export する (default の rirekisho template)', () => {
+    expect(typeof rirekishoMhlwA4Template).toBe('object');
+    expect(rirekishoMhlwA4Template.id).toBe('rirekisho-mhlw-a4');
+    expect(rirekishoMhlwA4Template.kind).toBe('rirekisho');
+    expect(rirekishoMhlwA4Template.name).toBe('履歴書（厚労省様式 A4 縦 2 ページ）');
+    expect(typeof rirekishoMhlwA4Template.render).toBe('function');
   });
 
   it('shokumukeirekishoBasicTemplate を runtime 値として export する', () => {
@@ -210,6 +219,7 @@ describe('@jcd-editor/renderer 公開 API', () => {
       'renderDocument',
       'rirekishoBasicTemplate',
       'rirekishoMhlwA3Template',
+      'rirekishoMhlwA4Template',
       'shokumukeirekishoBasicTemplate',
     ]);
   });
