@@ -1,5 +1,9 @@
 // Template-internal HTML rendering helpers. Used by built-in templates
-// (rirekisho-basic, shokumukeirekisho-basic, ...). Not part of the public API.
+// (shokumukeirekisho-basic 等)。Not part of the public API.
+//
+// Note: 履歴書系 (rirekisho-mhlw-a3 / rirekisho-mhlw-a4) は table / section
+// helper を使わず、ground truth 罫線を position: absolute で直接配置する
+// 別アーキテクチャ。本 helper は引き続き shokumukeirekisho 側で利用される。
 //
 // 責務分割 (template-format.ts との対比):
 //

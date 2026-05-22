@@ -4,7 +4,7 @@
 // - 業界別 / 職種別 variant ではない (basic = first / minimal を表現)。
 // - basics は氏名 / メール / 電話 / 住所のみ (職務経歴書では nameKana /
 //   birthDate を一般に表示しないため意図的にスキップ)。
-// - profilePhoto は render しない (rirekisho-basic と同じ方針)。
+// - profilePhoto は render しない (職務経歴書では写真不要のため)。
 // - credentialUrl は escape された plain text のみ (<a href> 化しない)。
 // - section 順序は職務経歴 → プロジェクト → スキル → 資格 → 学歴
 //   (educationHistory は optional final、職務経歴書は career 中心、

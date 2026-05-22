@@ -28,8 +28,6 @@ import { shokumukeirekishoBasicTemplate } from './templates/shokumukeirekisho-ba
 // 実運用で一般的な A4 印刷 / メール提出に合わせ default に採用。
 // A3 横 (見開き) 版 'rirekisho-mhlw-a3' は templateId 明示で選択可能だが、
 // kind=rirekisho の implicit selection が ambiguous にならないよう registry には載せていない。
-// 旧 'rirekisho-basic' は CONCEPT.md の JIS 様式スコープと乖離していたため、
-// 同じく registry から外している (file 自体は Phase 1.5 で削除予定)。
 export const builtinTemplates: readonly TemplateDefinition[] = Object.freeze([
   rirekishoMhlwA4Template,
   shokumukeirekishoBasicTemplate,

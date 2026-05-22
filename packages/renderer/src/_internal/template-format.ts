@@ -1,5 +1,6 @@
 // Template-internal formatting helpers. Used by built-in templates
-// (rirekisho-basic, shokumukeirekisho-basic, ...). Not part of public API.
+// (rirekisho-mhlw-a3, rirekisho-mhlw-a4, shokumukeirekisho-basic, ...).
+// Not part of public API.
 //
 // 責務:
 //
