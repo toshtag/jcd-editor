@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { builtinTemplates, createDefaultTemplateRegistry } from '../builtin-templates';
 import { renderDocument } from '../render-document';
 import type { TemplateDefinition } from '../template-registry';
-import { rirekishoMhlwA3Template } from '../templates/rirekisho-mhlw-a3';
+import { rirekishoMhlwA4Template } from '../templates/rirekisho-mhlw-a4';
 import { shokumukeirekishoBasicTemplate } from '../templates/shokumukeirekisho-basic';
 
 const MIN_PROFILE = parseCareerProfile({ schemaVersion: 1, basics: {} });
@@ -14,16 +14,16 @@ describe('builtinTemplates - 構造', () => {
     expect(builtinTemplates).toHaveLength(2);
   });
 
-  it('rirekishoMhlwA3Template を含む (identity-equal)', () => {
-    expect(builtinTemplates).toContain(rirekishoMhlwA3Template);
+  it('rirekishoMhlwA4Template を含む (identity-equal)', () => {
+    expect(builtinTemplates).toContain(rirekishoMhlwA4Template);
   });
 
   it('shokumukeirekishoBasicTemplate を含む (identity-equal)', () => {
     expect(builtinTemplates).toContain(shokumukeirekishoBasicTemplate);
   });
 
-  it('順序が [rirekishoMhlwA3Template, shokumukeirekishoBasicTemplate]', () => {
-    expect(builtinTemplates).toEqual([rirekishoMhlwA3Template, shokumukeirekishoBasicTemplate]);
+  it('順序が [rirekishoMhlwA4Template, shokumukeirekishoBasicTemplate]', () => {
+    expect(builtinTemplates).toEqual([rirekishoMhlwA4Template, shokumukeirekishoBasicTemplate]);
   });
 
   it('すべての id がユニーク', () => {
@@ -78,7 +78,7 @@ describe('builtinTemplates - mutation 防御', () => {
       // strict mode では TypeError、非 strict では silently 無視されうる
     }
     expect(builtinTemplates).toHaveLength(2);
-    expect(builtinTemplates).toEqual([rirekishoMhlwA3Template, shokumukeirekishoBasicTemplate]);
+    expect(builtinTemplates).toEqual([rirekishoMhlwA4Template, shokumukeirekishoBasicTemplate]);
   });
 
   it('index 代入を試みても配列の対応要素が変わらない', () => {
@@ -89,7 +89,7 @@ describe('builtinTemplates - mutation 防御', () => {
     } catch {
       // 同上
     }
-    expect(builtinTemplates[0]).toBe(rirekishoMhlwA3Template);
+    expect(builtinTemplates[0]).toBe(rirekishoMhlwA4Template);
     expect(builtinTemplates).toHaveLength(2);
   });
 
@@ -101,7 +101,7 @@ describe('builtinTemplates - mutation 防御', () => {
       // 同上
     }
     expect(builtinTemplates).toHaveLength(2);
-    expect(builtinTemplates).toEqual([rirekishoMhlwA3Template, shokumukeirekishoBasicTemplate]);
+    expect(builtinTemplates).toEqual([rirekishoMhlwA4Template, shokumukeirekishoBasicTemplate]);
   });
 
   it('pop を試みても配列の length が変わらない', () => {
@@ -126,14 +126,14 @@ describe('createDefaultTemplateRegistry - 挙動', () => {
   it('getTemplates() が 2 件を順序通り返す', () => {
     const registry = createDefaultTemplateRegistry();
     expect(registry.getTemplates()).toEqual([
-      rirekishoMhlwA3Template,
+      rirekishoMhlwA4Template,
       shokumukeirekishoBasicTemplate,
     ]);
   });
 
-  it('getTemplate("rirekisho-mhlw-a3") で rirekishoMhlwA3Template を返す', () => {
+  it('getTemplate("rirekisho-mhlw-a4") で rirekishoMhlwA4Template を返す', () => {
     const registry = createDefaultTemplateRegistry();
-    expect(registry.getTemplate('rirekisho-mhlw-a3')).toBe(rirekishoMhlwA3Template);
+    expect(registry.getTemplate('rirekisho-mhlw-a4')).toBe(rirekishoMhlwA4Template);
   });
 
   it('getTemplate("shokumukeirekisho-basic") で shokumukeirekishoBasicTemplate を返す', () => {
@@ -141,9 +141,9 @@ describe('createDefaultTemplateRegistry - 挙動', () => {
     expect(registry.getTemplate('shokumukeirekisho-basic')).toBe(shokumukeirekishoBasicTemplate);
   });
 
-  it('getTemplatesByKind("rirekisho") で [rirekishoMhlwA3Template]', () => {
+  it('getTemplatesByKind("rirekisho") で [rirekishoMhlwA4Template]', () => {
     const registry = createDefaultTemplateRegistry();
-    expect(registry.getTemplatesByKind('rirekisho')).toEqual([rirekishoMhlwA3Template]);
+    expect(registry.getTemplatesByKind('rirekisho')).toEqual([rirekishoMhlwA4Template]);
   });
 
   it('getTemplatesByKind("shokumukeirekisho") で [shokumukeirekishoBasicTemplate]', () => {
@@ -165,7 +165,7 @@ describe('createDefaultTemplateRegistry - renderDocument 統合', () => {
     const registry = createDefaultTemplateRegistry();
     const result = renderDocument({ careerProfile: MIN_PROFILE, kind: 'rirekisho' }, registry);
     expect(result.kind).toBe('rirekisho');
-    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a3');
+    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a4');
   });
 
   it('shokumukeirekisho の implicit selection で renderDocument が成功する', () => {
@@ -184,11 +184,11 @@ describe('createDefaultTemplateRegistry - renderDocument 統合', () => {
       {
         careerProfile: MIN_PROFILE,
         kind: 'rirekisho',
-        templateId: 'rirekisho-mhlw-a3',
+        templateId: 'rirekisho-mhlw-a4',
       },
       registry,
     );
-    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a3');
+    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a4');
   });
 
   it('明示 templateId shokumukeirekisho-basic で renderDocument が成功する', () => {
