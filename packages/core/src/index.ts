@@ -1,7 +1,9 @@
 export type {
   CareerProfile,
   Certification,
+  CertificationRowEntry,
   Education,
+  HistoryRowEntry,
   EmailAddress,
   IsoDateString,
   IsoYearMonthString,

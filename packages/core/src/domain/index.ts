@@ -17,5 +17,9 @@ export type { Certification } from './certification';
 export type { Project } from './project';
 export type { ProfilePhoto, ProfilePhotoMediaType, ProfilePhotoSource } from './profile-photo';
 
-export type { CareerProfile } from './career-profile';
+export type {
+  CareerProfile,
+  CertificationRowEntry,
+  HistoryRowEntry,
+} from './career-profile';
 export { parseCareerProfile, safeParseCareerProfile } from './operations';
