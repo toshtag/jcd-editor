@@ -36,7 +36,12 @@
 //   - 初期は sampleProfileInput を base、load 後は loaded profile を base
 //   - これにより load 後の form 編集で他 section が sample fixture に戻る重大バグを防止
 
-import { safeParseCareerProfile, type CareerProfile, type ValidationIssue } from '@jcd-editor/core';
+import {
+  safeParseCareerProfile,
+  type CareerProfile,
+  type ProfilePhoto,
+  type ValidationIssue,
+} from '@jcd-editor/core';
 import {
   createDefaultTemplateRegistry,
   renderDocument,
@@ -71,6 +76,7 @@ import {
   readEducationFromForm,
 } from './education-form';
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
+import { validatePhotoFile } from './profile-photo';
 import {
   buildProjectsFromForm,
   createProjectItemElement,
@@ -121,6 +127,11 @@ const projectsList = requireElement('projects-list', HTMLDivElement);
 const addProjectButton = requireElement('add-project-button', HTMLButtonElement);
 const exportButton = requireElement('export-button', HTMLButtonElement);
 const importFileInput = requireElement('import-file-input', HTMLInputElement);
+const profilePhotoInput = requireElement('profile-photo-input', HTMLInputElement);
+const profilePhotoRemoveButton = requireElement('profile-photo-remove-button', HTMLButtonElement);
+const profilePhotoThumbnail = requireElement('profile-photo-thumbnail', HTMLImageElement);
+const profilePhotoPlaceholder = requireElement('profile-photo-placeholder', HTMLSpanElement);
+const profilePhotoError = requireElement('profile-photo-error', HTMLParagraphElement);
 const statusEl = document.getElementById('status');
 const errorArea = document.getElementById('error-area');
 const dirtyIndicator = document.getElementById('dirty-indicator');
@@ -220,6 +231,52 @@ if (!parsed.success) {
   // (input 自体が user の保存意図とは独立)。
   let isDirty = false;
 
+  // currentPhoto: basics.profilePhoto を form input とは独立に保持する。
+  // 理由: photo は binary 起源 (File → dataUri) で、テキスト input パターンに
+  // 載らない。`buildBasicsFromForm` は触らず、onFormInput で basics に merge
+  // する形を取る。
+  let currentPhoto: ProfilePhoto | undefined;
+
+  // === Profile photo helpers ===
+  // populateAll が updatePhotoThumbnail / hidePhotoError を参照するため、
+  // populateAll の定義より前で宣言する必要がある (TDZ 回避)。
+
+  const showPhotoError = (message: string): void => {
+    profilePhotoError.hidden = false;
+    profilePhotoError.textContent = message;
+  };
+
+  const hidePhotoError = (): void => {
+    profilePhotoError.hidden = true;
+    profilePhotoError.textContent = '';
+  };
+
+  const updatePhotoThumbnail = (): void => {
+    if (currentPhoto?.source?.kind === 'dataUri') {
+      profilePhotoThumbnail.src = currentPhoto.source.dataUri;
+      profilePhotoThumbnail.alt = currentPhoto.altText ?? '証明写真';
+      profilePhotoThumbnail.hidden = false;
+      profilePhotoPlaceholder.hidden = true;
+      profilePhotoRemoveButton.disabled = false;
+    } else {
+      profilePhotoThumbnail.removeAttribute('src');
+      profilePhotoThumbnail.hidden = true;
+      profilePhotoPlaceholder.hidden = false;
+      profilePhotoRemoveButton.disabled = true;
+    }
+  };
+
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
+      reader.onload = () => {
+        const text = typeof reader.result === 'string' ? reader.result : '';
+        resolve(text);
+      };
+      reader.readAsDataURL(file);
+    });
+
   const registry = createDefaultTemplateRegistry();
   const storage = createIndexedDbStorageAdapter();
 
@@ -230,6 +287,10 @@ if (!parsed.success) {
     populateSkillsForm(skillsList, loaded.skills);
     populateCertificationsForm(certificationsList, loaded.certifications);
     populateProjectsForm(projectsList, loaded.projects);
+    currentPhoto = loaded.basics.profilePhoto;
+    profilePhotoInput.value = '';
+    hidePhotoError();
+    updatePhotoThumbnail();
   };
 
   populateAll(profile);
@@ -311,6 +372,9 @@ if (!parsed.success) {
     // user 入力は常に dirty 判定。invalid draft 中も維持する。
     markDirty();
     const basics = buildBasicsFromForm(readFormValues());
+    if (currentPhoto !== undefined) {
+      (basics as Record<string, unknown>).profilePhoto = currentPhoto;
+    }
     const workExperiences = buildWorkExperiencesFromForm(
       readWorkExperiencesFromForm(workExperiencesList),
     );
@@ -338,6 +402,36 @@ if (!parsed.success) {
       // preview は前回成功状態を保持 (srcdoc 触らない)
     }
     updateButtonStates();
+  };
+
+  const onPhotoSelected = async (file: File): Promise<void> => {
+    hidePhotoError();
+    const validation = validatePhotoFile(file);
+    if (!validation.ok) {
+      showPhotoError(validation.message);
+      return;
+    }
+    let dataUri: string;
+    try {
+      dataUri = await readFileAsDataUrl(file);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      showPhotoError(`ファイル読み込みに失敗しました: ${detail}`);
+      return;
+    }
+    // file.type は事前検証で 'image/jpeg' | 'image/png' のみ通過済み。
+    const mediaType = file.type as 'image/jpeg' | 'image/png';
+    currentPhoto = { source: { kind: 'dataUri', dataUri, mediaType } };
+    updatePhotoThumbnail();
+    onFormInput();
+  };
+
+  const onPhotoRemove = (): void => {
+    if (currentPhoto === undefined) return;
+    currentPhoto = undefined;
+    hidePhotoError();
+    updatePhotoThumbnail();
+    onFormInput();
   };
 
   const onSave = async (): Promise<void> => {
@@ -717,6 +811,19 @@ if (!parsed.success) {
     void onImportFile(file).finally(() => {
       importFileInput.value = '';
     });
+  });
+
+  profilePhotoInput.addEventListener('change', () => {
+    const file = profilePhotoInput.files?.[0];
+    if (file === undefined) return;
+    // 同じファイルを再度選択できるよう、処理後に input をリセット
+    void onPhotoSelected(file).finally(() => {
+      profilePhotoInput.value = '';
+    });
+  });
+
+  profilePhotoRemoveButton.addEventListener('click', () => {
+    onPhotoRemove();
   });
 
   // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を

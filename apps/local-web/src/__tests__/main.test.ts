@@ -90,6 +90,11 @@ const setupDom = (): void => {
     <button type="button" id="export-button">JSON エクスポート</button>
     <input type="file" id="import-file-input" />
     <form id="basics-form">
+      <img id="profile-photo-thumbnail" alt="" hidden />
+      <span id="profile-photo-placeholder">証明写真</span>
+      <input type="file" id="profile-photo-input" />
+      <button type="button" id="profile-photo-remove-button" disabled>写真を削除</button>
+      <p id="profile-photo-error" hidden></p>
       <input id="name-family" />
       <input id="name-given" />
       <input id="name-kana-family" />
@@ -722,6 +727,137 @@ describe('local-web main flow', () => {
       await flushPromises();
 
       expect(confirmSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('証明写真 入力', () => {
+    const photoInput = (): HTMLInputElement => {
+      const el = document.getElementById('profile-photo-input');
+      if (!(el instanceof HTMLInputElement)) throw new Error('Missing profile-photo-input');
+      return el;
+    };
+
+    const thumbnail = (): HTMLImageElement => {
+      const el = document.getElementById('profile-photo-thumbnail');
+      if (!(el instanceof HTMLImageElement)) throw new Error('Missing profile-photo-thumbnail');
+      return el;
+    };
+
+    const errorEl = (): HTMLElement => {
+      const el = document.getElementById('profile-photo-error');
+      if (el === null) throw new Error('Missing profile-photo-error');
+      return el;
+    };
+
+    // 1x1 transparent PNG (8 bytes payload + header) as a minimal valid PNG。
+    const PNG_BYTES = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+      0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f,
+      0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00,
+      0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ]);
+
+    const makeFile = (size: number, type: string, name = 'photo'): File =>
+      new File([new Blob([new Uint8Array(size)], { type })], name, { type });
+
+    const setFileInput = (file: File): void => {
+      const fileList = {
+        0: file,
+        length: 1,
+        item: (i: number) => (i === 0 ? file : null),
+      } as unknown as FileList;
+      Object.defineProperty(photoInput(), 'files', { value: fileList, configurable: true });
+      photoInput().dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const waitForPhotoProcessing = async (): Promise<void> => {
+      // FileReader.readAsDataURL は jsdom 上で setTimeout ベースの async。
+      // change handler は fire-and-forget なので tick を一定回数回して安定させる。
+      for (let i = 0; i < 10; i++) {
+        await flushPromises();
+      }
+    };
+
+    it('初期 mount: thumbnail は hidden、削除ボタンは disabled', async () => {
+      await importMain();
+      expect(thumbnail().hidden).toBe(true);
+      expect(button('profile-photo-remove-button').disabled).toBe(true);
+    });
+
+    it('valid PNG file を選択: thumbnail に dataUri が反映され、削除ボタンが enabled になる', async () => {
+      await importMain();
+      const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {
+        type: 'image/png',
+      });
+      setFileInput(file);
+      await waitForPhotoProcessing();
+
+      expect(thumbnail().hidden).toBe(false);
+      expect(thumbnail().src.startsWith('data:image/png;base64,')).toBe(true);
+      expect(button('profile-photo-remove-button').disabled).toBe(false);
+    });
+
+    it('image/gif を選択: error 表示、thumbnail 変化なし', async () => {
+      await importMain();
+      const file = makeFile(1000, 'image/gif', 'photo.gif');
+      setFileInput(file);
+      await waitForPhotoProcessing();
+
+      expect(errorEl().hidden).toBe(false);
+      expect(errorEl().textContent).toContain('image/gif');
+      expect(thumbnail().hidden).toBe(true);
+      expect(button('profile-photo-remove-button').disabled).toBe(true);
+    });
+
+    it('上限超のサイズを選択: error 表示、thumbnail 変化なし', async () => {
+      await importMain();
+      const file = makeFile(4_000_000, 'image/jpeg', 'big.jpg');
+      setFileInput(file);
+      await waitForPhotoProcessing();
+
+      expect(errorEl().hidden).toBe(false);
+      expect(errorEl().textContent).toContain('上限');
+      expect(thumbnail().hidden).toBe(true);
+    });
+
+    it('写真選択後に削除ボタン: thumbnail が hidden に戻る', async () => {
+      await importMain();
+      const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {
+        type: 'image/png',
+      });
+      setFileInput(file);
+      await waitForPhotoProcessing();
+      expect(thumbnail().hidden).toBe(false);
+
+      button('profile-photo-remove-button').click();
+      expect(thumbnail().hidden).toBe(true);
+      expect(button('profile-photo-remove-button').disabled).toBe(true);
+    });
+
+    it('写真選択 → save → 編集して別写真選択 → load で元写真が復元される', async () => {
+      await importMain();
+      const file1 = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {
+        type: 'image/png',
+      });
+      setFileInput(file1);
+      await waitForPhotoProcessing();
+      const firstDataUri = thumbnail().src;
+
+      button('save-button').click();
+      await flushPromises();
+
+      // 削除して未保存状態にする
+      button('profile-photo-remove-button').click();
+      expect(thumbnail().hidden).toBe(true);
+
+      // load で復元 (beforeEach の global confirm mock で承認)
+      select('saved-profile-select').value = 'profile-1';
+      button('load-button').click();
+      await flushPromises();
+
+      expect(thumbnail().hidden).toBe(false);
+      expect(thumbnail().src).toBe(firstDataUri);
     });
   });
 
