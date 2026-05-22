@@ -31,8 +31,17 @@ PAGE_W_MM = rules['page_w_mm']
 PAGE_H_MM = rules['page_h_mm']
 
 # 写真欄 (Excel autoshape として埋め込まれている dashed box、PDF 300dpi 実測値)
-# 検出: 「dashed pattern (短い run の連続) を含む最外周の y/x」を 1pixel 単位で抽出
-PHOTO_BOX = {'x_mm': 140.29, 'y_mm': 31.92, 'w_mm': 39.12, 'h_mm': 43.18}
+#
+# 重要: dashed line は **gray pixel** (luminance 80-200) で描画されている。
+# 通常の罫線 (luminance < 60 = solid black) とは色が違う。
+# black-only マスクで検出すると氏名欄の罫線などを誤検出する。
+#
+# 検出方法: 「gray-only でかつ solid black がほとんどない」行/列を走査して
+# dashed pattern の bbox を抽出。
+# 結果:
+#   top y=327px (27.69mm), bottom y=784px (66.38mm)
+#   left x=1828px (154.77mm), right x=2186px (185.08mm)
+PHOTO_BOX = {'x_mm': 154.77, 'y_mm': 27.69, 'w_mm': 30.31, 'h_mm': 38.69}
 
 # === Build CSS ===
 css = f"""
@@ -88,11 +97,12 @@ body.lines-only .page .overlay {{ opacity: 1; mix-blend-mode: multiply; }}
   letter-spacing: 0.15em;
 }}
 
-/* 写真欄 — Excel autoshape (dashed) */
+/* 写真欄 — Excel autoshape (dashed)
+   公式は黒ではなく薄い gray で dashed を描画している (luminance ~128) */
 .photo-box {{
   position: absolute;
   box-sizing: border-box;
-  border: 0.75pt dashed #000;
+  border: 0.75pt dashed #808080;
   padding: 2.5mm 1.5mm 1.5mm;
   font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
   font-size: 7.5pt;

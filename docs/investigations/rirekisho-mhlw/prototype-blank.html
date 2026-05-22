@@ -57,11 +57,12 @@ body.lines-only .page .overlay { opacity: 1; mix-blend-mode: multiply; }
   letter-spacing: 0.15em;
 }
 
-/* 写真欄 — Excel autoshape (dashed) */
+/* 写真欄 — Excel autoshape (dashed)
+   公式は黒ではなく薄い gray で dashed を描画している (luminance ~128) */
 .photo-box {
   position: absolute;
   box-sizing: border-box;
-  border: 0.75pt dashed #000;
+  border: 0.75pt dashed #808080;
   padding: 2.5mm 1.5mm 1.5mm;
   font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
   font-size: 7.5pt;
@@ -179,7 +180,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <div class="rule v" style="left:400.980mm;top:27.601mm;height:133.689mm;"></div>
 <div class="rule v" style="left:400.980mm;top:164.761mm;height:61.553mm;"></div>
 <div class="rule v" style="left:400.980mm;top:229.785mm;height:44.450mm;"></div>
-<div class="photo-box" style="left:140.29mm;top:31.92mm;width:39.12mm;height:43.18mm;">
+<div class="photo-box" style="left:154.77mm;top:27.69mm;width:30.31mm;height:38.69mm;">
 <div class="heading">写真をはる位置</div>
 <div class="body">写真をはる必要が<br>ある場合<br>1.&nbsp;縦<br>&nbsp;&nbsp;&nbsp;横<br>2.本人単身胸から上<br>3.裏面のりづけ</div>
 </div>
@@ -204,6 +205,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <div class="tb" style="left:31.758mm;top:131.885mm;font-size:11pt;">年</div>
 <div class="tb" style="left:237.007mm;top:100.854mm;font-size:11pt;">年</div>
 <div class="tb" style="left:294.591mm;top:29.512mm;font-size:11pt;">学</div>
+<div class="tb gothic" style="left:139.887mm;top:71.719mm;font-size:11pt;">※性別</div>
 <div class="tb gothic" style="left:26.209mm;top:81.952mm;font-size:11pt;">ふりがな</div>
 <div class="tb" style="left:26.424mm;top:109.660mm;font-size:11pt;">連絡先</div>
 <div class="tb" style="left:251.358mm;top:29.682mm;font-size:11pt;">月</div>
