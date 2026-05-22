@@ -52,3 +52,6 @@ jobs:
 
       - name: Build local web app
         run: pnpm --filter @jcd-editor/local-web build
+
+      - name: Typecheck CLI app
+        run: pnpm --filter @jcd-editor/cli typecheck
