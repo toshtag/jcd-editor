@@ -187,6 +187,22 @@ const summaryInput = requireElement('summary', HTMLTextAreaElement);
 const personalRequestInput = requireElement('personal-request', HTMLTextAreaElement);
 const preparedOnInput = requireElement('prepared-on', HTMLInputElement);
 
+// === Phase 2.0 WYSIWYG prototype 用 element ===
+// この prototype の目的は「入力 div の表示 = preview iframe の同じセル =
+// PDF 出力結果」が pixel 一致するかの実証。Phase 2.1 で本格実装に進むかの判断材料。
+//
+// 公式 PersonName 型 (family / given、両方 1 文字以上必須) に整合させるため、
+// 氏名は「姓」「名」 2 つの contenteditable に分割している。空白で分割すると
+// 姓だけ入れた段階で given='' で validation fail → silent skip という悪い UX
+// になることが Phase 2.0 デバッグで判明したため。
+const wysiwygToggleButton = requireElement('wysiwyg-toggle-button', HTMLButtonElement);
+const wysiwygPrototypeSection = requireElement('wysiwyg-prototype', HTMLElement);
+const wysiwygNameFamilyEl = requireElement('wysiwyg-name-family', HTMLDivElement);
+const wysiwygNameGivenEl = requireElement('wysiwyg-name-given', HTMLDivElement);
+const wysiwygNameKanaFamilyEl = requireElement('wysiwyg-name-kana-family', HTMLDivElement);
+const wysiwygNameKanaGivenEl = requireElement('wysiwyg-name-kana-given', HTMLDivElement);
+const wysiwygPrototypePreview = requireElement('wysiwyg-prototype-preview', HTMLIFrameElement);
+
 const showStatus = (text: string): void => {
   statusEl.textContent = text;
 };
@@ -1061,6 +1077,57 @@ if (!parsed.success) {
       e.returnValue = '';
     }
   });
+
+  // === Phase 2.0 WYSIWYG prototype ===
+  //
+  // Toggle button で section の visibility を切り替え。
+  // contenteditable の input event で basics.name / basics.nameKana を
+  // 切り出して renderDocument → preview iframe (専用) に流す。
+  // 既存 form / preview は触らない (parallel に動作)。
+
+  const cellText = (el: HTMLDivElement): string => (el.textContent ?? '').trim();
+
+  const renderWysiwygPreview = (): void => {
+    const family = cellText(wysiwygNameFamilyEl);
+    const given = cellText(wysiwygNameGivenEl);
+    const kanaFamily = cellText(wysiwygNameKanaFamilyEl);
+    const kanaGiven = cellText(wysiwygNameKanaGivenEl);
+
+    const draft: Record<string, unknown> = { schemaVersion: 1, basics: {} };
+    const basics: Record<string, unknown> = {};
+    // PersonName / PersonKana は family と given の **両方 1 文字以上** が必須。
+    // 片方だけ入っていても name 自体を omit する (片方ずつ書き進める途中の
+    // 入力で preview を壊さないため)。
+    if (family !== '' && given !== '') {
+      basics.name = { family, given };
+    }
+    if (kanaFamily !== '' && kanaGiven !== '') {
+      basics.nameKana = { family: kanaFamily, given: kanaGiven };
+    }
+    (draft as { basics: typeof basics }).basics = basics;
+
+    const parsed = safeParseCareerProfile(draft);
+    if (!parsed.success) {
+      // prototype では validation エラーを silent に skip (Phase 2.1 で UI 整備)
+      return;
+    }
+    const rendered = renderDocument({ careerProfile: parsed.data, kind: 'rirekisho' }, registry);
+    wysiwygPrototypePreview.srcdoc = buildPreviewDocument(rendered);
+  };
+
+  wysiwygToggleButton.addEventListener('click', () => {
+    const hidden = wysiwygPrototypeSection.hidden;
+    wysiwygPrototypeSection.hidden = !hidden;
+    if (hidden) {
+      // 開いた瞬間に初回描画
+      renderWysiwygPreview();
+    }
+  });
+
+  wysiwygNameFamilyEl.addEventListener('input', renderWysiwygPreview);
+  wysiwygNameGivenEl.addEventListener('input', renderWysiwygPreview);
+  wysiwygNameKanaFamilyEl.addEventListener('input', renderWysiwygPreview);
+  wysiwygNameKanaGivenEl.addEventListener('input', renderWysiwygPreview);
 
   renderAndUpdate(currentKind);
   updateButtonStates();

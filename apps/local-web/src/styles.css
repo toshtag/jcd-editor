@@ -1168,3 +1168,104 @@ body {
 .project-item__checkbox {
   margin-right: 0.25rem;
 }
+
+/* ===== Phase 2.0 — WYSIWYG feasibility prototype =====
+   設計の核心:
+   - 履歴書 sheet を画面上に描画 (renderer の出力 HTML / CSS と同じ rendering)
+   - 編集セル (氏名 / ふりがな) を contenteditable な div として renderer の同じ
+     座標・font-size・font-family で配置
+   - input event で preview iframe を更新し、現状の preview pane 描画と
+     上下左右ピクセル単位で一致するかを目視できる UI を提供 */
+
+.wysiwyg-prototype {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  background: #f0f0f3;
+  border-top: 2px solid #888;
+}
+
+.wysiwyg-prototype__hint {
+  margin: 0 0 0.8rem;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.wysiwyg-prototype__compare-label {
+  margin: 1.2rem 0 0.4rem;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.wysiwyg-prototype__stage {
+  background: #fff;
+  display: inline-block;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* renderer の .jcd-mhlw-a4 と完全に同じスタイルを直書きする (Phase 2.0 では
+   shared module 化はしない、prototype として直書きで動作を実証する目的)。
+   renderer 側の rirekisho-mhlw-a4.ts の CSS と寸法・font-family が一致するか
+   目視で検証するための base。 */
+.wysiwyg-prototype__sheet {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  background: #fff;
+  color: #000;
+  font-family: "Noto Serif JP", "Yu Mincho", "MS Mincho", "Hiragino Mincho ProN", serif;
+  overflow: hidden;
+}
+
+/* renderer 側と完全同一の class 名を使うため、jcd-mhlw__ 系の CSS を direct に
+   重ねる (これらは renderer の rirekisho-mhlw-a3 が出力する class)。
+   prototype では rirekisho-mhlw-a3 / rirekisho-mhlw-a4 で異なる prefix のうち、
+   旧 A3 prefix の jcd-mhlw__ を流用しているが、これは label / 流し込み div の
+   基本スタイル (position: absolute / line-height / white-space) が両者で同じ
+   ため。Phase 2.1 では shared CSS に切り出す。 */
+.wysiwyg-prototype__sheet .jcd-mhlw__label {
+  position: absolute;
+  z-index: 3;
+  font-size: 11pt;
+  line-height: 1.15;
+  white-space: nowrap;
+  color: #000;
+  font-family: "Noto Serif JP", "Yu Mincho", "MS Mincho", "Hiragino Mincho ProN", serif;
+}
+.wysiwyg-prototype__sheet .jcd-mhlw__label--gothic {
+  font-family: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
+}
+.wysiwyg-prototype__sheet .jcd-mhlw__name,
+.wysiwyg-prototype__sheet .jcd-mhlw__name-kana {
+  position: absolute;
+  z-index: 4;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: #000;
+}
+
+/* contenteditable 編集セル — 視覚的な「編集可能性」を最小限の outline で
+   示すが、文字位置自体は通常 div と同じになるように padding=0 / margin=0 / line-height
+   を renderer 側と完全一致させる。focus 時のみ outline を表示する。 */
+.wysiwyg-prototype__field {
+  outline: none;
+  /* 編集ヒント: 罫線下端 (氏名欄底部 y=71.71mm 想定) までを編集可能領域として
+     視覚化したいが、Phase 2.0 では min-width を style 属性で持たせるだけ。 */
+}
+.wysiwyg-prototype__field:hover:not(:focus) {
+  background: rgba(255, 230, 100, 0.18);
+}
+.wysiwyg-prototype__field:focus {
+  background: rgba(255, 230, 100, 0.32);
+  box-shadow: 0 0 0 1px rgba(120, 110, 30, 0.5);
+}
+.wysiwyg-prototype__field:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(0, 0, 0, 0.28);
+}
+
+.wysiwyg-prototype__preview {
+  width: 210mm;
+  height: 297mm;
+  border: 1px solid #888;
+  background: #fff;
+}

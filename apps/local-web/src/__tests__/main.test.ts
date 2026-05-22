@@ -137,6 +137,15 @@ const setupDom = (): void => {
     <div id="projects-list" data-section="projects"></div>
     <iframe id="preview-frame" sandbox=""></iframe>
     <pre id="error-area" hidden></pre>
+    <!-- Phase 2.0 WYSIWYG prototype DOM (toggle button + 編集 div + 専用 preview) -->
+    <button type="button" id="wysiwyg-toggle-button">WYSIWYG プロトタイプ</button>
+    <section id="wysiwyg-prototype" hidden>
+      <div id="wysiwyg-name-family" contenteditable="plaintext-only"></div>
+      <div id="wysiwyg-name-given" contenteditable="plaintext-only"></div>
+      <div id="wysiwyg-name-kana-family" contenteditable="plaintext-only"></div>
+      <div id="wysiwyg-name-kana-given" contenteditable="plaintext-only"></div>
+      <iframe id="wysiwyg-prototype-preview" sandbox=""></iframe>
+    </section>
   `;
 };
 
@@ -1626,6 +1635,85 @@ describe('local-web main flow', () => {
       await importMain();
       expect(preview().srcdoc).toContain('履歴書');
       // 任意 field なので preview 描画自体は阻害しない
+    });
+  });
+
+  // ===== Phase 2.0 — WYSIWYG feasibility prototype =====
+  //
+  // 目的: contenteditable div で入力 → preview iframe に流し込む round-trip が
+  // 動作することの最低保証。視覚的な「pixel 一致」は test では不可能なので
+  // ブラウザでの目視検証 (PR description) で行う。本 test は smoke level。
+
+  describe('WYSIWYG prototype (Phase 2.0 feasibility)', () => {
+    const wysiwygSection = (): HTMLElement => {
+      const el = document.getElementById('wysiwyg-prototype');
+      if (!(el instanceof HTMLElement)) throw new Error('Missing wysiwyg-prototype');
+      return el;
+    };
+
+    const wysiwygPreview = (): HTMLIFrameElement => {
+      const el = document.getElementById('wysiwyg-prototype-preview');
+      if (!(el instanceof HTMLIFrameElement)) throw new Error('Missing wysiwyg-prototype-preview');
+      return el;
+    };
+
+    const wysiwygDiv = (id: string): HTMLDivElement => {
+      const el = document.getElementById(id);
+      if (!(el instanceof HTMLDivElement)) throw new Error(`Missing ${id}`);
+      return el;
+    };
+
+    const setCell = (id: string, value: string): void => {
+      const div = wysiwygDiv(id);
+      div.textContent = value;
+      div.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    it('初期は hidden で toggle button で表示される', async () => {
+      await importMain();
+      expect(wysiwygSection().hidden).toBe(true);
+      button('wysiwyg-toggle-button').click();
+      expect(wysiwygSection().hidden).toBe(false);
+    });
+
+    it('toggle button で再度 hidden に戻る', async () => {
+      await importMain();
+      const btn = button('wysiwyg-toggle-button');
+      btn.click();
+      btn.click();
+      expect(wysiwygSection().hidden).toBe(true);
+    });
+
+    it('開いた直後に専用 preview iframe に履歴書が描画される', async () => {
+      await importMain();
+      button('wysiwyg-toggle-button').click();
+      expect(wysiwygPreview().srcdoc).toContain('履歴書');
+    });
+
+    it('姓と名の両方を入力すると専用 preview に反映される', async () => {
+      await importMain();
+      button('wysiwyg-toggle-button').click();
+      setCell('wysiwyg-name-family', '山田');
+      setCell('wysiwyg-name-given', '太郎');
+      expect(wysiwygPreview().srcdoc).toContain('山田');
+      expect(wysiwygPreview().srcdoc).toContain('太郎');
+    });
+
+    it('姓だけ入力した状態では name 自体を omit する (validation fail を回避)', async () => {
+      await importMain();
+      button('wysiwyg-toggle-button').click();
+      setCell('wysiwyg-name-family', '山田');
+      // 姓のみ → name 未構築 → preview は履歴書として描画されるが氏名は出ない
+      expect(wysiwygPreview().srcdoc).toContain('履歴書');
+      expect(wysiwygPreview().srcdoc).not.toContain('山田');
+    });
+
+    it('全フィールド空にしても preview は履歴書を保つ', async () => {
+      await importMain();
+      button('wysiwyg-toggle-button').click();
+      setCell('wysiwyg-name-family', '');
+      setCell('wysiwyg-name-given', '');
+      expect(wysiwygPreview().srcdoc).toContain('履歴書');
     });
   });
 });
