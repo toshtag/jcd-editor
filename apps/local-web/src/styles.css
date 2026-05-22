@@ -14,6 +14,26 @@ body {
   color: #222;
 }
 
+/* skip link: 通常は visually hidden、focus 時に左上に表示してプレビューへ
+   1 hop で飛べるようにする (長い form を Tab で抜ける負荷を回避)。 */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  background: #000;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: 0;
+  outline: 2px solid #4a90e2;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -151,6 +171,12 @@ body {
   cursor: pointer;
 }
 
+.app__io-import:focus-within,
+.app__io-import:has(:focus-visible) {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+
 .app__io-import:hover {
   background: #f0f6fd;
 }
@@ -266,6 +292,12 @@ body {
   color: #4a90e2;
   cursor: pointer;
   align-self: flex-start;
+}
+
+.profile-photo__select-label:focus-within,
+.profile-photo__select-label:has(:focus-visible) {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
 }
 
 .profile-photo__select-label:hover {
