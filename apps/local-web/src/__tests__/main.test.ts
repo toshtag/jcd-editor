@@ -199,7 +199,10 @@ describe('local-web main flow', () => {
 
     const issues = document.getElementById('basics-validation-issues');
     expect(issues?.hidden).toBe(false);
-    expect(issues?.textContent).toContain('birthDate');
+    // validation-labels で path が日本語化される (`basics.birthDate` → `基本情報 > 生年月日`)。
+    // raw path `birthDate` は user-facing display には現れなくなった。
+    expect(issues?.textContent).toContain('基本情報 > 生年月日');
+    expect(issues?.textContent).not.toContain('basics.birthDate');
     expect(preview().srcdoc).toBe(previousPreview);
     expect(button('save-button').disabled).toBe(true);
   });
