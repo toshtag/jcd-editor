@@ -77,6 +77,7 @@ import {
 } from './education-form';
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import { validatePhotoFile } from './profile-photo';
+import { formatTranslatedIssue } from './validation-labels';
 import {
   buildProjectsFromForm,
   createProjectItemElement,
@@ -168,7 +169,7 @@ const showError = (title: string, body: string): void => {
 };
 
 const formatIssues = (issues: readonly ValidationIssue[]): string =>
-  issues.map((issue) => `- ${issue.path}: ${issue.message}`).join('\n');
+  issues.map(formatTranslatedIssue).join('\n');
 
 const clearValidationIssues = (): void => {
   validationIssuesPre.hidden = true;
