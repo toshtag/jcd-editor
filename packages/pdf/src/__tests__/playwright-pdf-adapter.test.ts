@@ -25,7 +25,7 @@ const baseFixture: RenderedDocument = {
   metadata: {
     language: 'ja-JP',
     page: { size: 'A4', orientation: 'portrait' },
-    templateId: 'rirekisho-basic',
+    templateId: 'rirekisho-mhlw-a4',
   },
 };
 
@@ -74,7 +74,7 @@ describe('createPlaywrightPdfAdapter', () => {
   }, async () => {
     const adapter = createPlaywrightPdfAdapter();
     const result = await adapter.renderPdf(baseFixture);
-    expect(result.metadata.templateId).toBe('rirekisho-basic');
+    expect(result.metadata.templateId).toBe('rirekisho-mhlw-a4');
   });
 
   it('templateId 無 fixture では result metadata に templateId が含まれない (omit pattern)', {

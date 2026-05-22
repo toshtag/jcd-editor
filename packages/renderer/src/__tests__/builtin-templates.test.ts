@@ -178,7 +178,7 @@ describe('createDefaultTemplateRegistry - renderDocument 統合', () => {
     expect(result.metadata.templateId).toBe('shokumukeirekisho-basic');
   });
 
-  it('明示 templateId rirekisho-basic で renderDocument が成功する', () => {
+  it('明示 templateId rirekisho-mhlw-a4 で renderDocument が成功する', () => {
     const registry = createDefaultTemplateRegistry();
     const result = renderDocument(
       {
