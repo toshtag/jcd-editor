@@ -30,11 +30,24 @@ export type BasicsFormValues = {
   nameKanaFamily: string;
   nameKanaGiven: string;
   birthDate: string;
+  gender: string;
   email: string;
   phone: string;
   postalCode: string;
   prefecture: string;
   cityAndRest: string;
+  addressKana: string;
+  contactPostalCode: string;
+  contactPrefecture: string;
+  contactCityAndRest: string;
+  contactAddressKana: string;
+  contactPhone: string;
+  summary: string;
+  personalRequest: string;
+};
+
+export type MetaFormValues = {
+  preparedOn: string;
 };
 
 export const buildBasicsFromForm = (form: BasicsFormValues): Record<string, unknown> => {
@@ -49,6 +62,7 @@ export const buildBasicsFromForm = (form: BasicsFormValues): Record<string, unkn
   }
 
   if (form.birthDate.trim() !== '') basics.birthDate = form.birthDate;
+  if (form.gender.trim() !== '') basics.gender = form.gender;
   if (form.email.trim() !== '') basics.email = form.email;
   if (form.phone.trim() !== '') basics.phone = form.phone;
 
@@ -58,7 +72,31 @@ export const buildBasicsFromForm = (form: BasicsFormValues): Record<string, unkn
   if (form.cityAndRest.trim() !== '') address.cityAndRest = form.cityAndRest;
   if (Object.keys(address).length > 0) basics.address = address;
 
+  if (form.addressKana.trim() !== '') basics.addressKana = form.addressKana;
+
+  const contactAddress: Record<string, string> = {};
+  if (form.contactPostalCode.trim() !== '') contactAddress.postalCode = form.contactPostalCode;
+  if (form.contactPrefecture.trim() !== '') contactAddress.prefecture = form.contactPrefecture;
+  if (form.contactCityAndRest.trim() !== '') contactAddress.cityAndRest = form.contactCityAndRest;
+  if (Object.keys(contactAddress).length > 0) basics.contactAddress = contactAddress;
+
+  if (form.contactAddressKana.trim() !== '') basics.contactAddressKana = form.contactAddressKana;
+  if (form.contactPhone.trim() !== '') basics.contactPhone = form.contactPhone;
+
+  if (form.summary.trim() !== '') basics.summary = form.summary;
+  if (form.personalRequest.trim() !== '') basics.personalRequest = form.personalRequest;
+
   return basics;
+};
+
+/**
+ * meta は CareerProfile 直下の文書属性 (basics ではない)。
+ * preparedOn (年月日現在) が空文字列なら meta object 自体を返さず undefined を
+ * 返し、caller が draft に merge しない判断を取れるようにする。
+ */
+export const buildMetaFromForm = (form: MetaFormValues): Record<string, unknown> | undefined => {
+  if (form.preparedOn.trim() === '') return undefined;
+  return { preparedOn: form.preparedOn };
 };
 
 export type DraftSections = {
@@ -71,6 +109,7 @@ export type DraftSections = {
   skills?: readonly Record<string, unknown>[];
   certifications?: readonly Record<string, unknown>[];
   projects?: readonly Record<string, unknown>[];
+  meta?: Record<string, unknown>;
 };
 
 export const buildDraft = (
@@ -95,6 +134,13 @@ export const buildDraft = (
   }
   if (sections.projects !== undefined) {
     result.projects = sections.projects;
+  }
+  if (sections.meta !== undefined) {
+    result.meta = sections.meta;
+  } else {
+    // meta が undefined のとき baseFixture から引き継いだ meta を残す
+    // (load 後の sample fixture の meta を保持するため)。
+    // baseFixture に meta が無ければ result.meta も undefined のままで OK。
   }
   return result;
 };
