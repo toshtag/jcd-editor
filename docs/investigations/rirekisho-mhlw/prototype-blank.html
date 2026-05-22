@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<title>厚労省 履歴書様式例 prototype (faithful)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;500;700&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+<style>
+@page { size: A3 landscape; margin: 0; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: #ddd;
+  font-family: "Noto Serif JP", "Yu Mincho", "MS Mincho", "Hiragino Mincho ProN", serif;
+}
+.page {
+  position: relative;
+  width: 420.03mm;
+  height: 297.01mm;
+  margin: 10mm auto;
+  background: #fff;
+  color: #000;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+.page .overlay {
+  position: absolute; inset: 0;
+  background-image: url("./assets/mhlw-rirekisho-official-150dpi.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0; pointer-events: none; z-index: 1000;
+}
+body.overlay-on .page .overlay { opacity: 0.4; }
+body.lines-only .page .overlay { opacity: 1; mix-blend-mode: multiply; }
+
+/* 罫線 — 実測値で直接 div として描画 */
+.rule {
+  position: absolute;
+  background: #000;
+  z-index: 2;
+}
+.rule.h { height: 0.5pt; }     /* 水平線 (高さ ~0.5pt) */
+.rule.v { width: 0.5pt; }      /* 垂直線 (幅 ~0.5pt) */
+
+/* テキストブロック */
+.tb {
+  position: absolute;
+  z-index: 3;
+  font-size: 11pt;
+  line-height: 1.15;
+  white-space: nowrap;
+  color: #000;
+}
+.tb.gothic {
+  font-family: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
+}
+.tb.kaisho {
+  font-family: "Klee One", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-weight: 500;
+  letter-spacing: 0.2em;  /* Klee One 28pt + 0.2em で width 35.56mm = 公式と一致 */
+}
+/* 「履歴書」タイトル専用
+   Klee One 28pt は HG正楷書体より字高が大きい (12.24pt vs 10.08pt)。
+   transform: scaleY で 公式と同じ glyph 高さに揃え、合わせて y を補正。
+   公式 glyph: y=28.53-32.09mm, 高さ 10.08pt
+   私の glyph (補正前): y=30.06-34.40mm, 高さ 12.24pt */
+.tb.title-rirekisho {
+  transform: scaleY(0.823);     /* 12.24pt → 10.08pt */
+  transform-origin: top left;
+  margin-top: -1.5mm;          /* glyph top を公式に揃える */
+}
+
+/* 写真欄 — Excel autoshape (dashed)
+   公式は黒ではなく薄い gray で dashed を描画している (luminance ~128) */
+.photo-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 0.75pt dashed #808080;
+  padding: 2.5mm 1.5mm 1.5mm;
+  font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+  font-size: 7.5pt;
+  line-height: 1.5;
+  z-index: 2;
+  color: #000;
+}
+.photo-box .heading {
+  text-align: center;
+  font-size: 8.5pt;
+  margin-bottom: 1.5mm;
+  letter-spacing: 0.08em;
+}
+.photo-box .body { font-size: 7pt; }
+
+.controls {
+  position: fixed; top: 10px; left: 10px; z-index: 10000;
+  background: #fff; padding: 10px 14px; border: 1px solid #888;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px;
+  border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.controls h3 { margin: 0 0 8px; font-size: 13px; }
+.controls label { display: block; margin: 4px 0; cursor: pointer; }
+.controls input { margin-right: 6px; }
+.controls .stat { margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; font-size: 11px; color: #666; }
+</style>
+<script>
+
+window.addEventListener('DOMContentLoaded', () => {
+  const overlay = document.getElementById('overlay-toggle');
+  const linesOnly = document.getElementById('lines-only-toggle');
+  overlay?.addEventListener('change', () => {
+    document.body.classList.toggle('overlay-on', overlay.checked);
+    if (overlay.checked) { linesOnly.checked = false; document.body.classList.remove('lines-only'); }
+  });
+  linesOnly?.addEventListener('change', () => {
+    document.body.classList.toggle('lines-only', linesOnly.checked);
+    if (linesOnly.checked) { overlay.checked = false; document.body.classList.remove('overlay-on'); }
+  });
+});
+
+</script>
+</head><body>
+<div class="controls">
+<h3>公式 PDF との比較</h3>
+<label><input type="checkbox" id="overlay-toggle"> 公式を半透明 (40%) で重ねる</label>
+<label><input type="checkbox" id="lines-only-toggle"> 公式を multiply で重ねる</label>
+<div class="stat">罫線 H: 41 本 / V: 10 本<br>テキスト: 42 個</div>
+</div>
+<div class="page">
+<div class="overlay"></div>
+<div class="rule h" style="left:228.854mm;top:27.600mm;width:172.551mm;"></div>
+<div class="rule h" style="left:228.854mm;top:35.310mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:38.860mm;width:115.739mm;"></div>
+<div class="rule h" style="left:23.622mm;top:44.370mm;width:115.739mm;"></div>
+<div class="rule h" style="left:228.854mm;top:44.370mm;width:172.551mm;"></div>
+<div class="rule h" style="left:228.854mm;top:53.510mm;width:172.551mm;"></div>
+<div class="rule h" style="left:228.854mm;top:62.570mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:71.710mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:71.710mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:80.770mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:80.770mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:86.440mm;width:137.160mm;"></div>
+<div class="rule h" style="left:228.854mm;top:89.920mm;width:172.551mm;"></div>
+<div class="rule h" style="left:228.854mm;top:98.980mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:103.460mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:106.600mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:109.140mm;width:137.160mm;"></div>
+<div class="rule h" style="left:228.854mm;top:115.650mm;width:172.551mm;"></div>
+<div class="rule h" style="left:228.854mm;top:124.710mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:126.150mm;width:172.466mm;"></div>
+<div class="rule h" style="left:23.622mm;top:129.960mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:133.770mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:137.580mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:142.830mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:146.640mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:151.890mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:155.700mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:160.950mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:164.760mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:164.760mm;width:172.551mm;"></div>
+<div class="rule h" style="left:228.854mm;top:171.960mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:173.910mm;width:172.466mm;"></div>
+<div class="rule h" style="left:23.622mm;top:182.960mm;width:172.466mm;"></div>
+<div class="rule h" style="left:23.622mm;top:192.020mm;width:172.466mm;"></div>
+<div class="rule h" style="left:23.622mm;top:201.080mm;width:172.466mm;"></div>
+<div class="rule h" style="left:23.622mm;top:210.230mm;width:172.466mm;"></div>
+<div class="rule h" style="left:23.622mm;top:219.290mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:225.980mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:228.350mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:229.790mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:237.490mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:237.490mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:246.550mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:246.550mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:255.690mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:255.690mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:264.750mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:264.750mm;width:172.551mm;"></div>
+<div class="rule h" style="left:23.622mm;top:273.900mm;width:172.466mm;"></div>
+<div class="rule h" style="left:228.854mm;top:273.900mm;width:172.551mm;"></div>
+<div class="rule v" style="left:23.620mm;top:38.862mm;height:87.630mm;"></div>
+<div class="rule v" style="left:23.620mm;top:129.963mm;height:144.272mm;"></div>
+<div class="rule v" style="left:43.260mm;top:129.963mm;height:144.272mm;"></div>
+<div class="rule v" style="left:52.410mm;top:129.963mm;height:144.272mm;"></div>
+<div class="rule v" style="left:139.020mm;top:38.862mm;height:42.249mm;"></div>
+<div class="rule v" style="left:160.440mm;top:80.772mm;height:45.720mm;"></div>
+<div class="rule v" style="left:195.750mm;top:71.713mm;height:54.779mm;"></div>
+<div class="rule v" style="left:195.750mm;top:129.963mm;height:144.272mm;"></div>
+<div class="rule v" style="left:228.850mm;top:27.601mm;height:133.689mm;"></div>
+<div class="rule v" style="left:228.850mm;top:164.761mm;height:61.553mm;"></div>
+<div class="rule v" style="left:228.850mm;top:229.785mm;height:44.450mm;"></div>
+<div class="rule v" style="left:248.500mm;top:27.601mm;height:133.689mm;"></div>
+<div class="rule v" style="left:257.640mm;top:27.601mm;height:133.689mm;"></div>
+<div class="rule v" style="left:400.980mm;top:27.601mm;height:133.689mm;"></div>
+<div class="rule v" style="left:400.980mm;top:164.761mm;height:61.553mm;"></div>
+<div class="rule v" style="left:400.980mm;top:229.785mm;height:44.450mm;"></div>
+<div class="photo-box" style="left:154.77mm;top:27.69mm;width:30.31mm;height:38.69mm;">
+<div class="heading">写真をはる位置</div>
+<div class="body">写真をはる必要が<br>ある場合<br>1.&nbsp;縦<br>&nbsp;&nbsp;&nbsp;横<br>2.本人単身胸から上<br>3.裏面のりづけ</div>
+</div>
+<div class="tb kaisho title-rirekisho" style="left:24.858mm;top:28.140mm;font-size:28pt;">履歴書</div>
+<div class="tb" style="left:112.792mm;top:31.333mm;font-size:11pt;">年</div>
+<div class="tb" style="left:124.223mm;top:31.333mm;font-size:11pt;">月</div>
+<div class="tb" style="left:134.477mm;top:31.333mm;font-size:11pt;">日現在</div>
+<div class="tb gothic" style="left:26.209mm;top:39.872mm;font-size:11pt;">ふりがな</div>
+<div class="tb" style="left:26.424mm;top:44.795mm;font-size:11pt;">氏</div>
+<div class="tb" style="left:60.628mm;top:74.301mm;font-size:11pt;">年</div>
+<div class="tb" style="left:76.207mm;top:74.301mm;font-size:11pt;">月</div>
+<div class="tb" style="left:91.786mm;top:74.301mm;font-size:11pt;">日生</div>
+<div class="tb" style="left:107.364mm;top:74.301mm;font-size:11pt;">（満</div>
+<div class="tb" style="left:122.943mm;top:74.301mm;font-size:12pt;">歳）</div>
+<div class="tb" style="left:251.358mm;top:100.854mm;font-size:11pt;">月</div>
+<div class="tb" style="left:302.380mm;top:29.512mm;font-size:11pt;">歴・職</div>
+<div class="tb" style="left:317.959mm;top:29.512mm;font-size:11pt;">歴（各別にまとめて書く）</div>
+<div class="tb" style="left:163.255mm;top:81.794mm;font-size:11pt;">電話</div>
+<div class="tb" style="left:42.003mm;top:87.011mm;font-size:11pt;">〒</div>
+<div class="tb" style="left:163.255mm;top:104.283mm;font-size:11pt;">電話</div>
+<div class="tb gothic" style="left:26.209mm;top:104.484mm;font-size:11pt;">ふりがな</div>
+<div class="tb" style="left:31.758mm;top:131.885mm;font-size:11pt;">年</div>
+<div class="tb" style="left:237.007mm;top:100.854mm;font-size:11pt;">年</div>
+<div class="tb" style="left:294.591mm;top:29.512mm;font-size:11pt;">学</div>
+<div class="tb gothic" style="left:139.887mm;top:71.719mm;font-size:11pt;">※性別</div>
+<div class="tb gothic" style="left:26.209mm;top:81.952mm;font-size:11pt;">ふりがな</div>
+<div class="tb" style="left:26.424mm;top:109.660mm;font-size:11pt;">連絡先</div>
+<div class="tb" style="left:251.358mm;top:29.682mm;font-size:11pt;">月</div>
+<div class="tb" style="left:38.108mm;top:44.795mm;font-size:11pt;">名</div>
+<div class="tb" style="left:26.424mm;top:87.011mm;font-size:11pt;">現住所</div>
+<div class="tb" style="left:237.007mm;top:29.682mm;font-size:11pt;">年</div>
+<div class="tb" style="left:42.003mm;top:109.660mm;font-size:11pt;">〒</div>
+<div class="tb" style="left:316.011mm;top:100.854mm;font-size:11pt;">免</div>
+<div class="tb" style="left:323.801mm;top:100.854mm;font-size:11pt;">許・資</div>
+<div class="tb" style="left:339.379mm;top:100.854mm;font-size:11pt;">格</div>
+<div class="tb gothic" style="left:94.749mm;top:110.151mm;font-size:9pt;">（現住所以外に連絡を希望する場合のみ記入）</div>
+<div class="tb" style="left:46.108mm;top:131.885mm;font-size:11pt;">月</div>
+<div class="tb" style="left:89.330mm;top:131.885mm;font-size:11pt;">学</div>
+<div class="tb" style="left:97.120mm;top:131.885mm;font-size:11pt;">歴・職</div>
+<div class="tb" style="left:112.698mm;top:131.885mm;font-size:11pt;">歴（各別にまとめて書く）</div>
+<div class="tb" style="left:233.239mm;top:166.636mm;font-size:11pt;">志望の動機、特技、好きな学科、アピールポイントなど</div>
+<div class="tb" style="left:231.542mm;top:231.925mm;font-size:11pt;">本人希望記入欄（特に給料・職種・勤務時間・勤務地・その他についての希望などがあれば記入）</div>
+<div class="tb gothic" style="left:24.350mm;top:277.209mm;font-size:11pt;">※「性別」欄：記載は任意です。未記載とすることも可能です。</div>
+</div>
+</body></html>
