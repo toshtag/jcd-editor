@@ -157,13 +157,13 @@
 
 - JSON export (現在 draft profile を対象、`safeParseCareerProfile` validation 必須)
 - JSON import (`safeParseCareerProfile` validation 必須、上書き confirm 必須、import 後は既存 `saveProfile` で永続化)
+- JSON export schema の公開ドキュメント化 (`docs/data-format.md`)
 
 残課題:
 
 - Markdown export
 - HTML export
 - PDF export (Phase 5 と連動、まずは CLI 経由を想定)
-- JSON export schema の公開ドキュメント化
 
 ## Phase 7 — Optional AI アダプタ
 

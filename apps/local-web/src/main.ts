@@ -2,34 +2,49 @@
 //
 // 役割:
 //   - sample CareerProfile input を safeParseCareerProfile で runtime 検証
-//   - basics + workExperiences 編集 form を提供、入力ごとに raw draft を構築
-//     → parse → success なら render
+//   - 全 6 section の編集 form を提供する:
+//     basics (氏名 / 連絡先 / 住所 / 証明写真) / workExperiences / educationHistory
+//     / skills / certifications / projects
+//   - 入力ごとに raw draft を構築 → safeParseCareerProfile → success なら render
 //   - createDefaultTemplateRegistry + renderDocument で render
 //   - iframe.srcdoc に preview として表示 (buildPreviewDocument で完全 HTML 化)
 //   - 履歴書 / 職務経歴書 の kind switcher
-//   - manual Save / Load via IndexedDB
+//   - manual Save / Load / Delete via IndexedDB (StoragePort 経由)
+//   - JSON export / import (ローカル file 経由、ブラウザ内で完結)
+//   - 証明写真の data URI input (File → FileReader.readAsDataURL → core schema 適合)
+//   - 未保存変更 (dirty state) の追跡と load / reload / import 前の confirm
+//   - validation エラーの構造化表示 (summary + jump button + inline error + aria-*)
 //
 // 制約:
 //   - @jcd-editor/pdf は import しない (Playwright は browser bundle に入らない)
-//   - localStorage / sessionStorage / FileSystemAccess / fetch / file API なし
-//   - state library / router / UI library なし
+//   - localStorage / sessionStorage / FileSystemAccess / fetch / XMLHttpRequest /
+//     WebSocket は使わない (外部送信なし、ローカル完結)
+//   - 一方で FileReader / Blob / URL.createObjectURL は明示的に使う
+//     (JSON export / import、写真 data URI 化のため、いずれも user 操作起点)
+//   - state library / router / UI framework は使わない
 //   - IndexedDB API を app source で直接呼ばない (@jcd-editor/storage port 経由)
 //   - draft は raw input、CareerProfile 型として扱わない (safeParseCareerProfile 経由で type-safe に)
 //   - invalid draft は renderer に渡さない (parsed.success === true の時のみ renderDocument を呼ぶ)
-//   - invalid draft 時は前回成功 preview を保持、validation issues を画面下部に表示
+//   - invalid draft 時は前回成功 preview を保持、validation issues は summary + 各 input に inline 表示
 //   - 保存対象は last-valid profile のみ (Save button は invalid 中 disable)
 //   - DOM 操作は createElement + textContent + replaceChildren のみ、innerHTML 不使用 (XSS 回避)
 //
-// workExperiences (本 PR で追加):
-//   - DOM を state として扱う pattern: 各 entry は `<section data-index>` で表現、
-//     内部 input / textarea / checkbox は `data-field` で identify。JS 側で state を
-//     別途持たない。`readWorkExperiencesFromForm()` で DOM walk して values を取得
+// 配列 section の編集 pattern (workExperiences / educationHistory / skills /
+// certifications / projects 共通):
+//   - DOM を state として扱う: 各 entry は `<section data-index>` で表現、内部
+//     input / textarea / checkbox は `data-field` で identify。JS 側で state を
+//     別途持たない。`readXxxFromForm()` で DOM walk して values を取得
 //   - UI rebuild は add / remove / load 時のみ、text input 時は rebuild しない
 //     (focus 保持)
-//   - event delegation: workExperiencesList container に input listener と click
-//     listener を 1 つずつ
-//   - 完全空の entry は `buildWorkExperiencesFromForm` で除外 (UI には残るが draft
-//     / preview / 保存対象には流さない、UX ノイズ回避)
+//   - event delegation: 各 list container に input listener と click listener を
+//     1 つずつ
+//   - 完全空の entry は `buildXxxFromForm` で除外 (UI には残るが draft / preview /
+//     保存対象には流さない、UX ノイズ回避)
+//
+// 証明写真 (currentPhoto):
+//   - basics.profilePhoto は binary 起源で text input pattern に載らないため、
+//     form input とは独立に currentPhoto: ProfilePhoto | undefined で保持する
+//   - onFormInput で buildBasicsFromForm の結果に merge してから draft を組む
 //
 // draftBase 問題への対応:
 //   - form input 成功時 / load 成功時に draftBase を current profile に update
