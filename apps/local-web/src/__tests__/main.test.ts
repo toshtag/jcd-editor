@@ -618,6 +618,54 @@ describe('local-web main flow', () => {
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
   });
 
+  describe('accessibility: aria-describedby on inputs', () => {
+    it('invalid input に aria-describedby が付き、対応する summary item id を参照する', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+
+      const describedBy = input('birth-date').getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      // describedBy は半角 space 区切りの id リスト。最低 1 つの id を含む
+      const ids = (describedBy ?? '').split(' ').filter((s) => s !== '');
+      expect(ids.length).toBeGreaterThan(0);
+      // 参照先 element が summary 内に存在する
+      for (const id of ids) {
+        const target = document.getElementById(id);
+        expect(target).not.toBeNull();
+        expect(target?.textContent).toContain('基本情報 > 生年月日');
+      }
+    });
+
+    it('valid に戻ると aria-describedby も除去される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      expect(input('birth-date').getAttribute('aria-describedby')).not.toBeNull();
+
+      input('birth-date').value = '1993-04-01';
+      dispatchInput(input('birth-date'));
+      expect(input('birth-date').getAttribute('aria-describedby')).toBeNull();
+    });
+
+    it('複数 input の invalid: それぞれが独立した describedby を持つ', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      input('email').value = 'not-an-email';
+      dispatchInput(input('email'));
+
+      const birthDescribedBy = input('birth-date').getAttribute('aria-describedby');
+      const emailDescribedBy = input('email').getAttribute('aria-describedby');
+      expect(birthDescribedBy).not.toBeNull();
+      expect(emailDescribedBy).not.toBeNull();
+      expect(birthDescribedBy).not.toBe(emailDescribedBy);
+      // 各 describedby は単一の id (1 issue per input の通常ケース)
+      expect(birthDescribedBy?.split(' ').length).toBe(1);
+      expect(emailDescribedBy?.split(' ').length).toBe(1);
+    });
+  });
+
   describe('accessibility: aria-invalid on inputs', () => {
     it('invalid 入力で該当 input に aria-invalid="true" が付く', async () => {
       await importMain();

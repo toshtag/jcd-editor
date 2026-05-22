@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildIssueAnchor, summarizeIssues } from '../validation-summary';
+import { buildIssueAnchor, issueElementId, summarizeIssues } from '../validation-summary';
 
 describe('buildIssueAnchor', () => {
   describe('null cases (jump 不能)', () => {
@@ -146,5 +146,15 @@ describe('summarizeIssues', () => {
       selector: '[data-section="workExperiences"]',
       description: 'workExperiences section',
     });
+  });
+});
+
+describe('issueElementId', () => {
+  it('0 → validation-issue-0', () => {
+    expect(issueElementId(0)).toBe('validation-issue-0');
+  });
+
+  it('3 → validation-issue-3', () => {
+    expect(issueElementId(3)).toBe('validation-issue-3');
   });
 });
