@@ -94,7 +94,17 @@ body.lines-only .page .overlay {{ opacity: 1; mix-blend-mode: multiply; }}
 .tb.kaisho {{
   font-family: "Klee One", "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-weight: 500;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.2em;  /* Klee One 28pt + 0.2em で width 35.56mm = 公式と一致 */
+}}
+/* 「履歴書」タイトル専用
+   Klee One 28pt は HG正楷書体より字高が大きい (12.24pt vs 10.08pt)。
+   transform: scaleY で 公式と同じ glyph 高さに揃え、合わせて y を補正。
+   公式 glyph: y=28.53-32.09mm, 高さ 10.08pt
+   私の glyph (補正前): y=30.06-34.40mm, 高さ 12.24pt */
+.tb.title-rirekisho {{
+  transform: scaleY(0.823);     /* 12.24pt → 10.08pt */
+  transform-origin: top left;
+  margin-top: -1.5mm;          /* glyph top を公式に揃える */
 }}
 
 /* 写真欄 — Excel autoshape (dashed)
@@ -232,9 +242,11 @@ for t in texts:
         continue
     fclass = font_class(t)
     fsize = font_size_pt(t)
-    # adjust y: PDF y is baseline-ish from top, our div top is the top of the text
     text_html = html_lib.escape(t['text']).replace('\n', '<br>')
-    cls = f'tb {fclass}'.strip()
+    extra_class = ''
+    if t['text'] == '履歴書':
+        extra_class = ' title-rirekisho'
+    cls = f'tb {fclass}{extra_class}'.strip()
     style = f'left:{t["x_mm"]:.3f}mm;top:{t["y_mm"]:.3f}mm;font-size:{fsize}pt;'
     parts.append(f'<div class="{cls}" style="{style}">{text_html}</div>')
 

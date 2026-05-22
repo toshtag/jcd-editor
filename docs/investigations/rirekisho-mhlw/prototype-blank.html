@@ -54,7 +54,17 @@ body.lines-only .page .overlay { opacity: 1; mix-blend-mode: multiply; }
 .tb.kaisho {
   font-family: "Klee One", "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-weight: 500;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.2em;  /* Klee One 28pt + 0.2em で width 35.56mm = 公式と一致 */
+}
+/* 「履歴書」タイトル専用
+   Klee One 28pt は HG正楷書体より字高が大きい (12.24pt vs 10.08pt)。
+   transform: scaleY で 公式と同じ glyph 高さに揃え、合わせて y を補正。
+   公式 glyph: y=28.53-32.09mm, 高さ 10.08pt
+   私の glyph (補正前): y=30.06-34.40mm, 高さ 12.24pt */
+.tb.title-rirekisho {
+  transform: scaleY(0.823);     /* 12.24pt → 10.08pt */
+  transform-origin: top left;
+  margin-top: -1.5mm;          /* glyph top を公式に揃える */
 }
 
 /* 写真欄 — Excel autoshape (dashed)
@@ -184,7 +194,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <div class="heading">写真をはる位置</div>
 <div class="body">写真をはる必要が<br>ある場合<br>1.&nbsp;縦<br>&nbsp;&nbsp;&nbsp;横<br>2.本人単身胸から上<br>3.裏面のりづけ</div>
 </div>
-<div class="tb kaisho" style="left:24.858mm;top:28.140mm;font-size:28pt;">履歴書</div>
+<div class="tb kaisho title-rirekisho" style="left:24.858mm;top:28.140mm;font-size:28pt;">履歴書</div>
 <div class="tb" style="left:112.792mm;top:31.333mm;font-size:11pt;">年</div>
 <div class="tb" style="left:124.223mm;top:31.333mm;font-size:11pt;">月</div>
 <div class="tb" style="left:134.477mm;top:31.333mm;font-size:11pt;">日現在</div>
