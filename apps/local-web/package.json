@@ -17,6 +17,7 @@
     "@jcd-editor/storage": "workspace:*"
   },
   "devDependencies": {
+    "axe-core": "^4.10.0",
     "vite": "^8.0.0"
   }
 }
