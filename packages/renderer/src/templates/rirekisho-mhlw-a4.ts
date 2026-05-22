@@ -8,20 +8,24 @@
 //
 //   - x < 210mm (公式 A3 の左ページ) → そのまま A4 page 1 (top y そのまま)
 //   - x >= 210mm (公式 A3 の右ページ) → x' = x - 205.23mm, y' = y + 297mm
-//     (A4 page 2 へ。x オフセットの 205.23 は A3 の右ページ左端 228.85mm から
-//     A4 の左マージン 23.62mm に揃えるための差)
 //
-// この座標変換だけで A3 と全く同じ罫線・テキスト・写真欄が A4 2 ページに
-// 再構成される。data / ロジックは _internal/rirekisho-mhlw-shared.ts と共有。
+// === editable mode (Phase 2.1a で追加) ===
 //
-// === 設計の核心 ===
+// RenderInput.editable === true のとき、user data を流し込む div に
+// `contenteditable="plaintext-only"` と `data-field` 属性を付与する。
+// 同じ HTML が「PDF 出力時の preview」「local-web の WYSIWYG エディタ」の
+// 両方で使えることを目的とする (入力 = preview = PDF を pixel 単位で一致)。
 //
-// - **A4 縦 portrait、2 ページ**。CSS は @page { size: A4 portrait } + .jcd-mhlw-a4 を
-//   594mm (= 297 × 2) 高さの container として position 計算に使う。
-// - PDF 出力時は @page と CSS で改ページ。preview 表示時は 1 つの長い container
-//   として上下に並ぶ。
-// - 写真欄は A3 の左ページ (x=154.77mm) に含まれるので A4 page 1 に残る。
-// - 各 user data 流し込み座標は A3 と同じ logic を A4 座標変換に通す。
+// editable=true の場合の追加挙動:
+//   - 値が undefined / 空でも div は出力する (= 空の編集可能セル)
+//   - data-field 属性で local-web が input event を listen し CareerProfile を
+//     再構築する
+//   - 氏名は family + given を 全角スペース で連結した 1 セル (data-field="name")
+//   - ふりがな同様 (data-field="nameKana")
+//   - 生年月日 (data-field="birthDate") は YYYY-MM-DD の input、年/月/日 表示は
+//     editable=false の時のみ分解する (editable=true は raw 表示)
+//
+// editable=false (default、PDF / preview 出力時) の挙動は従来通り。
 
 import type { CareerProfile } from '@jcd-editor/core';
 
@@ -60,25 +64,13 @@ const RIGHT_PAGE_X_OFFSET_MM = 205.23; // 228.85 - 23.62
 const PAGE2_Y_OFFSET_MM = 297;
 
 const isRightPage = (xMm: number): boolean => xMm >= RIGHT_PAGE_THRESHOLD_MM;
-
 const transformX = (xMm: number): number => (isRightPage(xMm) ? xMm - RIGHT_PAGE_X_OFFSET_MM : xMm);
-
 const transformY = (xMm: number, yMm: number): number =>
   isRightPage(xMm) ? yMm + PAGE2_Y_OFFSET_MM : yMm;
 
-// 写真欄 (A3 の左ページに収まるので x はそのまま、y もそのまま = page 1)
-const PHOTO_BOX_MM = {
-  x: 154.77,
-  y: 27.69,
-  w: 30.31,
-  h: 38.69,
-} as const;
-
-// === 学歴・職歴 表の座標 ===
-// A3 と同じ寸法だが、右ページ表は変換後の座標で配置される。
+const PHOTO_BOX_MM = { x: 154.77, y: 27.69, w: 30.31, h: 38.69 } as const;
 
 const HISTORY_LAYOUT = {
-  // A3 の左ページ下表 → A4 page 1 下部
   leftPage: {
     yearX: 23.62,
     monthX: 43.26,
@@ -88,7 +80,6 @@ const HISTORY_LAYOUT = {
     rowHeight: 9.06,
     maxRows: 9,
   },
-  // A3 の右ページ上表 → A4 page 2 上部 (transformY で +297)
   rightPage: {
     yearX: 228.85,
     monthX: 248.5,
@@ -112,6 +103,15 @@ const CERTIFICATION_LAYOUT = {
 
 const SUMMARY_BOX_MM = { x: 230, y: 172, w: 169, h: 53 } as const;
 const PERSONAL_REQUEST_BOX_MM = { x: 230, y: 237, w: 169, h: 37 } as const;
+
+// === editable mode helpers ===
+//
+// `editableAttrs(field)` は editable=true のときだけ
+// `contenteditable="plaintext-only" data-field="..."` を返す。
+// false のときは空文字列 (= 通常の read-only div)。
+
+const editableAttrs = (editable: boolean, field: string): string =>
+  editable ? ` contenteditable="plaintext-only" data-field="${field}"` : '';
 
 // === HTML helpers ===
 
@@ -226,33 +226,51 @@ const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
   return `<div class="jcd-mhlw-a4__photo jcd-mhlw-a4__photo--filled" style="${style}"><img class="jcd-mhlw-a4__photo-image" src="${escapeHtml(source.dataUri)}" alt="${escapeHtml(altText)}"></div>`;
 };
 
-// === basics 流し込み (座標変換) ===
+// === basics 流し込み (座標変換 + editable mode 対応) ===
 
 const placeOnA4 = (xMm: number, yMm: number): { left: string; top: string } => ({
   left: `${transformX(xMm).toFixed(3)}mm`,
   top: `${transformY(xMm, yMm).toFixed(3)}mm`,
 });
 
-const renderUserName = (basics: CareerProfile['basics']): string => {
-  if (basics.name === undefined) return '';
-  const family = escapeHtml(basics.name.family);
-  const given = escapeHtml(basics.name.given);
+/**
+ * 氏名を「family + 全角スペース + given」の 1 セルとして描画する。
+ * editable=true の場合、family or given が undefined でも空セルを出す。
+ * editable=false の場合、family/given が両方ない (basics.name === undefined) なら出さない。
+ */
+const renderUserName = (basics: CareerProfile['basics'], editable: boolean): string => {
+  if (!editable && basics.name === undefined) return '';
+  const family = basics.name?.family ?? '';
+  const given = basics.name?.given ?? '';
+  const text = family !== '' && given !== '' ? `${family}　${given}` : `${family}${given}`;
   const { left, top } = placeOnA4(60, 44.8);
-  return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:14pt;">${family}　${given}</div>`;
+  const attrs = editableAttrs(editable, 'name');
+  return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:14pt;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
-const renderUserNameKana = (basics: CareerProfile['basics']): string => {
-  if (basics.nameKana === undefined) return '';
-  const family = escapeHtml(basics.nameKana.family);
-  const given = escapeHtml(basics.nameKana.given);
+const renderUserNameKana = (basics: CareerProfile['basics'], editable: boolean): string => {
+  if (!editable && basics.nameKana === undefined) return '';
+  const family = basics.nameKana?.family ?? '';
+  const given = basics.nameKana?.given ?? '';
+  const text = family !== '' && given !== '' ? `${family}　${given}` : `${family}${given}`;
   const { left, top } = placeOnA4(60, 39.87);
-  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;">${family}　${given}</div>`;
+  const attrs = editableAttrs(editable, 'nameKana');
+  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
-const renderBirthDateAndAge = (
+const renderBirthDate = (
   basics: CareerProfile['basics'],
   preparedOn: string | undefined,
+  editable: boolean,
 ): string => {
+  // editable mode: 「YYYY-MM-DD」を 1 セルで raw 編集 (将来 inline date picker 化検討)
+  // read-only mode: 年/月/日 を 3 セルに分解 + 年齢計算
+  if (editable) {
+    const value = basics.birthDate ?? '';
+    const { left, top } = placeOnA4(68, 74.3);
+    const attrs = editableAttrs(editable, 'birthDate');
+    return `<div class="jcd-mhlw-a4__birth-raw" style="left:${left};top:${top};font-size:11pt;min-width:30mm;"${attrs}>${escapeHtml(value)}</div>`;
+  }
   if (basics.birthDate === undefined) return '';
   const m = basics.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m === null) return '';
@@ -280,13 +298,21 @@ const renderBirthDateAndAge = (
   );
 };
 
-const renderGender = (basics: CareerProfile['basics']): string => {
-  if (!isNonEmpty(basics.gender)) return '';
+const renderGender = (basics: CareerProfile['basics'], editable: boolean): string => {
+  const v = basics.gender ?? '';
+  if (!editable && !isNonEmpty(v)) return '';
   const { left, top } = placeOnA4(147, 71.72);
-  return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;">${escapeHtml(basics.gender)}</div>`;
+  const attrs = editableAttrs(editable, 'gender');
+  return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;min-width:20mm;"${attrs}>${escapeHtml(v)}</div>`;
 };
 
-const renderPreparedOn = (preparedOn: string | undefined): string => {
+const renderPreparedOn = (preparedOn: string | undefined, editable: boolean): string => {
+  if (editable) {
+    const value = preparedOn ?? '';
+    const { left, top } = placeOnA4(104, 31.33);
+    const attrs = editableAttrs(editable, 'preparedOn');
+    return `<div class="jcd-mhlw-a4__prepared-raw" style="left:${left};top:${top};font-size:11pt;min-width:30mm;"${attrs}>${escapeHtml(value)}</div>`;
+  }
   if (preparedOn === undefined) return '';
   const m = preparedOn.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m === null) return '';
@@ -303,46 +329,77 @@ const renderPreparedOn = (preparedOn: string | undefined): string => {
   );
 };
 
+/**
+ * 住所欄を 1 セルとして描画する (kana + 〒住所 を別行 + 電話)。
+ * editable mode では address は内部 field 個別ではなく、formatAddress された
+ * 1 行文字列を 1 セルで編集できるようにする。が、これだと core schema との
+ * 整合が難しい (postalCode / prefecture / cityAndRest に分解する必要)。
+ * Phase 2.1a では editable mode でも「住所 1 行」を `data-field="address.full"`
+ * として持つ。local-web 側で「全文字列を cityAndRest に押し込む」「正規表現で
+ * 〒 と都道府県を分離する」 などのロジックを持つ。
+ */
 const renderAddressBlock = (
   prefix: string,
   baseY: number,
   address: CareerProfile['basics']['address'],
   addressKana: string | undefined,
   phone: string | undefined,
+  editable: boolean,
+  fieldPrefix: string, // 'address' | 'contactAddress' (core の field 名と一致)
 ): string => {
   let html = '';
-  if (isNonEmpty(addressKana)) {
+
+  // ふりがな (kana)
+  const kanaVal = addressKana ?? '';
+  if (editable || isNonEmpty(kanaVal)) {
     const { left, top } = placeOnA4(46, baseY - 7);
-    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;">${escapeHtml(addressKana)}</div>`;
+    const attrs = editableAttrs(editable, `${fieldPrefix}Kana`);
+    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;min-width:80mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
   }
-  if (address !== undefined) {
-    const addr = formatAddress(address);
-    if (addr.length > 0) {
-      const { left, top } = placeOnA4(46, baseY);
-      html += `<div class="jcd-mhlw-a4__${prefix}" style="left:${left};top:${top};font-size:11pt;">${escapeHtml(addr)}</div>`;
-    }
+
+  // 住所 (full text、editable では 1 セル)
+  const addr = address === undefined ? '' : formatAddress(address);
+  if (editable || addr.length > 0) {
+    const { left, top } = placeOnA4(46, baseY);
+    const attrs = editableAttrs(editable, `${fieldPrefix}.full`);
+    html += `<div class="jcd-mhlw-a4__${prefix}" style="left:${left};top:${top};font-size:11pt;min-width:80mm;"${attrs}>${escapeHtml(addr)}</div>`;
   }
-  if (isNonEmpty(phone)) {
+
+  // 電話
+  const phoneVal = phone ?? '';
+  if (editable || isNonEmpty(phoneVal)) {
     const { left, top } = placeOnA4(175, baseY);
-    html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;">${escapeHtml(phone)}</div>`;
+    const phoneField = fieldPrefix === 'address' ? 'phone' : 'contactPhone';
+    const attrs = editableAttrs(editable, phoneField);
+    html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;min-width:20mm;"${attrs}>${escapeHtml(phoneVal)}</div>`;
   }
   return html;
 };
 
-const renderAddress = (basics: CareerProfile['basics']): string => {
+const renderAddress = (basics: CareerProfile['basics'], editable: boolean): string => {
   return (
-    renderAddressBlock('address', 87, basics.address, basics.addressKana, basics.phone) +
+    renderAddressBlock(
+      'address',
+      87,
+      basics.address,
+      basics.addressKana,
+      basics.phone,
+      editable,
+      'address',
+    ) +
     renderAddressBlock(
       'contact-address',
       109.66,
       basics.contactAddress,
       basics.contactAddressKana,
       basics.contactPhone,
+      editable,
+      'contactAddress',
     )
   );
 };
 
-// === 学歴・職歴 表 ===
+// === 学歴・職歴 表 (Phase 2.1a では editable mode 未対応、Phase 2.1b で対応) ===
 
 const renderHistoryRowAt = (
   row: HistoryRow,
@@ -393,7 +450,7 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
   return html.join('');
 };
 
-// === 免許・資格 表 ===
+// === 免許・資格 ===
 
 const renderCertificationSection = (careerProfile: CareerProfile): string => {
   const rows = buildCertificationRows(careerProfile.certifications);
@@ -430,17 +487,18 @@ const renderFreeTextBox = (
   cls: string,
   box: { x: number; y: number; w: number; h: number },
   text: string | undefined,
+  editable: boolean,
+  field: string,
 ): string => {
-  if (!isNonEmpty(text)) return '';
-  const safe = escapeHtml(text).replace(/\n/g, '<br>');
+  const value = text ?? '';
+  if (!editable && !isNonEmpty(value)) return '';
+  const safe = escapeHtml(value).replace(/\n/g, '<br>');
   const { left, top } = placeOnA4(box.x, box.y);
-  return `<div class="jcd-mhlw-a4__free-text ${cls}" style="left:${left};top:${top};width:${box.w}mm;height:${box.h}mm;">${safe}</div>`;
+  const attrs = editableAttrs(editable, field);
+  return `<div class="jcd-mhlw-a4__free-text ${cls}" style="left:${left};top:${top};width:${box.w}mm;height:${box.h}mm;"${attrs}>${safe}</div>`;
 };
 
 // === CSS ===
-//
-// container は 高さ A4×2 = 594mm。@page で改ページ。preview 表示時は 1 つの
-// 縦長 container が見える。print 時は 2 ページに分かれる。
 
 const CSS = `@page { size: A4 portrait; margin: 0; }
 .jcd-mhlw-a4 {
@@ -476,9 +534,9 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
 }
 
 .jcd-mhlw-a4__name, .jcd-mhlw-a4__name-kana,
-.jcd-mhlw-a4__birth-year, .jcd-mhlw-a4__birth-month, .jcd-mhlw-a4__birth-day, .jcd-mhlw-a4__age,
+.jcd-mhlw-a4__birth-year, .jcd-mhlw-a4__birth-month, .jcd-mhlw-a4__birth-day, .jcd-mhlw-a4__age, .jcd-mhlw-a4__birth-raw,
 .jcd-mhlw-a4__gender,
-.jcd-mhlw-a4__prepared-year, .jcd-mhlw-a4__prepared-month, .jcd-mhlw-a4__prepared-day,
+.jcd-mhlw-a4__prepared-year, .jcd-mhlw-a4__prepared-month, .jcd-mhlw-a4__prepared-day, .jcd-mhlw-a4__prepared-raw,
 .jcd-mhlw-a4__address, .jcd-mhlw-a4__address-kana, .jcd-mhlw-a4__address-phone,
 .jcd-mhlw-a4__contact-address, .jcd-mhlw-a4__contact-address-kana, .jcd-mhlw-a4__contact-address-phone,
 .jcd-mhlw-a4__history-heading, .jcd-mhlw-a4__history-year, .jcd-mhlw-a4__history-month, .jcd-mhlw-a4__history-content,
@@ -503,6 +561,16 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   overflow: hidden;
   padding: 1mm 2mm;
   box-sizing: border-box;
+}
+
+/* editable mode の見た目: contenteditable に focus / hover で背景色変化。
+   read-only mode (preview / PDF 出力) では contenteditable 属性自体が無いので
+   これらの :focus / :hover は発火しない。 */
+[contenteditable="plaintext-only"]:focus { outline: none; background: rgba(255, 230, 100, 0.32); box-shadow: 0 0 0 1px rgba(120, 110, 30, 0.5); }
+[contenteditable="plaintext-only"]:hover:not(:focus) { background: rgba(255, 230, 100, 0.18); }
+[contenteditable="plaintext-only"]:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(0, 0, 0, 0.28);
 }
 
 .jcd-mhlw-a4__photo {
@@ -531,7 +599,8 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
 // === Render entrypoint ===
 
 const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
-  const { careerProfile } = input;
+  const { careerProfile, editable: editableInput } = input;
+  const editable = editableInput === true;
   const preparedOn = careerProfile.meta?.preparedOn;
 
   const rules = (pdfRules.h_lines as Rule[])
@@ -541,23 +610,28 @@ const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
 
   const labels = renderOfficialLabels();
   const photo = renderPhotoBox(careerProfile.basics.profilePhoto);
-  const userName = renderUserName(careerProfile.basics);
-  const userNameKana = renderUserNameKana(careerProfile.basics);
-  const birthDate = renderBirthDateAndAge(careerProfile.basics, preparedOn);
-  const gender = renderGender(careerProfile.basics);
-  const prepared = renderPreparedOn(preparedOn);
-  const address = renderAddress(careerProfile.basics);
+  const userName = renderUserName(careerProfile.basics, editable);
+  const userNameKana = renderUserNameKana(careerProfile.basics, editable);
+  const birthDate = renderBirthDate(careerProfile.basics, preparedOn, editable);
+  const gender = renderGender(careerProfile.basics, editable);
+  const prepared = renderPreparedOn(preparedOn, editable);
+  const address = renderAddress(careerProfile.basics, editable);
+  // Phase 2.1a スコープ: 学歴職歴 / 免許資格 表は editable 未対応 (Phase 2.1b)
   const history = renderHistorySection(careerProfile);
   const certifications = renderCertificationSection(careerProfile);
   const summary = renderFreeTextBox(
     'jcd-mhlw-a4__summary',
     SUMMARY_BOX_MM,
     careerProfile.basics.summary,
+    editable,
+    'summary',
   );
   const personalRequest = renderFreeTextBox(
     'jcd-mhlw-a4__personal-request',
     PERSONAL_REQUEST_BOX_MM,
     careerProfile.basics.personalRequest,
+    editable,
+    'personalRequest',
   );
 
   const userData =
@@ -573,7 +647,8 @@ const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
     summary +
     personalRequest;
 
-  const html = `<article class="jcd-mhlw-a4">${rules}${labels}${userData}</article>`;
+  const articleAttrs = editable ? ' data-editable="true"' : '';
+  const html = `<article class="jcd-mhlw-a4"${articleAttrs}>${rules}${labels}${userData}</article>`;
 
   return {
     kind: input.kind,
