@@ -618,6 +618,41 @@ describe('local-web main flow', () => {
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
   });
 
+  describe('accessibility: focus management', () => {
+    it('load 成功後: form 先頭 (name-family) に focus が移る', async () => {
+      await importMain();
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+
+      // load 前に別 element に focus を移しておく (確実な差分検証のため)
+      button('load-button').focus();
+      expect(document.activeElement).toBe(button('load-button'));
+
+      select('saved-profile-select').value = 'profile-1';
+      button('load-button').click();
+      await flushPromises();
+
+      expect(document.activeElement).toBe(input('name-family'));
+    });
+
+    it('削除成功後: profile-select に focus が移る (disabled ボタンに残らない)', async () => {
+      await importMain();
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      button('save-button').click();
+      await flushPromises();
+
+      select('saved-profile-select').value = 'profile-1';
+      select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
+      button('delete-button').click();
+      await flushPromises();
+
+      expect(document.activeElement).toBe(select('saved-profile-select'));
+    });
+  });
+
   describe('validation summary', () => {
     const summaryEl = (): HTMLElement => {
       const el = document.getElementById('validation-summary');
