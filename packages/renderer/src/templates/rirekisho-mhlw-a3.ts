@@ -24,10 +24,18 @@
 //
 // これらは職務経歴書 (shokumukeirekisho-basic) の責務として明確に役割分担する。
 
-import type { CareerProfile, Certification, Education, WorkExperience } from '@jcd-editor/core';
+import type { CareerProfile } from '@jcd-editor/core';
 
 import { escapeHtml } from '../_internal/html-escape';
-import { formatAddress, formatYearMonth, isNonEmpty } from '../_internal/template-format';
+import {
+  buildCertificationRows,
+  buildEducationRows,
+  buildWorkRows,
+  computeAgeOnDate,
+  type CertificationRow,
+  type HistoryRow,
+} from '../_internal/rirekisho-mhlw-shared';
+import { formatAddress, isNonEmpty } from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
 import type { RenderedDocument } from '../rendered-document';
 import type { TemplateDefinition } from '../template-registry';
@@ -229,21 +237,6 @@ const renderUserNameKana = (basics: CareerProfile['basics']): string => {
   return `<div class="jcd-mhlw__name-kana" style="left:60mm;top:39.87mm;font-size:9pt;">${family}　${given}</div>`;
 };
 
-const computeAgeOnDate = (birthDate: string, baseDate: string): number | undefined => {
-  const b = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const t = baseDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (b === null || t === null) return undefined;
-  const by = Number(b[1]);
-  const bm = Number(b[2]);
-  const bd = Number(b[3]);
-  const ty = Number(t[1]);
-  const tm = Number(t[2]);
-  const td = Number(t[3]);
-  let age = ty - by;
-  if (tm < bm || (tm === bm && td < bd)) age -= 1;
-  return age >= 0 ? age : undefined;
-};
-
 const renderBirthDateAndAge = (
   basics: CareerProfile['basics'],
   preparedOn: string | undefined,
@@ -336,107 +329,7 @@ const renderAddress = (basics: CareerProfile['basics']): string => {
   );
 };
 
-// === 学歴・職歴 表 ===
-
-type HistoryRow =
-  | { kind: 'heading'; label: '学歴' | '職歴' }
-  | { kind: 'entry'; year: string; month: string; content: string };
-
-const educationSubject = (entry: Education): string => {
-  const parts: string[] = [];
-  if (isNonEmpty(entry.institutionName)) parts.push(entry.institutionName);
-  if (isNonEmpty(entry.faculty)) parts.push(entry.faculty);
-  if (isNonEmpty(entry.department)) parts.push(entry.department);
-  if (isNonEmpty(entry.degree)) parts.push(entry.degree);
-  return parts.join(' ');
-};
-
-const splitYearMonth = (yearMonth: string): { year: string; month: string } => {
-  const m = yearMonth.match(/^(\d{4})年(\d{1,2})月$/);
-  if (m === null) return { year: yearMonth, month: '' };
-  return { year: m[1] as string, month: m[2] as string };
-};
-
-const buildEducationRows = (entries: Education[] | undefined): HistoryRow[] => {
-  if (entries === undefined || entries.length === 0) return [];
-  const rows: HistoryRow[] = [];
-  for (const entry of entries) {
-    const subject = educationSubject(entry);
-    const description = isNonEmpty(entry.description) ? entry.description : '';
-
-    if (entry.startDate !== undefined) {
-      const { year, month } = splitYearMonth(formatYearMonth(entry.startDate));
-      const content = subject === '' ? '入学' : `${subject} 入学`;
-      rows.push({ kind: 'entry', year, month, content });
-    }
-    if (entry.endDate !== undefined) {
-      const { year, month } = splitYearMonth(formatYearMonth(entry.endDate));
-      const ending = isNonEmpty(entry.status) ? entry.status : '卒業';
-      const content = subject === '' ? ending : `${subject} ${ending}`;
-      rows.push({ kind: 'entry', year, month, content });
-    }
-    if (entry.startDate === undefined && entry.endDate === undefined) {
-      const contentParts: string[] = [];
-      if (subject !== '') contentParts.push(subject);
-      if (isNonEmpty(entry.status)) contentParts.push(entry.status);
-      let content = contentParts.join(' ');
-      if (description !== '') {
-        content = content === '' ? `（${description}）` : `${content}（${description}）`;
-      }
-      if (content !== '') {
-        rows.push({ kind: 'entry', year: '', month: '', content });
-      }
-    }
-  }
-  if (rows.length === 0) return [];
-  return [{ kind: 'heading', label: '学歴' }, ...rows];
-};
-
-const workAnnotation = (entry: WorkExperience): string => {
-  const parts: string[] = [];
-  if (isNonEmpty(entry.employmentType)) parts.push(entry.employmentType);
-  if (isNonEmpty(entry.position)) parts.push(entry.position);
-  if (parts.length === 0) return '';
-  return `（${parts.join(' / ')}）`;
-};
-
-const buildWorkRows = (entries: WorkExperience[] | undefined): HistoryRow[] => {
-  if (entries === undefined || entries.length === 0) return [];
-  const rows: HistoryRow[] = [];
-  let hasCurrent = false;
-  for (const entry of entries) {
-    const company = isNonEmpty(entry.companyName) ? entry.companyName : '';
-    const annotation = workAnnotation(entry);
-    const startDate = entry.period?.startDate;
-    const endDate = entry.period?.endDate;
-    const isCurrent = entry.period?.isCurrent === true;
-    if (isCurrent) hasCurrent = true;
-
-    if (startDate !== undefined) {
-      const { year, month } = splitYearMonth(formatYearMonth(startDate));
-      const content = company === '' ? `入社${annotation}` : `${company} 入社${annotation}`;
-      rows.push({ kind: 'entry', year, month, content });
-    }
-    if (!isCurrent && endDate !== undefined) {
-      const { year, month } = splitYearMonth(formatYearMonth(endDate));
-      const content = company === '' ? '退職' : `${company} 退職`;
-      rows.push({ kind: 'entry', year, month, content });
-    }
-    if (startDate === undefined && endDate === undefined && !isCurrent) {
-      const contentParts: string[] = [];
-      if (company !== '') contentParts.push(company);
-      const content = contentParts.join('') + annotation;
-      if (content !== '') {
-        rows.push({ kind: 'entry', year: '', month: '', content });
-      }
-    }
-  }
-  if (hasCurrent) {
-    rows.push({ kind: 'entry', year: '', month: '', content: '現在に至る' });
-  }
-  if (rows.length === 0) return [];
-  return [{ kind: 'heading', label: '職歴' }, ...rows];
-};
+// === 学歴・職歴 表 === (row 構築ロジックは _internal/rirekisho-mhlw-shared.ts)
 
 const renderHistoryRowAt = (
   row: HistoryRow,
@@ -489,27 +382,7 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
   return html.join('');
 };
 
-// === 免許・資格 表 ===
-
-type CertificationRow = { year: string; month: string; content: string };
-
-const buildCertificationRows = (entries: Certification[] | undefined): CertificationRow[] => {
-  if (entries === undefined || entries.length === 0) return [];
-  const rows: CertificationRow[] = [];
-  for (const entry of entries) {
-    const parts: string[] = [];
-    if (isNonEmpty(entry.name)) parts.push(entry.name);
-    if (isNonEmpty(entry.issuer)) parts.push(`（${entry.issuer}）`);
-    const content = parts.join(' ');
-    if (entry.acquiredDate !== undefined) {
-      const { year, month } = splitYearMonth(formatYearMonth(entry.acquiredDate));
-      rows.push({ year, month, content });
-    } else if (content !== '') {
-      rows.push({ year: '', month: '', content });
-    }
-  }
-  return rows;
-};
+// === 免許・資格 表 === (row 構築ロジックは _internal/rirekisho-mhlw-shared.ts)
 
 const renderCertificationSection = (careerProfile: CareerProfile): string => {
   const rows = buildCertificationRows(careerProfile.certifications);
