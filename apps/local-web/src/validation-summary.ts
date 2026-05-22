@@ -112,3 +112,14 @@ export const summarizeIssues = (issues: readonly ValidationIssue[]): readonly Is
     message: issue.message,
     anchor: buildIssueAnchor(issue.path),
   }));
+
+/**
+ * Validation summary 内の各 item に振る element id。
+ *
+ * - index は issues 配列上の位置 (0-based)
+ * - main.ts はこの id を `<li>` 内の button / span に付け、対応する input
+ *   element の `aria-describedby` から参照する
+ * - 値は render cycle ごとに再生成されて使われるため stable な必要はない
+ *   が、UI / test の両方で同一関数を経由することで形式を一元化する
+ */
+export const issueElementId = (index: number): string => `validation-issue-${index}`;
