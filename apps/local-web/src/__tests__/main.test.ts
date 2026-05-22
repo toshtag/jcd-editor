@@ -83,18 +83,23 @@ const setupDom = (): void => {
     </select>
     <span id="status"></span>
     <span id="dirty-indicator" hidden>● 未保存</span>
+    <div id="validation-summary" hidden>
+      <ul id="validation-summary-list"></ul>
+    </div>
     <button type="button" id="save-button">保存</button>
     <select id="saved-profile-select"><option value="">(選択してください)</option></select>
     <button type="button" id="load-button" disabled>読み込み</button>
     <button type="button" id="delete-button" disabled>削除</button>
     <button type="button" id="export-button">JSON エクスポート</button>
     <input type="file" id="import-file-input" />
-    <form id="basics-form">
-      <img id="profile-photo-thumbnail" alt="" hidden />
-      <span id="profile-photo-placeholder">証明写真</span>
-      <input type="file" id="profile-photo-input" />
-      <button type="button" id="profile-photo-remove-button" disabled>写真を削除</button>
-      <p id="profile-photo-error" hidden></p>
+    <form id="basics-form" data-section="basics">
+      <div data-section="profilePhoto">
+        <img id="profile-photo-thumbnail" alt="" hidden />
+        <span id="profile-photo-placeholder">証明写真</span>
+        <input type="file" id="profile-photo-input" />
+        <button type="button" id="profile-photo-remove-button" disabled>写真を削除</button>
+        <p id="profile-photo-error" hidden></p>
+      </div>
       <input id="name-family" />
       <input id="name-given" />
       <input id="name-kana-family" />
@@ -105,18 +110,17 @@ const setupDom = (): void => {
       <input id="postal-code" />
       <input id="prefecture" />
       <input id="city-and-rest" />
-      <pre id="basics-validation-issues" hidden></pre>
     </form>
     <button type="button" id="add-work-experience-button">職歴を追加</button>
-    <div id="work-experiences-list"></div>
+    <div id="work-experiences-list" data-section="workExperiences"></div>
     <button type="button" id="add-education-button">学歴を追加</button>
-    <div id="education-list"></div>
+    <div id="education-list" data-section="educationHistory"></div>
     <button type="button" id="add-skill-button">スキルを追加</button>
-    <div id="skills-list"></div>
+    <div id="skills-list" data-section="skills"></div>
     <button type="button" id="add-certification-button">資格を追加</button>
-    <div id="certifications-list"></div>
+    <div id="certifications-list" data-section="certifications"></div>
     <button type="button" id="add-project-button">プロジェクトを追加</button>
-    <div id="projects-list"></div>
+    <div id="projects-list" data-section="projects"></div>
     <iframe id="preview-frame" sandbox=""></iframe>
     <pre id="error-area" hidden></pre>
   `;
@@ -197,12 +201,12 @@ describe('local-web main flow', () => {
     input('birth-date').value = '1800-01-01';
     dispatchInput(input('birth-date'));
 
-    const issues = document.getElementById('basics-validation-issues');
-    expect(issues?.hidden).toBe(false);
-    // validation-labels で path が日本語化される (`basics.birthDate` → `基本情報 > 生年月日`)。
-    // raw path `birthDate` は user-facing display には現れなくなった。
-    expect(issues?.textContent).toContain('基本情報 > 生年月日');
-    expect(issues?.textContent).not.toContain('basics.birthDate');
+    const summary = document.getElementById('validation-summary');
+    expect(summary?.hidden).toBe(false);
+    // validation-labels で path が日本語化され、validation-summary で jump button 化される。
+    // raw path (`basics.birthDate`) は user-facing display には現れない。
+    expect(summary?.textContent).toContain('基本情報 > 生年月日');
+    expect(summary?.textContent).not.toContain('basics.birthDate');
     expect(preview().srcdoc).toBe(previousPreview);
     expect(button('save-button').disabled).toBe(true);
   });

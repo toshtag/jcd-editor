@@ -78,6 +78,7 @@ import {
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import { validatePhotoFile } from './profile-photo';
 import { formatTranslatedIssue } from './validation-labels';
+import { summarizeIssues } from './validation-summary';
 import {
   buildProjectsFromForm,
   createProjectItemElement,
@@ -111,7 +112,8 @@ const requireElement = <T extends Element>(id: string, ctor: new () => T): T => 
 const previewFrame = requireElement('preview-frame', HTMLIFrameElement);
 const kindSelector = requireElement('kind-selector', HTMLSelectElement);
 const formEl = requireElement('basics-form', HTMLFormElement);
-const validationIssuesPre = requireElement('basics-validation-issues', HTMLPreElement);
+const validationSummaryEl = requireElement('validation-summary', HTMLDivElement);
+const validationSummaryList = requireElement('validation-summary-list', HTMLUListElement);
 const saveButton = requireElement('save-button', HTMLButtonElement);
 const loadButton = requireElement('load-button', HTMLButtonElement);
 const deleteButton = requireElement('delete-button', HTMLButtonElement);
@@ -172,14 +174,49 @@ const formatIssues = (issues: readonly ValidationIssue[]): string =>
   issues.map(formatTranslatedIssue).join('\n');
 
 const clearValidationIssues = (): void => {
-  validationIssuesPre.hidden = true;
-  validationIssuesPre.textContent = '';
+  validationSummaryEl.hidden = true;
+  validationSummaryList.replaceChildren();
 };
 
 const showValidationIssues = (issues: readonly ValidationIssue[]): void => {
-  validationIssuesPre.hidden = false;
-  validationIssuesPre.textContent = formatIssues(issues);
+  validationSummaryEl.hidden = false;
+  const summaries = summarizeIssues(issues);
+  const items = summaries.map((summary) => {
+    const li = document.createElement('li');
+    li.className = 'validation-summary__item';
+    if (summary.anchor === null) {
+      // jump 不能 (schemaVersion / 未知 path): plain text のみ
+      const span = document.createElement('span');
+      span.className = 'validation-summary__static';
+      span.textContent = `${summary.pathLabel}: ${summary.message}`;
+      li.appendChild(span);
+    } else {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'validation-summary__jump';
+      button.dataset.validationAnchor = summary.anchor.selector;
+      button.textContent = `${summary.pathLabel}: ${summary.message}`;
+      li.appendChild(button);
+    }
+    return li;
+  });
+  validationSummaryList.replaceChildren(...items);
 };
+
+// summary list 内の jump button をクリックすると、該当 section / entry へ
+// scroll する。event delegation で list 全体に listener 1 つ。
+validationSummaryList.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const button = target.closest<HTMLButtonElement>('button[data-validation-anchor]');
+  if (button === null) return;
+  const selector = button.dataset.validationAnchor;
+  if (selector === undefined || selector === '') return;
+  const destination = document.querySelector(selector);
+  if (destination !== null && destination instanceof HTMLElement) {
+    destination.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
 
 const readFormValues = (): BasicsFormValues => ({
   nameFamily: nameFamilyInput.value,
