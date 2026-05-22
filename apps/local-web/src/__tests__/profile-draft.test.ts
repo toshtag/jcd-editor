@@ -5,8 +5,10 @@ import { parseCareerProfile, safeParseCareerProfile, type CareerProfile } from '
 import {
   buildBasicsFromForm,
   buildDraft,
+  buildMetaFromForm,
   buildSaveProfileInput,
   type BasicsFormValues,
+  type MetaFormValues,
 } from '../profile-draft';
 import { sampleProfileInput } from '../sample-profile';
 
@@ -16,11 +18,20 @@ const emptyForm: BasicsFormValues = {
   nameKanaFamily: '',
   nameKanaGiven: '',
   birthDate: '',
+  gender: '',
   email: '',
   phone: '',
   postalCode: '',
   prefecture: '',
   cityAndRest: '',
+  addressKana: '',
+  contactPostalCode: '',
+  contactPrefecture: '',
+  contactCityAndRest: '',
+  contactAddressKana: '',
+  contactPhone: '',
+  summary: '',
+  personalRequest: '',
 };
 
 const fullyPopulatedForm: BasicsFormValues = {
@@ -29,11 +40,20 @@ const fullyPopulatedForm: BasicsFormValues = {
   nameKanaFamily: 'ヤマダ',
   nameKanaGiven: 'タロウ',
   birthDate: '1993-04-01',
+  gender: '',
   email: 'taro.yamada@example.com',
   phone: '090-0000-0000',
   postalCode: '100-0001',
   prefecture: '東京都',
   cityAndRest: 'サンプル区サンプル町 1-2-3',
+  addressKana: '',
+  contactPostalCode: '',
+  contactPrefecture: '',
+  contactCityAndRest: '',
+  contactAddressKana: '',
+  contactPhone: '',
+  summary: '',
+  personalRequest: '',
 };
 
 describe('buildBasicsFromForm', () => {
@@ -105,6 +125,62 @@ describe('buildBasicsFromForm', () => {
     const draft = buildDraft({ basics }, sampleProfileInput);
     const result = safeParseCareerProfile(draft);
     expect(result.success).toBe(true);
+  });
+
+  // ===== Phase 1.3-b で追加された厚労省様式 field =====
+
+  it('gender 入力が basics.gender に含まれる (空文字列なら omit)', () => {
+    const basics = buildBasicsFromForm({ ...emptyForm, gender: '男性' });
+    expect(basics).toEqual({ gender: '男性' });
+
+    const empty = buildBasicsFromForm({ ...emptyForm, gender: '' });
+    expect('gender' in empty).toBe(false);
+  });
+
+  it('addressKana 入力が basics.addressKana に含まれる', () => {
+    const basics = buildBasicsFromForm({ ...emptyForm, addressKana: 'トウキョウト' });
+    expect(basics).toEqual({ addressKana: 'トウキョウト' });
+  });
+
+  it('contactAddress inner field が contactAddress object として纏まる', () => {
+    const basics = buildBasicsFromForm({
+      ...emptyForm,
+      contactPostalCode: '530-0001',
+      contactPrefecture: '大阪府',
+      contactCityAndRest: '梅田',
+    });
+    expect(basics).toEqual({
+      contactAddress: { postalCode: '530-0001', prefecture: '大阪府', cityAndRest: '梅田' },
+    });
+  });
+
+  it('contactAddress 全 inner 空なら contactAddress 自体を omit', () => {
+    const basics = buildBasicsFromForm({ ...emptyForm });
+    expect('contactAddress' in basics).toBe(false);
+  });
+
+  it('summary / personalRequest 入力がそのまま basics に含まれる', () => {
+    const basics = buildBasicsFromForm({
+      ...emptyForm,
+      summary: '志望動機テキスト',
+      personalRequest: '本人希望テキスト',
+    });
+    expect(basics).toEqual({
+      summary: '志望動機テキスト',
+      personalRequest: '本人希望テキスト',
+    });
+  });
+});
+
+describe('buildMetaFromForm', () => {
+  it('preparedOn が空文字列なら undefined を返す (caller が meta 自体を omit できる)', () => {
+    const meta = buildMetaFromForm({ preparedOn: '' });
+    expect(meta).toBeUndefined();
+  });
+
+  it('preparedOn に値があれば { preparedOn } object を返す', () => {
+    const form: MetaFormValues = { preparedOn: '2026-05-22' };
+    expect(buildMetaFromForm(form)).toEqual({ preparedOn: '2026-05-22' });
   });
 });
 
@@ -293,6 +369,23 @@ describe('buildDraft', () => {
   it('projects を渡さない場合: baseFixture の projects を引き継ぐ', () => {
     const draft = buildDraft({ basics: {} }, sampleProfileInput);
     expect(draft.projects).toBe(sampleProfileInput.projects);
+  });
+
+  it('meta を渡すと draft.meta に反映される', () => {
+    const draft = buildDraft(
+      { basics: {}, meta: { preparedOn: '2026-05-22' } },
+      sampleProfileInput,
+    );
+    expect(draft.meta).toEqual({ preparedOn: '2026-05-22' });
+  });
+
+  it('meta を渡さない場合: baseFixture から meta を引き継ぐ (load 後の sample fixture を保持)', () => {
+    const baseFixture: Record<string, unknown> = {
+      ...sampleProfileInput,
+      meta: { preparedOn: '2026-01-01' },
+    };
+    const draft = buildDraft({ basics: {} }, baseFixture);
+    expect(draft.meta).toEqual({ preparedOn: '2026-01-01' });
   });
 });
 

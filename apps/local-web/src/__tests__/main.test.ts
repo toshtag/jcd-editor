@@ -104,12 +104,26 @@ const setupDom = (): void => {
       <div class="basics-form__field"><input id="name-given" /></div>
       <div class="basics-form__field"><input id="name-kana-family" /></div>
       <div class="basics-form__field"><input id="name-kana-given" /></div>
-      <div class="basics-form__field"><input id="birth-date" /></div>
+      <div class="basics-form__field"><input id="birth-date" type="date" /></div>
+      <div class="basics-form__field"><input id="gender" /></div>
       <div class="basics-form__field"><input id="email" /></div>
       <div class="basics-form__field"><input id="phone" /></div>
-      <div class="basics-form__field"><input id="postal-code" /></div>
-      <div class="basics-form__field"><input id="prefecture" /></div>
-      <div class="basics-form__field"><input id="city-and-rest" /></div>
+      <fieldset data-section="address">
+        <div class="basics-form__field"><input id="address-kana" /></div>
+        <div class="basics-form__field"><input id="postal-code" /></div>
+        <div class="basics-form__field"><input id="prefecture" /></div>
+        <div class="basics-form__field"><input id="city-and-rest" /></div>
+      </fieldset>
+      <fieldset data-section="contactAddress">
+        <div class="basics-form__field"><input id="contact-address-kana" /></div>
+        <div class="basics-form__field"><input id="contact-postal-code" /></div>
+        <div class="basics-form__field"><input id="contact-prefecture" /></div>
+        <div class="basics-form__field"><input id="contact-city-and-rest" /></div>
+        <div class="basics-form__field"><input id="contact-phone" /></div>
+      </fieldset>
+      <div class="basics-form__field"><textarea id="summary"></textarea></div>
+      <div class="basics-form__field"><textarea id="personal-request"></textarea></div>
+      <div class="basics-form__field"><input id="prepared-on" type="date" /></div>
     </form>
     <button type="button" id="add-work-experience-button">職歴を追加</button>
     <div id="work-experiences-list" data-section="workExperiences"></div>
@@ -1485,6 +1499,133 @@ describe('local-web main flow', () => {
       expect(errorArea?.hidden).toBe(false);
       expect(errorArea?.textContent).toContain('schema と一致しません');
       expect(input('name-family').value).toBe('山田');
+    });
+  });
+
+  // ===== Phase 1.3-b で追加された厚労省様式 field =====
+
+  describe('厚労省様式 field の入力 → preview / round-trip (Phase 1.3-b)', () => {
+    it('gender 入力が履歴書 preview に反映される', async () => {
+      await importMain();
+      const genderEl = input('gender');
+      genderEl.value = '記載しない';
+      dispatchInput(genderEl);
+      expect(preview().srcdoc).toContain('記載しない');
+    });
+
+    it('addressKana 入力が履歴書 preview の現住所ふりがな欄に反映される', async () => {
+      await importMain();
+      const el = input('address-kana');
+      el.value = 'トウキョウト チヨダク';
+      dispatchInput(el);
+      expect(preview().srcdoc).toContain('トウキョウト チヨダク');
+    });
+
+    it('contactAddress + contactPhone 入力が履歴書 preview の連絡先欄に反映される', async () => {
+      await importMain();
+      const postal = input('contact-postal-code');
+      postal.value = '530-0001';
+      dispatchInput(postal);
+      const pref = input('contact-prefecture');
+      pref.value = '大阪府';
+      dispatchInput(pref);
+      const city = input('contact-city-and-rest');
+      city.value = '北区梅田';
+      dispatchInput(city);
+      const phone = input('contact-phone');
+      phone.value = '06-9999-8888';
+      dispatchInput(phone);
+
+      expect(preview().srcdoc).toContain('大阪府');
+      expect(preview().srcdoc).toContain('北区梅田');
+      expect(preview().srcdoc).toContain('06-9999-8888');
+    });
+
+    it('summary 入力が履歴書 preview の志望動機欄に反映される', async () => {
+      await importMain();
+      const ta = document.getElementById('summary') as HTMLTextAreaElement;
+      ta.value = '志望動機: 御社の技術力に魅力を感じ';
+      dispatchInput(ta);
+      expect(preview().srcdoc).toContain('御社の技術力に魅力を感じ');
+    });
+
+    it('personalRequest 入力が履歴書 preview の本人希望欄に反映される', async () => {
+      await importMain();
+      const ta = document.getElementById('personal-request') as HTMLTextAreaElement;
+      ta.value = '勤務地: 都内希望';
+      dispatchInput(ta);
+      expect(preview().srcdoc).toContain('勤務地: 都内希望');
+    });
+
+    it('preparedOn 入力が履歴書 preview の年月日現在欄に反映される', async () => {
+      await importMain();
+      const el = input('prepared-on');
+      el.value = '2026-05-22';
+      dispatchInput(el);
+      // 年 / 月 / 日 が個別に流し込まれる (template の責務)
+      expect(preview().srcdoc).toContain('>2026<');
+      expect(preview().srcdoc).toContain('>5<');
+      expect(preview().srcdoc).toContain('>22<');
+    });
+
+    it('save → load round-trip で新 field の値が form に復元される', async () => {
+      await importMain();
+      // 全 field に値を入れる
+      input('gender').value = '男性';
+      dispatchInput(input('gender'));
+      input('address-kana').value = 'トウキョウト';
+      dispatchInput(input('address-kana'));
+      input('contact-postal-code').value = '530-0001';
+      dispatchInput(input('contact-postal-code'));
+      input('contact-prefecture').value = '大阪府';
+      dispatchInput(input('contact-prefecture'));
+      input('contact-city-and-rest').value = '梅田';
+      dispatchInput(input('contact-city-and-rest'));
+      input('contact-address-kana').value = 'オオサカフ';
+      dispatchInput(input('contact-address-kana'));
+      input('contact-phone').value = '06-1234-5678';
+      dispatchInput(input('contact-phone'));
+      const summaryEl = document.getElementById('summary') as HTMLTextAreaElement;
+      summaryEl.value = '志望動機';
+      dispatchInput(summaryEl);
+      const reqEl = document.getElementById('personal-request') as HTMLTextAreaElement;
+      reqEl.value = '本人希望';
+      dispatchInput(reqEl);
+      input('prepared-on').value = '2026-05-22';
+      dispatchInput(input('prepared-on'));
+
+      button('save-button').click();
+      await flushPromises();
+
+      // 一旦 form を別の値で上書き (未保存編集)
+      input('gender').value = 'X';
+      dispatchInput(input('gender'));
+      input('prepared-on').value = '2025-01-01';
+      dispatchInput(input('prepared-on'));
+
+      // load で復元
+      select('saved-profile-select').value = 'profile-1';
+      button('load-button').click();
+      await flushPromises();
+
+      expect(input('gender').value).toBe('男性');
+      expect(input('address-kana').value).toBe('トウキョウト');
+      expect(input('contact-postal-code').value).toBe('530-0001');
+      expect(input('contact-prefecture').value).toBe('大阪府');
+      expect(input('contact-city-and-rest').value).toBe('梅田');
+      expect(input('contact-address-kana').value).toBe('オオサカフ');
+      expect(input('contact-phone').value).toBe('06-1234-5678');
+      expect((document.getElementById('summary') as HTMLTextAreaElement).value).toBe('志望動機');
+      expect((document.getElementById('personal-request') as HTMLTextAreaElement).value).toBe(
+        '本人希望',
+      );
+      expect(input('prepared-on').value).toBe('2026-05-22');
+    });
+
+    it('新 field が全て空でも初期 preview が表示される (空 basics でも parse 成功)', async () => {
+      await importMain();
+      expect(preview().srcdoc).toContain('履歴書');
+      // 任意 field なので preview 描画自体は阻害しない
     });
   });
 });

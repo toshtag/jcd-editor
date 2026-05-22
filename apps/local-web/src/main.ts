@@ -71,8 +71,10 @@ import { buildPreviewDocument } from './preview-document';
 import {
   buildBasicsFromForm,
   buildDraft,
+  buildMetaFromForm,
   buildSaveProfileInput,
   type BasicsFormValues,
+  type MetaFormValues,
 } from './profile-draft';
 import { sampleProfileInput } from './sample-profile';
 import { formatStoredProfileOption } from './storage-ui';
@@ -169,11 +171,21 @@ const nameGivenInput = requireElement('name-given', HTMLInputElement);
 const nameKanaFamilyInput = requireElement('name-kana-family', HTMLInputElement);
 const nameKanaGivenInput = requireElement('name-kana-given', HTMLInputElement);
 const birthDateInput = requireElement('birth-date', HTMLInputElement);
+const genderInput = requireElement('gender', HTMLInputElement);
 const emailInput = requireElement('email', HTMLInputElement);
 const phoneInput = requireElement('phone', HTMLInputElement);
+const addressKanaInput = requireElement('address-kana', HTMLInputElement);
 const postalCodeInput = requireElement('postal-code', HTMLInputElement);
 const prefectureInput = requireElement('prefecture', HTMLInputElement);
 const cityAndRestInput = requireElement('city-and-rest', HTMLInputElement);
+const contactAddressKanaInput = requireElement('contact-address-kana', HTMLInputElement);
+const contactPostalCodeInput = requireElement('contact-postal-code', HTMLInputElement);
+const contactPrefectureInput = requireElement('contact-prefecture', HTMLInputElement);
+const contactCityAndRestInput = requireElement('contact-city-and-rest', HTMLInputElement);
+const contactPhoneInput = requireElement('contact-phone', HTMLInputElement);
+const summaryInput = requireElement('summary', HTMLTextAreaElement);
+const personalRequestInput = requireElement('personal-request', HTMLTextAreaElement);
+const preparedOnInput = requireElement('prepared-on', HTMLInputElement);
 
 const showStatus = (text: string): void => {
   statusEl.textContent = text;
@@ -340,11 +352,24 @@ const readFormValues = (): BasicsFormValues => ({
   nameKanaFamily: nameKanaFamilyInput.value,
   nameKanaGiven: nameKanaGivenInput.value,
   birthDate: birthDateInput.value,
+  gender: genderInput.value,
   email: emailInput.value,
   phone: phoneInput.value,
   postalCode: postalCodeInput.value,
   prefecture: prefectureInput.value,
   cityAndRest: cityAndRestInput.value,
+  addressKana: addressKanaInput.value,
+  contactPostalCode: contactPostalCodeInput.value,
+  contactPrefecture: contactPrefectureInput.value,
+  contactCityAndRest: contactCityAndRestInput.value,
+  contactAddressKana: contactAddressKanaInput.value,
+  contactPhone: contactPhoneInput.value,
+  summary: summaryInput.value,
+  personalRequest: personalRequestInput.value,
+});
+
+const readMetaFormValues = (): MetaFormValues => ({
+  preparedOn: preparedOnInput.value,
 });
 
 const populateForm = (basics: CareerProfile['basics']): void => {
@@ -353,11 +378,24 @@ const populateForm = (basics: CareerProfile['basics']): void => {
   nameKanaFamilyInput.value = basics.nameKana?.family ?? '';
   nameKanaGivenInput.value = basics.nameKana?.given ?? '';
   birthDateInput.value = basics.birthDate ?? '';
+  genderInput.value = basics.gender ?? '';
   emailInput.value = basics.email ?? '';
   phoneInput.value = basics.phone ?? '';
   postalCodeInput.value = basics.address?.postalCode ?? '';
   prefectureInput.value = basics.address?.prefecture ?? '';
   cityAndRestInput.value = basics.address?.cityAndRest ?? '';
+  addressKanaInput.value = basics.addressKana ?? '';
+  contactPostalCodeInput.value = basics.contactAddress?.postalCode ?? '';
+  contactPrefectureInput.value = basics.contactAddress?.prefecture ?? '';
+  contactCityAndRestInput.value = basics.contactAddress?.cityAndRest ?? '';
+  contactAddressKanaInput.value = basics.contactAddressKana ?? '';
+  contactPhoneInput.value = basics.contactPhone ?? '';
+  summaryInput.value = basics.summary ?? '';
+  personalRequestInput.value = basics.personalRequest ?? '';
+};
+
+const populateMetaForm = (meta: CareerProfile['meta']): void => {
+  preparedOnInput.value = meta?.preparedOn ?? '';
 };
 
 const STATUS_LABELS: Record<DocumentKind, string> = {
@@ -436,6 +474,7 @@ if (!parsed.success) {
 
   const populateAll = (loaded: CareerProfile): void => {
     populateForm(loaded.basics);
+    populateMetaForm(loaded.meta);
     populateWorkExperiencesForm(workExperiencesList, loaded.workExperiences);
     populateEducationForm(educationList, loaded.educationHistory);
     populateSkillsForm(skillsList, loaded.skills);
@@ -538,8 +577,17 @@ if (!parsed.success) {
       readCertificationsFromForm(certificationsList),
     );
     const projects = buildProjectsFromForm(readProjectsFromForm(projectsList));
+    const meta = buildMetaFromForm(readMetaFormValues());
     const draft = buildDraft(
-      { basics, workExperiences, educationHistory, skills, certifications, projects },
+      {
+        basics,
+        workExperiences,
+        educationHistory,
+        skills,
+        certifications,
+        projects,
+        ...(meta !== undefined ? { meta } : {}),
+      },
       draftBase,
     );
     const result = safeParseCareerProfile(draft);

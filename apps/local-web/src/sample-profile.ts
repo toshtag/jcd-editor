@@ -31,6 +31,9 @@ export const sampleProfileInput = {
       prefecture: '東京都',
       cityAndRest: 'サンプル区サンプル町 1-2-3',
     },
+    addressKana: 'トウキョウト サンプルク サンプルチョウ',
+    summary: '志望の動機:\n御社の事業に共感し、自身の経験を活かして貢献したいと考え志望しました。',
+    personalRequest: '勤務地は都内希望、リモートワークも可。',
   },
   workExperiences: [
     {
