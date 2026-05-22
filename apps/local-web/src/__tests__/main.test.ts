@@ -140,8 +140,10 @@ const setupDom = (): void => {
     <!-- Phase 2.0 WYSIWYG prototype DOM (toggle button + 編集 div + 専用 preview) -->
     <button type="button" id="wysiwyg-toggle-button">WYSIWYG プロトタイプ</button>
     <section id="wysiwyg-prototype" hidden>
-      <div id="wysiwyg-name" contenteditable="plaintext-only"></div>
-      <div id="wysiwyg-name-kana" contenteditable="plaintext-only"></div>
+      <div id="wysiwyg-name-family" contenteditable="plaintext-only"></div>
+      <div id="wysiwyg-name-given" contenteditable="plaintext-only"></div>
+      <div id="wysiwyg-name-kana-family" contenteditable="plaintext-only"></div>
+      <div id="wysiwyg-name-kana-given" contenteditable="plaintext-only"></div>
       <iframe id="wysiwyg-prototype-preview" sandbox=""></iframe>
     </section>
   `;
@@ -1655,10 +1657,16 @@ describe('local-web main flow', () => {
       return el;
     };
 
-    const wysiwygName = (): HTMLDivElement => {
-      const el = document.getElementById('wysiwyg-name');
-      if (!(el instanceof HTMLDivElement)) throw new Error('Missing wysiwyg-name');
+    const wysiwygDiv = (id: string): HTMLDivElement => {
+      const el = document.getElementById(id);
+      if (!(el instanceof HTMLDivElement)) throw new Error(`Missing ${id}`);
       return el;
+    };
+
+    const setCell = (id: string, value: string): void => {
+      const div = wysiwygDiv(id);
+      div.textContent = value;
+      div.dispatchEvent(new Event('input', { bubbles: true }));
     };
 
     it('初期は hidden で toggle button で表示される', async () => {
@@ -1682,22 +1690,29 @@ describe('local-web main flow', () => {
       expect(wysiwygPreview().srcdoc).toContain('履歴書');
     });
 
-    it('氏名 div に入力すると専用 preview に反映される (input event 経由)', async () => {
+    it('姓と名の両方を入力すると専用 preview に反映される', async () => {
       await importMain();
       button('wysiwyg-toggle-button').click();
-      const name = wysiwygName();
-      name.textContent = '山田　太郎';
-      name.dispatchEvent(new Event('input', { bubbles: true }));
+      setCell('wysiwyg-name-family', '山田');
+      setCell('wysiwyg-name-given', '太郎');
       expect(wysiwygPreview().srcdoc).toContain('山田');
       expect(wysiwygPreview().srcdoc).toContain('太郎');
     });
 
-    it('氏名 div を空にしても preview は履歴書を保つ (空 basics でも parse 成功)', async () => {
+    it('姓だけ入力した状態では name 自体を omit する (validation fail を回避)', async () => {
       await importMain();
       button('wysiwyg-toggle-button').click();
-      const name = wysiwygName();
-      name.textContent = '';
-      name.dispatchEvent(new Event('input', { bubbles: true }));
+      setCell('wysiwyg-name-family', '山田');
+      // 姓のみ → name 未構築 → preview は履歴書として描画されるが氏名は出ない
+      expect(wysiwygPreview().srcdoc).toContain('履歴書');
+      expect(wysiwygPreview().srcdoc).not.toContain('山田');
+    });
+
+    it('全フィールド空にしても preview は履歴書を保つ', async () => {
+      await importMain();
+      button('wysiwyg-toggle-button').click();
+      setCell('wysiwyg-name-family', '');
+      setCell('wysiwyg-name-given', '');
       expect(wysiwygPreview().srcdoc).toContain('履歴書');
     });
   });

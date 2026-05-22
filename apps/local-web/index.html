@@ -443,26 +443,42 @@
               class="jcd-mhlw__label jcd-mhlw__label--gothic"
               style="left:26.209mm;top:39.872mm;font-size:11pt;"
             >ふりがな</div>
-            <!-- 氏名セルを覆う contenteditable area。
-                 CSS は renderer の出力に合わせて、left:60mm / top:44.80mm /
-                 font-size:14pt をそのまま採用。padding=0、margin=0 で
-                 baseline ズレを排除。 -->
+            <!-- 氏名セルを「姓」「名」 2 つの contenteditable に分割。
+                 公式 PersonName 型 (family + given、両方 1 文字以上必須) と
+                 整合させるため、UI 上も独立した 2 セルとして扱う。
+                 全角スペース 2 文字分の隙間を空けて配置する (60mm / 80mm)。 -->
             <div
-              id="wysiwyg-name"
+              id="wysiwyg-name-family"
               class="wysiwyg-prototype__field jcd-mhlw__name"
               contenteditable="plaintext-only"
-              data-placeholder="氏名"
+              data-placeholder="姓"
               spellcheck="false"
-              style="left:60mm;top:44.80mm;font-size:14pt;min-width:100mm;"
+              style="left:60mm;top:44.80mm;font-size:14pt;min-width:35mm;"
             ></div>
-            <!-- ふりがな (kana) -->
             <div
-              id="wysiwyg-name-kana"
+              id="wysiwyg-name-given"
+              class="wysiwyg-prototype__field jcd-mhlw__name"
+              contenteditable="plaintext-only"
+              data-placeholder="名"
+              spellcheck="false"
+              style="left:100mm;top:44.80mm;font-size:14pt;min-width:35mm;"
+            ></div>
+            <!-- ふりがな (kana) 同じく姓/名で分割 -->
+            <div
+              id="wysiwyg-name-kana-family"
               class="wysiwyg-prototype__field jcd-mhlw__name-kana"
               contenteditable="plaintext-only"
-              data-placeholder="ふりがな"
+              data-placeholder="せい"
               spellcheck="false"
-              style="left:60mm;top:39.87mm;font-size:9pt;min-width:100mm;"
+              style="left:60mm;top:39.87mm;font-size:9pt;min-width:35mm;"
+            ></div>
+            <div
+              id="wysiwyg-name-kana-given"
+              class="wysiwyg-prototype__field jcd-mhlw__name-kana"
+              contenteditable="plaintext-only"
+              data-placeholder="めい"
+              spellcheck="false"
+              style="left:100mm;top:39.87mm;font-size:9pt;min-width:35mm;"
             ></div>
           </article>
         </div>
