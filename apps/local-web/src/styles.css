@@ -351,17 +351,55 @@ body {
   border-color: transparent;
 }
 
-.basics-form__validation {
-  margin: 0;
+/* validation summary (form 上部に表示) */
+
+.validation-summary {
+  margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
   background: #fff5f5;
   border: 1px solid #d33;
   border-radius: 2px;
   color: #a00;
   font-size: 0.8rem;
-  white-space: pre-wrap;
+  max-height: 16rem;
   overflow: auto;
-  max-height: 12rem;
+}
+
+.validation-summary__heading {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.validation-summary__list {
+  margin: 0;
+  padding-inline-start: 1.25em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.validation-summary__item {
+  list-style: disc;
+}
+
+.validation-summary__jump {
+  display: inline;
+  background: none;
+  border: none;
+  color: #a00;
+  text-decoration: underline;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.validation-summary__jump:hover {
+  color: #600;
+}
+
+.validation-summary__static {
+  color: #a00;
 }
 
 /* work experiences form */

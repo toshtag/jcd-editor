@@ -58,10 +58,26 @@
       </header>
       <main class="app__main">
         <section class="app__form-pane" aria-label="基本情報フォーム">
-          <form id="basics-form" class="basics-form" autocomplete="off" novalidate>
+          <div
+            id="validation-summary"
+            class="validation-summary"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <div class="validation-summary__heading">入力エラー</div>
+            <ul id="validation-summary-list" class="validation-summary__list"></ul>
+          </div>
+          <form
+            id="basics-form"
+            class="basics-form"
+            autocomplete="off"
+            novalidate
+            data-section="basics"
+          >
             <h2 class="basics-form__title">基本情報</h2>
 
-            <div class="profile-photo">
+            <div class="profile-photo" data-section="profilePhoto">
               <div class="profile-photo__thumbnail-wrapper">
                 <img id="profile-photo-thumbnail" class="profile-photo__thumbnail" alt="" hidden />
                 <span id="profile-photo-placeholder" class="profile-photo__placeholder"
@@ -206,15 +222,12 @@
               />
             </div>
 
-            <pre
-              id="basics-validation-issues"
-              class="basics-form__validation"
-              role="status"
-              aria-live="polite"
-              hidden
-            ></pre>
           </form>
-          <section class="work-experiences-form" aria-label="職務経歴">
+          <section
+            class="work-experiences-form"
+            data-section="workExperiences"
+            aria-label="職務経歴"
+          >
             <header class="work-experiences-form__header">
               <h2 class="work-experiences-form__title">職務経歴</h2>
               <button
@@ -227,7 +240,7 @@
             </header>
             <div id="work-experiences-list" class="work-experiences-form__list"></div>
           </section>
-          <section class="education-form" aria-label="学歴">
+          <section class="education-form" data-section="educationHistory" aria-label="学歴">
             <header class="education-form__header">
               <h2 class="education-form__title">学歴</h2>
               <button
@@ -240,7 +253,7 @@
             </header>
             <div id="education-list" class="education-form__list"></div>
           </section>
-          <section class="skills-form" aria-label="スキル">
+          <section class="skills-form" data-section="skills" aria-label="スキル">
             <header class="skills-form__header">
               <h2 class="skills-form__title">スキル</h2>
               <button type="button" id="add-skill-button" class="skills-form__add-button">
@@ -249,7 +262,7 @@
             </header>
             <div id="skills-list" class="skills-form__list"></div>
           </section>
-          <section class="certifications-form" aria-label="資格">
+          <section class="certifications-form" data-section="certifications" aria-label="資格">
             <header class="certifications-form__header">
               <h2 class="certifications-form__title">資格</h2>
               <button
@@ -262,7 +275,7 @@
             </header>
             <div id="certifications-list" class="certifications-form__list"></div>
           </section>
-          <section class="projects-form" aria-label="プロジェクト">
+          <section class="projects-form" data-section="projects" aria-label="プロジェクト">
             <header class="projects-form__header">
               <h2 class="projects-form__title">プロジェクト</h2>
               <button type="button" id="add-project-button" class="projects-form__add-button">
