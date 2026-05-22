@@ -187,6 +187,15 @@ const summaryInput = requireElement('summary', HTMLTextAreaElement);
 const personalRequestInput = requireElement('personal-request', HTMLTextAreaElement);
 const preparedOnInput = requireElement('prepared-on', HTMLInputElement);
 
+// === Phase 2.0 WYSIWYG prototype 用 element ===
+// この prototype の目的は「入力 div の表示 = preview iframe の同じセル =
+// PDF 出力結果」が pixel 一致するかの実証。Phase 2.1 で本格実装に進むかの判断材料。
+const wysiwygToggleButton = requireElement('wysiwyg-toggle-button', HTMLButtonElement);
+const wysiwygPrototypeSection = requireElement('wysiwyg-prototype', HTMLElement);
+const wysiwygNameEl = requireElement('wysiwyg-name', HTMLDivElement);
+const wysiwygNameKanaEl = requireElement('wysiwyg-name-kana', HTMLDivElement);
+const wysiwygPrototypePreview = requireElement('wysiwyg-prototype-preview', HTMLIFrameElement);
+
 const showStatus = (text: string): void => {
   statusEl.textContent = text;
 };
@@ -1061,6 +1070,62 @@ if (!parsed.success) {
       e.returnValue = '';
     }
   });
+
+  // === Phase 2.0 WYSIWYG prototype ===
+  //
+  // Toggle button で section の visibility を切り替え。
+  // contenteditable の input event で basics.name / basics.nameKana を
+  // 切り出して renderDocument → preview iframe (専用) に流す。
+  // 既存 form / preview は触らない (parallel に動作)。
+
+  const splitName = (raw: string): { family: string; given: string } => {
+    // 全角スペース / 半角スペースで分割。先頭を family、残りを given。
+    // 区切りが無ければ family のみとして扱う。
+    const trimmed = raw.replace(/\s+/g, ' ').trim();
+    if (trimmed === '') return { family: '', given: '' };
+    const parts = trimmed.split(/[　 ]+/);
+    if (parts.length === 1) return { family: parts[0] ?? '', given: '' };
+    const family = parts[0] ?? '';
+    const given = parts.slice(1).join(' ');
+    return { family, given };
+  };
+
+  const renderWysiwygPreview = (): void => {
+    const nameRaw = wysiwygNameEl.textContent ?? '';
+    const nameKanaRaw = wysiwygNameKanaEl.textContent ?? '';
+    const { family, given } = splitName(nameRaw);
+    const kana = splitName(nameKanaRaw);
+
+    const draft: Record<string, unknown> = { schemaVersion: 1, basics: {} };
+    const basics: Record<string, unknown> = {};
+    if (family !== '' || given !== '') {
+      basics.name = { family, given };
+    }
+    if (kana.family !== '' || kana.given !== '') {
+      basics.nameKana = { family: kana.family, given: kana.given };
+    }
+    (draft as { basics: typeof basics }).basics = basics;
+
+    const parsed = safeParseCareerProfile(draft);
+    if (!parsed.success) {
+      // prototype では validation エラーを silent に skip (Phase 2.1 で UI 整備)
+      return;
+    }
+    const rendered = renderDocument({ careerProfile: parsed.data, kind: 'rirekisho' }, registry);
+    wysiwygPrototypePreview.srcdoc = buildPreviewDocument(rendered);
+  };
+
+  wysiwygToggleButton.addEventListener('click', () => {
+    const hidden = wysiwygPrototypeSection.hidden;
+    wysiwygPrototypeSection.hidden = !hidden;
+    if (hidden) {
+      // 開いた瞬間に初回描画
+      renderWysiwygPreview();
+    }
+  });
+
+  wysiwygNameEl.addEventListener('input', renderWysiwygPreview);
+  wysiwygNameKanaEl.addEventListener('input', renderWysiwygPreview);
 
   renderAndUpdate(currentKind);
   updateButtonStates();

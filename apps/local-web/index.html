@@ -55,6 +55,9 @@
               accept="application/json,.json"
             />
           </label>
+          <button type="button" id="wysiwyg-toggle-button" class="app__io-button">
+            WYSIWYG プロトタイプ
+          </button>
         </div>
       </header>
       <main class="app__main">
@@ -407,6 +410,70 @@
           <pre id="error-area" class="app__error" role="alert" hidden></pre>
         </section>
       </main>
+
+      <!--
+        Phase 2.0 — WYSIWYG feasibility prototype。
+        氏名 (basics.name) を contenteditable div として、preview iframe / PDF
+        出力時の renderer 出力と完全一致する CSS で配置することを実証する。
+        他のセル (生年月日 / 住所 / 学歴・職歴 / 写真 等) は静的なまま、
+        罫線とラベルのみ描画。氏名セル以外の流し込みデータは表示しない。
+       -->
+      <section
+        id="wysiwyg-prototype"
+        class="wysiwyg-prototype"
+        aria-label="WYSIWYG プロトタイプ (氏名欄のみ)"
+        hidden
+      >
+        <p class="wysiwyg-prototype__hint">
+          氏名欄を直接クリックして編集できます。下の preview iframe と上下左右が完全一致するかを目視確認してください。
+        </p>
+        <div class="wysiwyg-prototype__stage">
+          <article class="jcd-mhlw-a4 wysiwyg-prototype__sheet" data-page="1">
+            <!-- 罫線・ラベル・写真欄等は renderer が出力する静的 prototype HTML を 1 セル分だけ複製 -->
+            <!-- ラベル「氏」 (公式 PDF text bbox から: x=26.42mm, y=44.80mm, 11pt 明朝) -->
+            <div
+              class="jcd-mhlw__label"
+              style="left:26.424mm;top:44.795mm;font-size:11pt;"
+            >氏</div>
+            <div
+              class="jcd-mhlw__label"
+              style="left:38.108mm;top:44.795mm;font-size:11pt;"
+            >名</div>
+            <div
+              class="jcd-mhlw__label jcd-mhlw__label--gothic"
+              style="left:26.209mm;top:39.872mm;font-size:11pt;"
+            >ふりがな</div>
+            <!-- 氏名セルを覆う contenteditable area。
+                 CSS は renderer の出力に合わせて、left:60mm / top:44.80mm /
+                 font-size:14pt をそのまま採用。padding=0、margin=0 で
+                 baseline ズレを排除。 -->
+            <div
+              id="wysiwyg-name"
+              class="wysiwyg-prototype__field jcd-mhlw__name"
+              contenteditable="plaintext-only"
+              data-placeholder="氏名"
+              spellcheck="false"
+              style="left:60mm;top:44.80mm;font-size:14pt;min-width:100mm;"
+            ></div>
+            <!-- ふりがな (kana) -->
+            <div
+              id="wysiwyg-name-kana"
+              class="wysiwyg-prototype__field jcd-mhlw__name-kana"
+              contenteditable="plaintext-only"
+              data-placeholder="ふりがな"
+              spellcheck="false"
+              style="left:60mm;top:39.87mm;font-size:9pt;min-width:100mm;"
+            ></div>
+          </article>
+        </div>
+        <p class="wysiwyg-prototype__compare-label">↓ 同じデータが流し込まれた preview (出力時と同じ HTML)</p>
+        <iframe
+          id="wysiwyg-prototype-preview"
+          class="wysiwyg-prototype__preview"
+          title="WYSIWYG 検証用 preview"
+          sandbox=""
+        ></iframe>
+      </section>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
