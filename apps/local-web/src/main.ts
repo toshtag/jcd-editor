@@ -187,28 +187,73 @@ const formatIssues = (issues: readonly ValidationIssue[]): string =>
 // ならないように)。
 const currentInvalidInputs = new Set<HTMLElement>();
 
+// inline error <p> として挿入した element を覚えておき、次回 issues 更新時に
+// remove する。これらは self が createElement で作って append した element
+// なので、参照を保持していれば確実に remove できる。
+const currentInlineErrorEls = new Set<HTMLElement>();
+
+// input 直上の wrapper class 一覧。closest で input が属する wrapper を
+// 探すのに使う。basics + 各 section entry の field wrapper を網羅する。
+// profile-photo は別個の error 領域 (profile-photo-error) を持つため対象外
+// (CareerProfile schema validation は summary + aria-describedby で対応)。
+const FIELD_WRAPPER_SELECTOR = [
+  '.basics-form__field',
+  '.work-experience-item__field',
+  '.education-item__field',
+  '.skill-item__field',
+  '.certification-item__field',
+  '.project-item__field',
+].join(', ');
+
+const clearInlineErrors = (): void => {
+  for (const el of currentInlineErrorEls) {
+    el.remove();
+  }
+  currentInlineErrorEls.clear();
+};
+
+const renderInlineError = (input: HTMLElement, messages: readonly string[]): void => {
+  const wrapper = input.closest(FIELD_WRAPPER_SELECTOR);
+  if (wrapper === null) return; // wrapper 不在は profile-photo input 等
+  const errorEl = document.createElement('p');
+  errorEl.className = 'field-error';
+  // 同 input に複数 issue がある場合は「 / 」で連結 (改行は CSS で扱わない)
+  errorEl.textContent = messages.join(' / ');
+  wrapper.appendChild(errorEl);
+  currentInlineErrorEls.add(errorEl);
+};
+
 const clearInvalidInputMarks = (): void => {
   for (const el of currentInvalidInputs) {
     el.removeAttribute('aria-invalid');
     el.removeAttribute('aria-describedby');
   }
   currentInvalidInputs.clear();
+  clearInlineErrors();
 };
 
 const markInputsInvalid = (issues: readonly ValidationIssue[]): void => {
   clearInvalidInputMarks();
-  // selector ごとに、対応する summary item id を集める (同じ input に複数
-  // issue がある場合の aria-describedby に半角 space 区切りで全 id を出す)
+  // selector ごとに、対応する summary item id とメッセージを集める。
+  // - ids: aria-describedby に半角 space 区切りで全 id を出す
+  // - messages: input 直下に inline 表示する (同 input 複数 issue は連結)
   const selectorToIds = new Map<string, string[]>();
+  const selectorToMessages = new Map<string, string[]>();
   issues.forEach((issue, index) => {
     const selector = buildIssueInputSelector(issue.path);
     if (selector === null) return;
     const id = issueElementId(index);
-    const existing = selectorToIds.get(selector);
-    if (existing === undefined) {
+    const existingIds = selectorToIds.get(selector);
+    if (existingIds === undefined) {
       selectorToIds.set(selector, [id]);
     } else {
-      existing.push(id);
+      existingIds.push(id);
+    }
+    const existingMessages = selectorToMessages.get(selector);
+    if (existingMessages === undefined) {
+      selectorToMessages.set(selector, [issue.message]);
+    } else {
+      existingMessages.push(issue.message);
     }
   });
 
@@ -218,6 +263,8 @@ const markInputsInvalid = (issues: readonly ValidationIssue[]): void => {
       el.setAttribute('aria-invalid', 'true');
       el.setAttribute('aria-describedby', ids.join(' '));
       currentInvalidInputs.add(el);
+      const messages = selectorToMessages.get(selector) ?? [];
+      renderInlineError(el, messages);
     }
   }
 };

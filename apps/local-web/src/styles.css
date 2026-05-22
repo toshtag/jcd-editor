@@ -383,6 +383,15 @@ body {
   border-color: transparent;
 }
 
+/* inline field error (input 直下) */
+
+.field-error {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: #a00;
+  line-height: 1.4;
+}
+
 /* validation summary (form 上部に表示) */
 
 .validation-summary {
