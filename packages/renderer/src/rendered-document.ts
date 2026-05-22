@@ -17,8 +17,9 @@ import type { DocumentKind } from './document-kind';
 export type RenderedDocumentMetadata = {
   language: 'ja-JP';
   page: {
-    size: 'A4';
-    orientation: 'portrait';
+    /** A3 (公式 mhlw 様式の見開き 1 枚) / A4 (折半・分割 2 ページ運用) */
+    size: 'A3' | 'A4';
+    orientation: 'portrait' | 'landscape';
   };
   templateId?: string;
 };
