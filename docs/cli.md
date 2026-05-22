@@ -2,6 +2,8 @@
 
 `apps/cli` は、JSON 形式の `CareerProfile` から履歴書 / 職務経歴書の PDF を完全にローカルで生成するための CLI です。
 
+入力 JSON の形式仕様は [docs/data-format.md](data-format.md) を参照してください。
+
 ## 想定する利用フロー
 
 1. `apps/local-web` で profile を編集し、「JSON エクスポート」ボタンで `profile-*.json` を出力する
