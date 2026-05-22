@@ -181,8 +181,18 @@ body {
   background: #f0f6fd;
 }
 
+/* a11y: visually-hidden pattern (display: none ではない)。
+ * 理由: display: none の <input type="file"> は keyboard focus を受け取れず、
+ * label の :has(:focus-visible) selector や programmatic .focus() が機能しない。
+ * 視覚的には見えず、フォーカスは可能、SR からも見える状態にする。 */
 .app__io-file {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .app__main {
@@ -304,8 +314,15 @@ body {
   background: #f0f6fd;
 }
 
+/* a11y: visually-hidden pattern。詳細は .app__io-file のコメント参照。 */
 .profile-photo__file {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .profile-photo__remove-button {

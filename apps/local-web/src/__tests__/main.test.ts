@@ -857,6 +857,32 @@ describe('local-web main flow', () => {
 
       expect(document.activeElement).toBe(select('saved-profile-select'));
     });
+
+    // 注: 以下 2 件は file input が DOM 上で focusable な状態にあること
+    // (hidden 属性 / tabindex=-1 で意図せず塞がれていない) の regression guard。
+    // 実描画上の visually-hidden CSS (PR #53) の効果は jsdom では検証不能で、
+    // 手動 QA / 実 browser で確認が必要。
+    it('写真 file input は DOM 上で focus 可能 (hidden 属性 / tabindex=-1 で塞がれていない)', async () => {
+      await importMain();
+      const photoInput = document.getElementById('profile-photo-input');
+      if (!(photoInput instanceof HTMLInputElement)) throw new Error('Missing photo input');
+
+      expect(photoInput.hasAttribute('hidden')).toBe(false);
+      expect(photoInput.tabIndex).toBeGreaterThanOrEqual(0);
+      photoInput.focus();
+      expect(document.activeElement).toBe(photoInput);
+    });
+
+    it('import file input も DOM 上で focus 可能', async () => {
+      await importMain();
+      const importInput = document.getElementById('import-file-input');
+      if (!(importInput instanceof HTMLInputElement)) throw new Error('Missing import input');
+
+      expect(importInput.hasAttribute('hidden')).toBe(false);
+      expect(importInput.tabIndex).toBeGreaterThanOrEqual(0);
+      importInput.focus();
+      expect(document.activeElement).toBe(importInput);
+    });
   });
 
   describe('validation summary', () => {
