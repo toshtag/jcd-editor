@@ -172,6 +172,21 @@
             </div>
 
             <div class="basics-form__field">
+              <label class="basics-form__label" for="gender">性別 (任意)</label>
+              <input
+                id="gender"
+                class="basics-form__input"
+                type="text"
+                inputmode="text"
+                spellcheck="false"
+                placeholder="例: 男性 / 女性 / 記載しない"
+              />
+              <p class="basics-form__hint">
+                ※「性別」欄の記載は任意です。未記載とすることも可能です。
+              </p>
+            </div>
+
+            <div class="basics-form__field">
               <label class="basics-form__label" for="email">メールアドレス</label>
               <input
                 id="email"
@@ -193,37 +208,130 @@
               />
             </div>
 
+            <fieldset class="basics-form__group" data-section="address">
+              <legend class="basics-form__group-title">現住所</legend>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="address-kana">ふりがな</label>
+                <input
+                  id="address-kana"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="postal-code">郵便番号</label>
+                <input
+                  id="postal-code"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="prefecture">都道府県</label>
+                <input
+                  id="prefecture"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="city-and-rest">住所</label>
+                <input
+                  id="city-and-rest"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+            </fieldset>
+
+            <fieldset class="basics-form__group" data-section="contactAddress">
+              <legend class="basics-form__group-title">連絡先 (現住所以外を希望する場合のみ)</legend>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="contact-address-kana">ふりがな</label>
+                <input
+                  id="contact-address-kana"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="contact-postal-code">郵便番号</label>
+                <input
+                  id="contact-postal-code"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="contact-prefecture">都道府県</label>
+                <input
+                  id="contact-prefecture"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="contact-city-and-rest">住所</label>
+                <input
+                  id="contact-city-and-rest"
+                  class="basics-form__input"
+                  type="text"
+                  inputmode="text"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="basics-form__field">
+                <label class="basics-form__label" for="contact-phone">電話番号</label>
+                <input
+                  id="contact-phone"
+                  class="basics-form__input"
+                  type="tel"
+                  inputmode="tel"
+                  spellcheck="false"
+                />
+              </div>
+            </fieldset>
+
             <div class="basics-form__field">
-              <label class="basics-form__label" for="postal-code">郵便番号</label>
-              <input
-                id="postal-code"
-                class="basics-form__input"
-                type="text"
-                inputmode="text"
+              <label class="basics-form__label" for="summary"
+                >志望の動機、特技、好きな学科、アピールポイントなど</label
+              >
+              <textarea
+                id="summary"
+                class="basics-form__textarea"
+                rows="6"
                 spellcheck="false"
-              />
+              ></textarea>
             </div>
 
             <div class="basics-form__field">
-              <label class="basics-form__label" for="prefecture">都道府県</label>
-              <input
-                id="prefecture"
-                class="basics-form__input"
-                type="text"
-                inputmode="text"
+              <label class="basics-form__label" for="personal-request">本人希望記入欄</label>
+              <textarea
+                id="personal-request"
+                class="basics-form__textarea"
+                rows="4"
                 spellcheck="false"
-              />
+                placeholder="特に給料・職種・勤務時間・勤務地・その他についての希望などがあれば記入"
+              ></textarea>
             </div>
 
             <div class="basics-form__field">
-              <label class="basics-form__label" for="city-and-rest">住所</label>
-              <input
-                id="city-and-rest"
-                class="basics-form__input"
-                type="text"
-                inputmode="text"
-                spellcheck="false"
-              />
+              <label class="basics-form__label" for="prepared-on">作成日 (年月日現在)</label>
+              <input id="prepared-on" class="basics-form__input" type="date" />
             </div>
 
           </form>
