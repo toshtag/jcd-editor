@@ -12,7 +12,7 @@ const baseDocument: RenderedDocument = {
   metadata: {
     language: 'ja-JP',
     page: { size: 'A4', orientation: 'portrait' },
-    templateId: 'rirekisho-basic',
+    templateId: 'rirekisho-mhlw-a3',
   },
 };
 
