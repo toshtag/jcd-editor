@@ -6,23 +6,15 @@
 // - **A3 横、見開き 1 枚** で出力する。CSS は @page { size: A3 landscape }。
 // - **罫線は ground truth JSON (mhlw-pdf-rules.json) から position: absolute
 //   で直接 div として描画する**。table / grid layout は使わない。
-//   これは Phase 0 で罫線位置 ±0mm を達成した手法であり、cell padding /
-//   font metric の影響を受けず px 単位で公式と一致する。
+//   Phase 0 で罫線位置 ±0mm を達成した手法。
 // - **公式のラベルテキスト** (ふりがな / 氏名 / 学　歴・職　歴 など) は
 //   公式 PDF の text bbox 実測値 (mhlw-text-bbox.json) を使って配置する。
-//   テンプレート側で hard-code した座標ではなく、ground truth に従う。
-// - **写真欄** は Excel autoshape (dashed box) で公式 PDF 内では文字情報として
-//   抽出できなかった。実測した bbox を photo box として個別に描画する。
-//
-// === Phase 1.1 スコープ ===
-//
-// 本 file は「**公式様式 (空欄状態) を 1:1 で再現できる骨格**」を提供する。
-// CareerProfile の値を流し込む実装は最小限のみ:
-//   - basics.name → 氏名欄に文字入れ (将来 UI で書ける)
-//   - basics.profilePhoto (dataUri のみ) → 写真欄に <img> 表示
-// それ以外 (生年月日 / 住所 / 電話 / 学歴・職歴 / 免許資格 etc.) は
-// 流し込み未対応。Phase 1.2 (core データモデル拡張) と Phase 1.3 (UI 連動)
-// で順次対応する。
+// - **写真欄** は Excel autoshape (dashed box) で PDF text として抽出できなかった
+//   ため、実測 bbox を photo box として個別配置。
+// - **ユーザーデータの流し込み** (氏名 / 生年月日 / 住所 / 学歴職歴 / 免許資格 /
+//   志望動機 / 本人希望 / 写真) は、公式様式の各欄に対応する座標に position:
+//   absolute で配置する。座標は mhlw-pdf-rules.json の罫線 / mhlw-text-bbox.json
+//   の label 位置を基準に算出 (詳細は本 file の HISTORY_LAYOUT_MM / etc. 定数)。
 //
 // === Phase 1.x で「履歴書では描画しない」と決めたもの (CONCEPT 整合) ===
 //
@@ -32,10 +24,10 @@
 //
 // これらは職務経歴書 (shokumukeirekisho-basic) の責務として明確に役割分担する。
 
-import type { CareerProfile } from '@jcd-editor/core';
+import type { CareerProfile, Certification, Education, WorkExperience } from '@jcd-editor/core';
 
 import { escapeHtml } from '../_internal/html-escape';
-import { isNonEmpty } from '../_internal/template-format';
+import { formatAddress, formatYearMonth, isNonEmpty } from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
 import type { RenderedDocument } from '../rendered-document';
 import type { TemplateDefinition } from '../template-registry';
@@ -55,8 +47,6 @@ const PAGE_H_MM = pdfRules.page_h_mm;
 const pxToMm = (px: number): number => (px / DPI) * 25.4;
 
 // 写真欄 (Excel autoshape dashed box、PDF 300dpi 画像から個別実測)
-// gray pixel (luminance 80-200) を走査して bbox を抽出。
-// 詳細は docs/investigations/rirekisho-mhlw/spec.md を参照。
 const PHOTO_BOX_MM = {
   x: 154.77,
   y: 27.69,
@@ -64,12 +54,63 @@ const PHOTO_BOX_MM = {
   h: 38.69,
 } as const;
 
+// === 学歴・職歴 表の座標 (公式 PDF 罫線実測値ベース) ===
+//
+// 学歴・職歴は 2 ブロックにまたがる:
+//   - 左ページ下表: heading y=131.885, 行 y=137.58〜219.29mm (約 9 行)
+//   - 右ページ上表: heading y=29.512, 行 y=35.31〜126.15mm (約 11 行)
+//
+// 列構成は両ブロックで同じ寸法:
+//   - 年セル: 約 19.6mm 幅
+//   - 月セル: 約 9.1mm 幅
+//   - 内容セル: 約 143mm 幅
+//
+// 行は 罫線間隔 約 9.06mm = 25.7pt。文字サイズ 10pt 程度で配置。
+const HISTORY_LAYOUT = {
+  // 左ページ下表
+  leftPage: {
+    yearX: 23.62,
+    monthX: 43.26,
+    contentX: 52.41,
+    rightEdgeX: 195.75,
+    firstRowY: 137.58,
+    rowHeight: 9.06,
+    maxRows: 9,
+  },
+  // 右ページ上表 (左ページ末尾から連続)
+  rightPage: {
+    yearX: 228.85,
+    monthX: 248.5,
+    contentX: 257.64,
+    rightEdgeX: 400.98,
+    firstRowY: 35.31,
+    rowHeight: 9.06,
+    maxRows: 11,
+  },
+} as const;
+
+// 免許・資格 表 (右ページ中段、heading y=100.85, 行 y=106.6-160.95mm)
+const CERTIFICATION_LAYOUT = {
+  yearX: 228.85,
+  monthX: 248.5,
+  contentX: 257.64,
+  rightEdgeX: 400.98,
+  firstRowY: 106.6,
+  rowHeight: 9.06,
+  maxRows: 6,
+} as const;
+
+// 志望の動機 欄 (右ページ、y=164.76-225.98mm、x=228.85-400.98mm)
+const SUMMARY_BOX_MM = { x: 230, y: 172, w: 169, h: 53 } as const;
+
+// 本人希望記入欄 (右ページ、y=229.79-273.90mm)
+const PERSONAL_REQUEST_BOX_MM = { x: 230, y: 237, w: 169, h: 37 } as const;
+
 // === HTML helpers ===
 
 type Rule = { y_px?: number; y_mm?: number; x_px?: number; x_mm?: number; spans_px: number[][] };
 
 const renderHorizontalRule = (rule: Rule): string => {
-  // rule の y は y_mm (公式 PDF 実測値、改変禁止)
   const y = rule.y_mm as number;
   return rule.spans_px
     .map(([s, e]) => {
@@ -92,14 +133,6 @@ const renderVerticalRule = (rule: Rule): string => {
 };
 
 // === 公式ラベル (固定 phrase) 描画 ===
-//
-// text bbox に含まれる「履歴書」「ふりがな」「年 月 日現在」などの公式 phrase は
-// 全て固定文字列で、user-provided data ではない。escapeHtml は defensive として
-// 通すが、本来不要 (PDF 由来の static label のみ)。
-//
-// 写真欄内部のテキスト (写真をはる位置 / 写真をはる必要が… 等) は photo box
-// 内に閉じ込めて別途描画するため、ここでは skip する (PHOTO_BOX に座標が
-// 含まれる text block を除外)。
 
 type TextBlock = {
   x_mm: number;
@@ -120,9 +153,7 @@ const isInsidePhotoBox = (t: TextBlock): boolean => {
 };
 
 const labelFontClass = (text: string): string => {
-  // タイトル「履歴書」は HG正楷書体-PRO 28pt → kaisho (web fallback: Klee One)
   if (text === '履歴書') return 'jcd-mhlw__label jcd-mhlw__label--title';
-  // 「ふりがな」「※」「現住所以外」「写真」「性別」 を含むものは Pゴシック
   if (
     text.includes('ふりがな') ||
     text.includes('※') ||
@@ -163,7 +194,6 @@ const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
   const { x, y, w, h } = PHOTO_BOX_MM;
   const style = `left:${x}mm;top:${y}mm;width:${w}mm;height:${h}mm;`;
 
-  // 画像が無い場合は公式のガイドテキストを表示 (default phrase)
   const showGuide =
     profilePhoto === undefined ||
     profilePhoto.source === undefined ||
@@ -174,7 +204,6 @@ const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
     return `<div class="jcd-mhlw__photo" style="${style}"><div class="jcd-mhlw__photo-heading">写真をはる位置</div><div class="jcd-mhlw__photo-body">写真をはる必要が<br>ある場合<br>1.&nbsp;縦<br>&nbsp;&nbsp;&nbsp;横<br>2.本人単身胸から上<br>3.裏面のりづけ</div></div>`;
   }
 
-  // dataUri が指定された場合は写真欄に画像を貼る (ガイドテキストは出さない)
   const photo = profilePhoto as ProfilePhoto;
   const source = photo.source;
   if (source === undefined || source.kind !== 'dataUri') {
@@ -184,22 +213,12 @@ const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
   return `<div class="jcd-mhlw__photo jcd-mhlw__photo--filled" style="${style}"><img class="jcd-mhlw__photo-image" src="${escapeHtml(source.dataUri)}" alt="${escapeHtml(altText)}"></div>`;
 };
 
-// === ユーザーデータ流し込み (Phase 1.1 は最小限) ===
-//
-// 公式様式の氏名欄 (header の氏名行) の位置は y≈44.80mm の「氏」label の右側。
-// CSS で氏名欄として位置決めし、basics.name から family + given を全角スペース
-// 連結で挿入する。
-//
-// 流し込み位置の決定方針:
-//   - "氏" のラベル bbox: x=26.42, y=44.80mm (mhlw-text-bbox.json より)
-//   - その右側 (x ≈ 60mm) から氏名を表示
-//   - 学歴・職歴 / 免許資格表 etc. の流し込みは Phase 1.3 以降
+// === basics 流し込み ===
 
 const renderUserName = (basics: CareerProfile['basics']): string => {
   if (basics.name === undefined) return '';
   const family = escapeHtml(basics.name.family);
   const given = escapeHtml(basics.name.given);
-  // x: 約 60mm から開始、y: 「氏」ラベルと同じ y=44.80mm に揃える
   return `<div class="jcd-mhlw__name" style="left:60mm;top:44.80mm;font-size:14pt;">${family}　${given}</div>`;
 };
 
@@ -207,8 +226,327 @@ const renderUserNameKana = (basics: CareerProfile['basics']): string => {
   if (basics.nameKana === undefined) return '';
   const family = escapeHtml(basics.nameKana.family);
   const given = escapeHtml(basics.nameKana.given);
-  // ふりがな label (x=26.21, y=39.87mm) の右隣、少しサイズ落として表示
   return `<div class="jcd-mhlw__name-kana" style="left:60mm;top:39.87mm;font-size:9pt;">${family}　${given}</div>`;
+};
+
+const computeAgeOnDate = (birthDate: string, baseDate: string): number | undefined => {
+  const b = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const t = baseDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (b === null || t === null) return undefined;
+  const by = Number(b[1]);
+  const bm = Number(b[2]);
+  const bd = Number(b[3]);
+  const ty = Number(t[1]);
+  const tm = Number(t[2]);
+  const td = Number(t[3]);
+  let age = ty - by;
+  if (tm < bm || (tm === bm && td < bd)) age -= 1;
+  return age >= 0 ? age : undefined;
+};
+
+const renderBirthDateAndAge = (
+  basics: CareerProfile['basics'],
+  preparedOn: string | undefined,
+): string => {
+  if (basics.birthDate === undefined) return '';
+  // 公式: y=74.30mm に「年 月 日生 (満　歳)」label がある。
+  // それぞれの label の右隣に数字を入れる位置:
+  //   年: x=68mm (label「年」x=60.63)
+  //   月: x=83mm (label「月」x=76.21)
+  //   日: x=99mm (label「日生」x=91.79)
+  //   満N歳: x=110mm (label「(満」x=107.36, 「歳）」x=122.94)
+  const m = basics.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m === null) return '';
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const ageStr =
+    preparedOn !== undefined
+      ? (() => {
+          const a = computeAgeOnDate(basics.birthDate as string, preparedOn);
+          return a === undefined ? '' : String(a);
+        })()
+      : '';
+  return (
+    `<div class="jcd-mhlw__birth-year" style="left:68mm;top:74.30mm;font-size:11pt;">${y}</div>` +
+    `<div class="jcd-mhlw__birth-month" style="left:83mm;top:74.30mm;font-size:11pt;">${mo}</div>` +
+    `<div class="jcd-mhlw__birth-day" style="left:99mm;top:74.30mm;font-size:11pt;">${d}</div>` +
+    (ageStr === ''
+      ? ''
+      : `<div class="jcd-mhlw__age" style="left:113mm;top:74.30mm;font-size:11pt;">${ageStr}</div>`)
+  );
+};
+
+const renderGender = (basics: CareerProfile['basics']): string => {
+  if (!isNonEmpty(basics.gender)) return '';
+  // 「※性別」label: x=139.89, y=71.72mm。その下の欄に書く想定 → y=81mm 程度
+  return `<div class="jcd-mhlw__gender" style="left:147mm;top:71.72mm;font-size:11pt;">${escapeHtml(basics.gender)}</div>`;
+};
+
+const renderPreparedOn = (preparedOn: string | undefined): string => {
+  if (preparedOn === undefined) return '';
+  // 「年 月 日現在」label の左側 (右上隅): y=31.33mm
+  const m = preparedOn.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m === null) return '';
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  return (
+    `<div class="jcd-mhlw__prepared-year" style="left:104mm;top:31.33mm;font-size:11pt;">${y}</div>` +
+    `<div class="jcd-mhlw__prepared-month" style="left:118mm;top:31.33mm;font-size:11pt;">${mo}</div>` +
+    `<div class="jcd-mhlw__prepared-day" style="left:130mm;top:31.33mm;font-size:11pt;">${d}</div>`
+  );
+};
+
+const renderAddressBlock = (
+  prefix: string,
+  baseY: number,
+  address: CareerProfile['basics']['address'],
+  addressKana: string | undefined,
+  phone: string | undefined,
+): string => {
+  let html = '';
+  if (isNonEmpty(addressKana)) {
+    html += `<div class="jcd-mhlw__${prefix}-kana" style="left:46mm;top:${(baseY - 7).toFixed(2)}mm;font-size:9pt;">${escapeHtml(addressKana)}</div>`;
+  }
+  if (address !== undefined) {
+    const addr = formatAddress(address);
+    if (addr.length > 0) {
+      html += `<div class="jcd-mhlw__${prefix}" style="left:46mm;top:${baseY}mm;font-size:11pt;">${escapeHtml(addr)}</div>`;
+    }
+  }
+  if (isNonEmpty(phone)) {
+    html += `<div class="jcd-mhlw__${prefix}-phone" style="left:175mm;top:${baseY}mm;font-size:11pt;">${escapeHtml(phone)}</div>`;
+  }
+  return html;
+};
+
+const renderAddress = (basics: CareerProfile['basics']): string => {
+  // 現住所欄: ふりがな (y=81.95mm の label の右)、〒住所 (y=87mm 程度)、電話 (y=87mm 右)
+  // 連絡先欄: ふりがな (y=104.48mm), 〒住所 (y=109.66mm), 電話 (y=109.66mm 右)
+  return (
+    renderAddressBlock('address', 87, basics.address, basics.addressKana, basics.phone) +
+    renderAddressBlock(
+      'contact-address',
+      109.66,
+      basics.contactAddress,
+      basics.contactAddressKana,
+      basics.contactPhone,
+    )
+  );
+};
+
+// === 学歴・職歴 表 ===
+
+type HistoryRow =
+  | { kind: 'heading'; label: '学歴' | '職歴' }
+  | { kind: 'entry'; year: string; month: string; content: string };
+
+const educationSubject = (entry: Education): string => {
+  const parts: string[] = [];
+  if (isNonEmpty(entry.institutionName)) parts.push(entry.institutionName);
+  if (isNonEmpty(entry.faculty)) parts.push(entry.faculty);
+  if (isNonEmpty(entry.department)) parts.push(entry.department);
+  if (isNonEmpty(entry.degree)) parts.push(entry.degree);
+  return parts.join(' ');
+};
+
+const splitYearMonth = (yearMonth: string): { year: string; month: string } => {
+  const m = yearMonth.match(/^(\d{4})年(\d{1,2})月$/);
+  if (m === null) return { year: yearMonth, month: '' };
+  return { year: m[1] as string, month: m[2] as string };
+};
+
+const buildEducationRows = (entries: Education[] | undefined): HistoryRow[] => {
+  if (entries === undefined || entries.length === 0) return [];
+  const rows: HistoryRow[] = [];
+  for (const entry of entries) {
+    const subject = educationSubject(entry);
+    const description = isNonEmpty(entry.description) ? entry.description : '';
+
+    if (entry.startDate !== undefined) {
+      const { year, month } = splitYearMonth(formatYearMonth(entry.startDate));
+      const content = subject === '' ? '入学' : `${subject} 入学`;
+      rows.push({ kind: 'entry', year, month, content });
+    }
+    if (entry.endDate !== undefined) {
+      const { year, month } = splitYearMonth(formatYearMonth(entry.endDate));
+      const ending = isNonEmpty(entry.status) ? entry.status : '卒業';
+      const content = subject === '' ? ending : `${subject} ${ending}`;
+      rows.push({ kind: 'entry', year, month, content });
+    }
+    if (entry.startDate === undefined && entry.endDate === undefined) {
+      const contentParts: string[] = [];
+      if (subject !== '') contentParts.push(subject);
+      if (isNonEmpty(entry.status)) contentParts.push(entry.status);
+      let content = contentParts.join(' ');
+      if (description !== '') {
+        content = content === '' ? `（${description}）` : `${content}（${description}）`;
+      }
+      if (content !== '') {
+        rows.push({ kind: 'entry', year: '', month: '', content });
+      }
+    }
+  }
+  if (rows.length === 0) return [];
+  return [{ kind: 'heading', label: '学歴' }, ...rows];
+};
+
+const workAnnotation = (entry: WorkExperience): string => {
+  const parts: string[] = [];
+  if (isNonEmpty(entry.employmentType)) parts.push(entry.employmentType);
+  if (isNonEmpty(entry.position)) parts.push(entry.position);
+  if (parts.length === 0) return '';
+  return `（${parts.join(' / ')}）`;
+};
+
+const buildWorkRows = (entries: WorkExperience[] | undefined): HistoryRow[] => {
+  if (entries === undefined || entries.length === 0) return [];
+  const rows: HistoryRow[] = [];
+  let hasCurrent = false;
+  for (const entry of entries) {
+    const company = isNonEmpty(entry.companyName) ? entry.companyName : '';
+    const annotation = workAnnotation(entry);
+    const startDate = entry.period?.startDate;
+    const endDate = entry.period?.endDate;
+    const isCurrent = entry.period?.isCurrent === true;
+    if (isCurrent) hasCurrent = true;
+
+    if (startDate !== undefined) {
+      const { year, month } = splitYearMonth(formatYearMonth(startDate));
+      const content = company === '' ? `入社${annotation}` : `${company} 入社${annotation}`;
+      rows.push({ kind: 'entry', year, month, content });
+    }
+    if (!isCurrent && endDate !== undefined) {
+      const { year, month } = splitYearMonth(formatYearMonth(endDate));
+      const content = company === '' ? '退職' : `${company} 退職`;
+      rows.push({ kind: 'entry', year, month, content });
+    }
+    if (startDate === undefined && endDate === undefined && !isCurrent) {
+      const contentParts: string[] = [];
+      if (company !== '') contentParts.push(company);
+      const content = contentParts.join('') + annotation;
+      if (content !== '') {
+        rows.push({ kind: 'entry', year: '', month: '', content });
+      }
+    }
+  }
+  if (hasCurrent) {
+    rows.push({ kind: 'entry', year: '', month: '', content: '現在に至る' });
+  }
+  if (rows.length === 0) return [];
+  return [{ kind: 'heading', label: '職歴' }, ...rows];
+};
+
+const renderHistoryRowAt = (
+  row: HistoryRow,
+  x: { yearX: number; monthX: number; contentX: number },
+  y: number,
+): string => {
+  if (row.kind === 'heading') {
+    return `<div class="jcd-mhlw__history-heading" style="left:${x.contentX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${row.label}</div>`;
+  }
+  const yearHtml =
+    row.year === ''
+      ? ''
+      : `<div class="jcd-mhlw__history-year" style="left:${x.yearX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.year)}</div>`;
+  const monthHtml =
+    row.month === ''
+      ? ''
+      : `<div class="jcd-mhlw__history-month" style="left:${x.monthX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.month)}</div>`;
+  const contentHtml = `<div class="jcd-mhlw__history-content" style="left:${x.contentX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.content)}</div>`;
+  return yearHtml + monthHtml + contentHtml;
+};
+
+const renderHistorySection = (careerProfile: CareerProfile): string => {
+  const educationRows = buildEducationRows(careerProfile.educationHistory);
+  const workRows = buildWorkRows(careerProfile.workExperiences);
+  const allRows = [...educationRows, ...workRows];
+  if (allRows.length === 0) return '';
+
+  // 公式様式の行数 (左 9 行 + 右 11 行 = 20 行) を超えた分は切り捨て。
+  // 切り捨て発生時は最後の行に「(他 N 件は紙面上限により非表示)」を入れる
+  // ことも考えられるが、Phase 1.3-a では単純切り捨て + console.warn なし。
+  // 将来 Phase 1.4 (A4 縦 2 ページ版) ではあふれ分も自然に出る。
+  const left = HISTORY_LAYOUT.leftPage;
+  const right = HISTORY_LAYOUT.rightPage;
+  const leftCapacity = left.maxRows;
+  const rightCapacity = right.maxRows;
+  const totalCapacity = leftCapacity + rightCapacity;
+  const rowsToRender = allRows.slice(0, totalCapacity);
+
+  const html: string[] = [];
+  for (let i = 0; i < rowsToRender.length; i += 1) {
+    const row = rowsToRender[i] as HistoryRow;
+    if (i < leftCapacity) {
+      const y = left.firstRowY + i * left.rowHeight;
+      html.push(renderHistoryRowAt(row, left, y));
+    } else {
+      const y = right.firstRowY + (i - leftCapacity) * right.rowHeight;
+      html.push(renderHistoryRowAt(row, right, y));
+    }
+  }
+  return html.join('');
+};
+
+// === 免許・資格 表 ===
+
+type CertificationRow = { year: string; month: string; content: string };
+
+const buildCertificationRows = (entries: Certification[] | undefined): CertificationRow[] => {
+  if (entries === undefined || entries.length === 0) return [];
+  const rows: CertificationRow[] = [];
+  for (const entry of entries) {
+    const parts: string[] = [];
+    if (isNonEmpty(entry.name)) parts.push(entry.name);
+    if (isNonEmpty(entry.issuer)) parts.push(`（${entry.issuer}）`);
+    const content = parts.join(' ');
+    if (entry.acquiredDate !== undefined) {
+      const { year, month } = splitYearMonth(formatYearMonth(entry.acquiredDate));
+      rows.push({ year, month, content });
+    } else if (content !== '') {
+      rows.push({ year: '', month: '', content });
+    }
+  }
+  return rows;
+};
+
+const renderCertificationSection = (careerProfile: CareerProfile): string => {
+  const rows = buildCertificationRows(careerProfile.certifications);
+  if (rows.length === 0) return '';
+  const layout = CERTIFICATION_LAYOUT;
+  const rowsToRender = rows.slice(0, layout.maxRows);
+  const html: string[] = [];
+  for (let i = 0; i < rowsToRender.length; i += 1) {
+    const row = rowsToRender[i] as CertificationRow;
+    const y = layout.firstRowY + i * layout.rowHeight;
+    const yearHtml =
+      row.year === ''
+        ? ''
+        : `<div class="jcd-mhlw__cert-year" style="left:${layout.yearX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.year)}</div>`;
+    const monthHtml =
+      row.month === ''
+        ? ''
+        : `<div class="jcd-mhlw__cert-month" style="left:${layout.monthX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.month)}</div>`;
+    const contentHtml =
+      row.content === ''
+        ? ''
+        : `<div class="jcd-mhlw__cert-content" style="left:${layout.contentX + 2}mm;top:${y.toFixed(2)}mm;font-size:11pt;">${escapeHtml(row.content)}</div>`;
+    html.push(yearHtml + monthHtml + contentHtml);
+  }
+  return html.join('');
+};
+
+// === 志望の動機 + 本人希望記入欄 (フリーテキスト) ===
+
+const renderFreeTextBox = (
+  cls: string,
+  box: { x: number; y: number; w: number; h: number },
+  text: string | undefined,
+): string => {
+  if (!isNonEmpty(text)) return '';
+  const safe = escapeHtml(text).replace(/\n/g, '<br>');
+  return `<div class="jcd-mhlw__free-text ${cls}" style="left:${box.x}mm;top:${box.y}mm;width:${box.w}mm;height:${box.h}mm;">${safe}</div>`;
 };
 
 // === CSS ===
@@ -246,12 +584,35 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
   margin-top: -1.5mm;
 }
 
-.jcd-mhlw__name, .jcd-mhlw__name-kana {
+/* ユーザーデータ流し込み — 全て position: absolute、罫線内に収まる前提 */
+.jcd-mhlw__name, .jcd-mhlw__name-kana,
+.jcd-mhlw__birth-year, .jcd-mhlw__birth-month, .jcd-mhlw__birth-day, .jcd-mhlw__age,
+.jcd-mhlw__gender,
+.jcd-mhlw__prepared-year, .jcd-mhlw__prepared-month, .jcd-mhlw__prepared-day,
+.jcd-mhlw__address, .jcd-mhlw__address-kana, .jcd-mhlw__address-phone,
+.jcd-mhlw__contact-address, .jcd-mhlw__contact-address-kana, .jcd-mhlw__contact-address-phone,
+.jcd-mhlw__history-heading, .jcd-mhlw__history-year, .jcd-mhlw__history-month, .jcd-mhlw__history-content,
+.jcd-mhlw__cert-year, .jcd-mhlw__cert-month, .jcd-mhlw__cert-content {
   position: absolute;
   z-index: 4;
   line-height: 1.1;
   white-space: nowrap;
   color: #000;
+}
+.jcd-mhlw__history-heading {
+  font-weight: 500;
+  letter-spacing: 0.2em;
+}
+.jcd-mhlw__free-text {
+  position: absolute;
+  z-index: 4;
+  font-size: 10pt;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: #000;
+  overflow: hidden;
+  padding: 1mm 2mm;
+  box-sizing: border-box;
 }
 
 .jcd-mhlw__photo {
@@ -281,6 +642,7 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
 
 const renderRirekishoMhlwA3 = (input: RenderInput): RenderedDocument => {
   const { careerProfile } = input;
+  const preparedOn = careerProfile.meta?.preparedOn;
 
   const rules = (pdfRules.h_lines as Rule[])
     .map(renderHorizontalRule)
@@ -291,8 +653,38 @@ const renderRirekishoMhlwA3 = (input: RenderInput): RenderedDocument => {
   const photo = renderPhotoBox(careerProfile.basics.profilePhoto);
   const userName = renderUserName(careerProfile.basics);
   const userNameKana = renderUserNameKana(careerProfile.basics);
+  const birthDate = renderBirthDateAndAge(careerProfile.basics, preparedOn);
+  const gender = renderGender(careerProfile.basics);
+  const prepared = renderPreparedOn(preparedOn);
+  const address = renderAddress(careerProfile.basics);
+  const history = renderHistorySection(careerProfile);
+  const certifications = renderCertificationSection(careerProfile);
+  const summary = renderFreeTextBox(
+    'jcd-mhlw__summary',
+    SUMMARY_BOX_MM,
+    careerProfile.basics.summary,
+  );
+  const personalRequest = renderFreeTextBox(
+    'jcd-mhlw__personal-request',
+    PERSONAL_REQUEST_BOX_MM,
+    careerProfile.basics.personalRequest,
+  );
 
-  const html = `<article class="jcd-mhlw">${rules}${labels}${photo}${userNameKana}${userName}</article>`;
+  // 1 つの大きなテキストとして結合 (order は意味なし、全て absolute positioning)
+  const userData =
+    photo +
+    userNameKana +
+    userName +
+    birthDate +
+    gender +
+    prepared +
+    address +
+    history +
+    certifications +
+    summary +
+    personalRequest;
+
+  const html = `<article class="jcd-mhlw">${rules}${labels}${userData}</article>`;
 
   return {
     kind: input.kind,

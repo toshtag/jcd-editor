@@ -174,16 +174,14 @@ const dispatchChange = (el: HTMLElement): void => {
 };
 
 /**
- * preview に学歴 / 資格 / スキル / プロジェクトが反映されることを確認する系の
- * test では、preview を職務経歴書 (shokumukeirekisho) に切り替える。
+ * preview にスキル / プロジェクトが反映されることを確認する系の test では、
+ * preview を職務経歴書 (shokumukeirekisho) に切り替える。
  *
- * 理由: 新 rirekisho-mhlw-a3 template (default の履歴書) は Phase 1.1 の時点で
- * ユーザーデータ流し込み (学歴 / 資格 / 写真) が未実装。
- * 公式厚労省様式に列がない skill / project は将来も履歴書 preview には出ない。
+ * 理由: 公式厚労省様式 (新 rirekisho-mhlw-a3 template) には skill / project の
+ * 欄が存在しないため、履歴書 preview には出ない (職務経歴書の責務)。
  *
- * Phase 1.3 で履歴書 preview に学歴 / 資格 / 写真の流し込みが実装されたら、
- * 学歴 / 資格 系 test は kind=rirekisho に戻して、履歴書 preview でも assertion
- * できるようにする (skill / project は kind=shokumukeirekisho のまま)。
+ * 学歴 / 資格は Phase 1.3-a で履歴書 preview への流し込みが完了したので、
+ * kind=rirekisho のまま preview を assert できる。
  */
 const switchPreviewToShokumukeirekisho = (): void => {
   const selector = select('kind-selector');
@@ -235,7 +233,6 @@ describe('local-web main flow', () => {
 
   it('初期 profile に sample fixture 由来の学歴が反映される', async () => {
     await importMain();
-    switchPreviewToShokumukeirekisho();
 
     const educationItems = document.querySelectorAll('#education-list [data-index]');
     expect(educationItems).toHaveLength(1);
@@ -248,7 +245,6 @@ describe('local-web main flow', () => {
 
   it('学歴を入力して保存 → 読み込みで学歴 form が復元される (round-trip)', async () => {
     await importMain();
-    switchPreviewToShokumukeirekisho();
 
     // 既存 entry を削除して 1 件だけにする
     const removeButtons = document.querySelectorAll<HTMLButtonElement>(
@@ -447,7 +443,6 @@ describe('local-web main flow', () => {
 
   it('初期 profile に sample fixture 由来の資格が反映される', async () => {
     await importMain();
-    switchPreviewToShokumukeirekisho();
 
     const items = document.querySelectorAll('#certifications-list [data-index]');
     expect(items).toHaveLength(1);
@@ -458,7 +453,6 @@ describe('local-web main flow', () => {
 
   it('資格を入力して保存 → 読み込みで資格 form が復元される (round-trip)', async () => {
     await importMain();
-    switchPreviewToShokumukeirekisho();
 
     // 既存 entry を削除して空にする
     const removeButtons = document.querySelectorAll<HTMLButtonElement>(
