@@ -6,6 +6,7 @@
     <title>jcd-editor (local-web)</title>
   </head>
   <body>
+    <a class="skip-link" href="#preview-frame">プレビューにスキップ</a>
     <div class="app">
       <header class="app__header">
         <h1 class="app__title">jcd-editor (local-web)</h1>
@@ -80,7 +81,10 @@
             <div class="profile-photo" data-section="profilePhoto">
               <div class="profile-photo__thumbnail-wrapper">
                 <img id="profile-photo-thumbnail" class="profile-photo__thumbnail" alt="" hidden />
-                <span id="profile-photo-placeholder" class="profile-photo__placeholder"
+                <span
+                  id="profile-photo-placeholder"
+                  class="profile-photo__placeholder"
+                  aria-hidden="true"
                   >証明写真</span
                 >
               </div>
@@ -292,7 +296,7 @@
             title="ドキュメントプレビュー"
             sandbox=""
           ></iframe>
-          <pre id="error-area" class="app__error" hidden></pre>
+          <pre id="error-area" class="app__error" role="alert" hidden></pre>
         </section>
       </main>
     </div>

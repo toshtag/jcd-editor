@@ -462,6 +462,9 @@ if (!parsed.success) {
     currentPhoto = { source: { kind: 'dataUri', dataUri, mediaType } };
     updatePhotoThumbnail();
     onFormInput();
+    // a11y: 写真選択直後の典型的な次操作は「気に入らなければ削除」。
+    // 削除ボタンに focus を移す。
+    profilePhotoRemoveButton.focus();
   };
 
   const onPhotoRemove = (): void => {
@@ -470,6 +473,9 @@ if (!parsed.success) {
     hidePhotoError();
     updatePhotoThumbnail();
     onFormInput();
+    // a11y: 削除直後は削除ボタンが disabled になるため、focus を選択 file
+    // input に戻す (label が clickable wrapper として動作する)。
+    profilePhotoInput.focus();
   };
 
   const onSave = async (): Promise<void> => {
@@ -578,6 +584,8 @@ if (!parsed.success) {
       profileSelect.value = currentProfileId;
       markClean();
       showStatus('import して保存しました');
+      // a11y: import 後は新しい profile を編集するのが自然な動線。form 先頭に focus
+      nameFamilyInput.focus();
     } catch (error) {
       handleStorageError(error, 'import 後の保存に失敗しました');
     } finally {
@@ -616,6 +624,8 @@ if (!parsed.success) {
       renderAndUpdate(currentKind);
       markClean();
       showStatus('保存済みプロフィールを読み込みました');
+      // a11y: 読み込み後は form 編集を始めることが多いため、form 先頭に focus
+      nameFamilyInput.focus();
     } catch (error) {
       handleStorageError(error, '読み込みに失敗しました');
     } finally {
@@ -656,6 +666,9 @@ if (!parsed.success) {
       await refreshSavedProfileList();
       profileSelect.value = '';
       showStatus('プロフィールを削除しました');
+      // a11y: 削除後は delete-button が disabled になるため、focus を
+      // profileSelect に移して次の選択に進めるようにする。
+      profileSelect.focus();
     } catch (error) {
       handleStorageError(error, '削除に失敗しました');
     } finally {
