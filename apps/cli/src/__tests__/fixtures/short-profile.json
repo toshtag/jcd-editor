@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "basics": {
+    "name": { "family": "山田", "given": "太郎" },
+    "nameKana": { "family": "ヤマダ", "given": "タロウ" },
+    "birthDate": "1993-04-01",
+    "email": "taro.yamada@example.com"
+  }
+}
