@@ -80,6 +80,7 @@ import {
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import { validatePhotoFile } from './profile-photo';
 import { formatTranslatedIssue } from './validation-labels';
+import { collectInvalidInputSelectors } from './validation-inputs';
 import { summarizeIssues } from './validation-summary';
 import {
   buildProjectsFromForm,
@@ -178,9 +179,35 @@ const showError = (title: string, body: string): void => {
 const formatIssues = (issues: readonly ValidationIssue[]): string =>
   issues.map(formatTranslatedIssue).join('\n');
 
+// aria-invalid を付けた input element を覚えておき、次回 issues 更新時に
+// 一括 clear する。新しい entry が追加 / 削除されると element 参照が無効に
+// なる場合があるため、毎回 querySelectorAll で取り直す方が安全だが、
+// 一般的には現在 mount されている DOM への参照は維持されるため Set で保持する。
+const currentInvalidInputs = new Set<HTMLElement>();
+
+const clearInvalidInputMarks = (): void => {
+  for (const el of currentInvalidInputs) {
+    el.removeAttribute('aria-invalid');
+  }
+  currentInvalidInputs.clear();
+};
+
+const markInputsInvalid = (issues: readonly ValidationIssue[]): void => {
+  clearInvalidInputMarks();
+  const selectors = collectInvalidInputSelectors(issues);
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el instanceof HTMLElement) {
+      el.setAttribute('aria-invalid', 'true');
+      currentInvalidInputs.add(el);
+    }
+  }
+};
+
 const clearValidationIssues = (): void => {
   validationSummaryEl.hidden = true;
   validationSummaryList.replaceChildren();
+  clearInvalidInputMarks();
 };
 
 const showValidationIssues = (issues: readonly ValidationIssue[]): void => {
@@ -206,6 +233,7 @@ const showValidationIssues = (issues: readonly ValidationIssue[]): void => {
     return li;
   });
   validationSummaryList.replaceChildren(...items);
+  markInputsInvalid(issues);
 };
 
 // summary list 内の jump button をクリックすると、該当 section / entry へ

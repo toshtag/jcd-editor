@@ -618,6 +618,52 @@ describe('local-web main flow', () => {
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
   });
 
+  describe('accessibility: aria-invalid on inputs', () => {
+    it('invalid 入力で該当 input に aria-invalid="true" が付く', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+
+      expect(input('birth-date').getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('valid に戻ると aria-invalid は除去される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      expect(input('birth-date').getAttribute('aria-invalid')).toBe('true');
+
+      input('birth-date').value = '1993-04-01';
+      dispatchInput(input('birth-date'));
+      expect(input('birth-date').getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('複数 input の invalid が同時に aria-invalid 表示される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      input('email').value = 'not-an-email';
+      dispatchInput(input('email'));
+
+      expect(input('birth-date').getAttribute('aria-invalid')).toBe('true');
+      expect(input('email').getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('片方が valid に戻ると、その input の aria-invalid だけ除去される', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+      input('email').value = 'not-an-email';
+      dispatchInput(input('email'));
+
+      input('birth-date').value = '1993-04-01';
+      dispatchInput(input('birth-date'));
+
+      expect(input('birth-date').getAttribute('aria-invalid')).toBeNull();
+      expect(input('email').getAttribute('aria-invalid')).toBe('true');
+    });
+  });
+
   describe('accessibility: entry section aria-label', () => {
     it('初期 mount の各 section entry に aria-label が付く', async () => {
       await importMain();
