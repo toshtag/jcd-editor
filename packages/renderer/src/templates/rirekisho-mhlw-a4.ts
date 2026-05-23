@@ -243,12 +243,13 @@ const renderUserName = (basics: CareerProfile['basics'], editable: boolean): str
   const given = basics.name?.given ?? '';
   // 公式様式の氏名は family と given の間に全角スペース 1 つ分の隙間
   const text = family !== '' && given !== '' ? `${family}　${given}` : `${family}${given}`;
-  // 公式: 氏名欄は「氏」(x=26.42) 「名」(x=38.11) ラベル右の領域 (≈46mm) から
-  // ※性別セル左罫 (x=139.02) までが氏名欄。その幅全体で text-align:center にして
-  // 中央寄せする。font-size 24pt。
-  const { left, top } = placeOnA4(46, 52);
+  // 公式: 氏名セル box は罫線実測で 左罫 x=23.62, 右罫 x=139.02 (※性別境)。
+  // 「氏」「名」 ラベルは同 box 内左寄せ (x=26.42 / 38.11) で y=44.80 にあるが、
+  // 値の y=52 では label と縦に被らないので、セル box 全幅で text-align:center
+  // にして box 中央 (x≈81.3mm) に値を配置する。font-size 24pt。
+  const { left, top } = placeOnA4(23.62, 52);
   const attrs = editableAttrs(editable, 'name');
-  return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:24pt;min-width:91mm;text-align:center;"${attrs}>${escapeHtml(text)}</div>`;
+  return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:24pt;min-width:115.4mm;text-align:center;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
 const renderUserNameKana = (basics: CareerProfile['basics'], editable: boolean): string => {
@@ -318,11 +319,13 @@ const renderBirthDate = (
 const renderGender = (basics: CareerProfile['basics'], editable: boolean): string => {
   const v = basics.gender ?? '';
   if (!editable && !isNonEmpty(v)) return '';
-  // 性別の値セル box (実測): 左罫 x=139.02, 右罫 x=160.44, 上罫 y=80.77, 下罫 y=86.44
-  // ※性別ラベル (x=139.89, y=71.72) はその上のヘッダー行。値はセル box 内に置く。
-  const { left, top } = placeOnA4(141, 82);
+  // 性別セル box (実測罫線): 左罫 x=139.02, 右罫 x=195.75, 上罫 y=71.71, 下罫 y=80.77
+  // 同じ行内に ※性別 ラベル (x=139.89〜151.57, y=71.72) が左寄せヘッダーとして
+  // 入っている。値はラベル右隣の空き (x≈153〜195.75) に置く。
+  // y は box 中央寄り (≈74.30、生年月日と同じ baseline)。
+  const { left, top } = placeOnA4(153, 74.3);
   const attrs = editableAttrs(editable, 'gender');
-  return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;min-width:18mm;"${attrs}>${escapeHtml(v)}</div>`;
+  return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;min-width:42mm;text-align:center;"${attrs}>${escapeHtml(v)}</div>`;
 };
 
 const renderPreparedOn = (preparedOn: string | undefined, editable: boolean): string => {
