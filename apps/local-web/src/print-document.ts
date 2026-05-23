@@ -7,6 +7,10 @@
 //     (ブラウザ仕様上 user-initiated 以外で close できないケースあり、その場合は
 //      ユーザーが自分で tab を閉じる)
 //   - `<title>` は PDF 保存時のデフォルトファイル名になるため重要
+//   - 親 document の Google Fonts <link> は新 window に継承されないので、
+//     `<head>` 内に同じ link 群を入れて自前で fetch する
+//   - `document.fonts.ready` を await してから print を呼ぶ (Web Font が
+//     未到着のまま print が走ると Times fallback で PDF 化される)
 //
 // 信頼境界:
 //   - renderer 出力 (document.html / document.css) は固定リテラル + escapeHtml
@@ -15,14 +19,18 @@
 
 import type { RenderedDocument } from '@jcd-editor/renderer';
 
+import { GOOGLE_FONTS_LINKS } from './_internal/google-fonts';
 import { escapeHtml } from './_internal/html-escape';
 
-// load 後に print を呼ぶ small bootstrap。最小限の logic に留める。
-// - `window.print()` は同期 modal を起動する。`afterprint` event で close
+// load 後、フォント読み込み完了を待ってから print を呼ぶ。
+// - document.fonts.ready は Web Font の読み込み完了を表す Promise (FontFaceSet)
+// - 古い Safari 等で document.fonts が undefined のケースは Promise.resolve()
+//   で fallback。フォント無しでもとりあえず print は起動する。
 // - print dialog を user がキャンセルした場合も `afterprint` は発火する
 const AUTO_PRINT_SCRIPT = `window.addEventListener('load', function () {
   window.addEventListener('afterprint', function () { window.close(); });
-  window.print();
+  var fontsReady = (document.fonts && document.fonts.ready) || Promise.resolve();
+  fontsReady.then(function () { window.print(); });
 });`;
 
 export const buildPrintDocument = (document: RenderedDocument): string => {
@@ -32,6 +40,7 @@ export const buildPrintDocument = (document: RenderedDocument): string => {
     '<head>',
     '<meta charset="utf-8">',
     `<title>${escapeHtml(document.title)}</title>`,
+    GOOGLE_FONTS_LINKS,
     `<style>${document.css}</style>`,
     '</head>',
     '<body>',

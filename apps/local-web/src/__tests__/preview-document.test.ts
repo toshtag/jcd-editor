@@ -63,4 +63,13 @@ describe('buildPreviewDocument', () => {
     const html = buildPreviewDocument(baseDocument);
     expect(html).not.toContain('<base');
   });
+
+  it('Google Fonts (Klee One / Noto Sans JP / Noto Serif JP) の <link> を含む', () => {
+    const html = buildPreviewDocument(baseDocument);
+    expect(html).toContain('fonts.googleapis.com/css2');
+    expect(html).toContain('Klee+One');
+    expect(html).toContain('Noto+Sans+JP');
+    expect(html).toContain('Noto+Serif+JP');
+    expect(html).toContain('rel="preconnect"');
+  });
 });

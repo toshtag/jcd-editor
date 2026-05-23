@@ -61,4 +61,20 @@ describe('buildPrintDocument', () => {
     const html = buildPrintDocument(baseDocument);
     expect(html).not.toContain('<base');
   });
+
+  it('Google Fonts (Klee One / Noto Sans JP / Noto Serif JP) の <link> を含む', () => {
+    const html = buildPrintDocument(baseDocument);
+    expect(html).toContain('fonts.googleapis.com/css2');
+    expect(html).toContain('Klee+One');
+    expect(html).toContain('Noto+Sans+JP');
+    expect(html).toContain('Noto+Serif+JP');
+  });
+
+  it('print 前に document.fonts.ready を await する (Web Font 未到着での print を防ぐ)', () => {
+    const html = buildPrintDocument(baseDocument);
+    expect(html).toContain('document.fonts');
+    expect(html).toContain('.ready');
+    // fontsReady.then(...).then(... window.print()) のフロー
+    expect(html).toMatch(/fontsReady[\s\S]*\.then[\s\S]*window\.print\(\)/);
+  });
 });
