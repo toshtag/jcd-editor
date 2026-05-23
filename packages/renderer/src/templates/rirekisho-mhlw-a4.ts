@@ -162,22 +162,20 @@ const isInsidePhotoBox = (t: TextBlock): boolean => {
   );
 };
 
+// 公式 PDF (mhlw-rirekisho-official.pdf) を pdffonts で解析した結果、本書類は
+// MS-Mincho / MS-PMincho の 2 種類の明朝のみで構成されている (ゴシック・手書き
+// 風は一切使われていない)。よってラベル font 振り分けは「タイトル」と「通常」
+// の 2 クラスのみとし、いずれも明朝スタック (Noto Serif JP fallback chain)
+// を使う。
 const labelFontClass = (text: string): string => {
   if (text === '履歴書') return 'jcd-mhlw-a4__label jcd-mhlw-a4__label--title';
-  if (
-    text.includes('ふりがな') ||
-    text.includes('※') ||
-    text.includes('現住所以外') ||
-    text.includes('写真') ||
-    text.includes('性別')
-  ) {
-    return 'jcd-mhlw-a4__label jcd-mhlw-a4__label--gothic';
-  }
   return 'jcd-mhlw-a4__label';
 };
 
 const labelFontSizePt = (text: string): number => {
-  if (text === '履歴書') return 28;
+  // 「履歴書」タイトルの font-size: 公式 PDF の bbox 高さ ≈ 7.07mm に収まる
+  // よう 22pt にする (28pt だと bbox を縦にはみ出し、下の罫線とほぼ接する)。
+  if (text === '履歴書') return 22;
   if (text.startsWith('※「性別」')) return 11;
   if (text.includes('現住所以外')) return 9;
   if (text.includes('(満') || text.includes('歳）')) return 12;
@@ -669,16 +667,11 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   white-space: nowrap;
   color: #000;
 }
-.jcd-mhlw-a4__label--gothic {
-  font-family: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
-}
+/* 「履歴書」タイトル: 公式は MS-PMincho (明朝) で 3 文字を字間広めに配置。
+   本文と同じ明朝スタックを使い、letter-spacing で字間を広げる。font-size は
+   labelFontSizePt() 側で 22pt に設定。font-weight / transform は使わない。 */
 .jcd-mhlw-a4__label--title {
-  font-family: "Klee One", "Hiragino Mincho ProN", "Yu Mincho", serif;
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  transform: scaleY(0.823);
-  transform-origin: top left;
-  margin-top: -1.5mm;
+  letter-spacing: 0.3em;
 }
 
 .jcd-mhlw-a4__name, .jcd-mhlw-a4__name-kana,
@@ -726,7 +719,9 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   box-sizing: border-box;
   border: 0.75pt dashed #808080;
   padding: 2.5mm 1.5mm 1.5mm;
-  font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+  /* 公式 PDF (pdffonts 解析) の通り、写真欄の案内テキストも明朝。本文と
+     同じスタックを継承するため font-family は指定しない (article 既定を
+     使う)。 */
   font-size: 7.5pt;
   line-height: 1.5;
   z-index: 2;

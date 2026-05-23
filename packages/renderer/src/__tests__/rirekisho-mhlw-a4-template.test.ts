@@ -70,6 +70,26 @@ describe('rirekishoMhlwA4Template - 基本契約', () => {
     // 写真欄 (.jcd-mhlw-a4__photo): dashed border と案内テキストを print 時にも保持
     expect(r.css).toMatch(/\.jcd-mhlw-a4__photo\s*\{[^}]*print-color-adjust:\s*exact/);
   });
+
+  it('公式 PDF と同じく明朝のみで構成され、ゴシック (Noto Sans JP) や手書き風 (Klee One) を含まない', () => {
+    const r = rirekishoMhlwA4Template.render({ careerProfile: MIN_PROFILE, kind: 'rirekisho' });
+    // 本文 article は Noto Serif JP スタック (明朝)
+    expect(r.css).toMatch(/\.jcd-mhlw-a4\s*\{[^}]*"Noto Serif JP"/);
+    // ゴシック (Noto Sans JP / Yu Gothic / Hiragino Sans) は CSS から完全に除去
+    expect(r.css).not.toContain('Noto Sans JP');
+    expect(r.css).not.toContain('Yu Gothic');
+    expect(r.css).not.toContain('Hiragino Sans');
+    // 手書き風 (Klee One) も使わない
+    expect(r.css).not.toContain('Klee One');
+    // 「履歴書」タイトルの scaleY アレンジも公式に無いので削除済み
+    expect(r.css).not.toMatch(/transform:\s*scaleY/);
+  });
+
+  it('ラベル振り分けは「タイトル」と「通常」の 2 クラスのみ (gothic 振り分けを廃止)', () => {
+    const r = rirekishoMhlwA4Template.render({ careerProfile: MIN_PROFILE, kind: 'rirekisho' });
+    expect(r.html).toContain('jcd-mhlw-a4__label--title'); // 「履歴書」用
+    expect(r.html).not.toContain('jcd-mhlw-a4__label--gothic');
+  });
 });
 
 describe('rirekishoMhlwA4Template - 罫線描画 (A3 → A4 座標変換)', () => {

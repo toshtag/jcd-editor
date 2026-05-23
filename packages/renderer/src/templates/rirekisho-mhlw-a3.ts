@@ -160,22 +160,18 @@ const isInsidePhotoBox = (t: TextBlock): boolean => {
   );
 };
 
+// 公式 PDF (mhlw-rirekisho-official.pdf) を pdffonts で解析した結果、本書類は
+// MS-Mincho / MS-PMincho の 2 種類の明朝のみで構成されている (ゴシック・手書き
+// 風は一切使われていない)。よってラベル font 振り分けは「タイトル」と「通常」
+// の 2 クラスのみとし、いずれも明朝スタックを使う。
 const labelFontClass = (text: string): string => {
   if (text === '履歴書') return 'jcd-mhlw__label jcd-mhlw__label--title';
-  if (
-    text.includes('ふりがな') ||
-    text.includes('※') ||
-    text.includes('現住所以外') ||
-    text.includes('写真') ||
-    text.includes('性別')
-  ) {
-    return 'jcd-mhlw__label jcd-mhlw__label--gothic';
-  }
   return 'jcd-mhlw__label';
 };
 
 const labelFontSizePt = (text: string): number => {
-  if (text === '履歴書') return 28;
+  // タイトル font-size: 公式 PDF の bbox 高さに収まる 22pt (28pt は bbox 超過)
+  if (text === '履歴書') return 22;
   if (text.startsWith('※「性別」')) return 11;
   if (text.includes('現住所以外')) return 9;
   if (text.includes('(満') || text.includes('歳）')) return 12;
@@ -466,16 +462,11 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
   white-space: nowrap;
   color: #000;
 }
-.jcd-mhlw__label--gothic {
-  font-family: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
-}
+/* 「履歴書」タイトル: 公式は MS-PMincho (明朝) で 3 文字を字間広めに配置。
+   本文と同じ明朝スタックを使い、letter-spacing で字間を広げる。font-size は
+   labelFontSizePt() 側で 22pt に設定。font-weight / transform は使わない。 */
 .jcd-mhlw__label--title {
-  font-family: "Klee One", "Hiragino Mincho ProN", "Yu Mincho", serif;
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  transform: scaleY(0.823);
-  transform-origin: top left;
-  margin-top: -1.5mm;
+  letter-spacing: 0.3em;
 }
 
 /* ユーザーデータ流し込み — 全て position: absolute、罫線内に収まる前提 */
@@ -514,7 +505,8 @@ const CSS = `@page { size: A3 landscape; margin: 0; }
   box-sizing: border-box;
   border: 0.75pt dashed #808080;
   padding: 2.5mm 1.5mm 1.5mm;
-  font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+  /* 公式 PDF は写真欄案内も明朝。本文と同じ明朝スタックを継承するため
+     font-family は指定しない (article 既定を使う)。 */
   font-size: 7.5pt;
   line-height: 1.5;
   z-index: 2;
