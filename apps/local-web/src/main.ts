@@ -1218,26 +1218,92 @@ if (!parsed.success) {
     } else if (field === 'gender') {
       if (value === '') delete basics.gender;
       else basics.gender = value;
-    } else if (field === 'birthDate') {
-      if (value === '') delete basics.birthDate;
-      else basics.birthDate = value;
-    } else if (field === 'preparedOn') {
-      const meta = (draft.meta ?? {}) as Record<string, unknown>;
-      if (value === '') {
-        delete meta.preparedOn;
+    } else if (
+      field === 'birthDate.year' ||
+      field === 'birthDate.month' ||
+      field === 'birthDate.day'
+    ) {
+      // 3 セル分割 birthDate: 編集中の field を更新し、3 つすべてが揃ったら
+      // YYYY-MM-DD として basics.birthDate に格納、揃わなければ削除
+      const subField = field.split('.')[1] as 'year' | 'month' | 'day';
+      const current = (basics.birthDate as string | undefined) ?? '';
+      const m = current.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      let y = m?.[1] ?? '';
+      let mo = m?.[2] ?? '';
+      let d = m?.[3] ?? '';
+      if (subField === 'year') y = value;
+      else if (subField === 'month') mo = value.padStart(2, '0');
+      else d = value.padStart(2, '0');
+      // 全て揃った場合のみ basics.birthDate を更新
+      if (y.length === 4 && mo.length === 2 && d.length === 2) {
+        basics.birthDate = `${y}-${mo}-${d}`;
+      } else if (y === '' && mo === '00' && d === '00') {
+        delete basics.birthDate;
       } else {
-        meta.preparedOn = value;
+        // 部分的な入力中: 既存 birthDate を維持 (再描画で値が消えると user が
+        // 数字入力中に他のセル値も消える事故になる)。新規入力中の途中状態は
+        // accept できないので、basics.birthDate は削除して invalid を許容。
+        delete basics.birthDate;
+      }
+    } else if (
+      field === 'preparedOn.year' ||
+      field === 'preparedOn.month' ||
+      field === 'preparedOn.day'
+    ) {
+      const meta = (draft.meta ?? {}) as Record<string, unknown>;
+      const subField = field.split('.')[1] as 'year' | 'month' | 'day';
+      const current = (meta.preparedOn as string | undefined) ?? '';
+      const m = current.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      let y = m?.[1] ?? '';
+      let mo = m?.[2] ?? '';
+      let d = m?.[3] ?? '';
+      if (subField === 'year') y = value;
+      else if (subField === 'month') mo = value.padStart(2, '0');
+      else d = value.padStart(2, '0');
+      if (y.length === 4 && mo.length === 2 && d.length === 2) {
+        meta.preparedOn = `${y}-${mo}-${d}`;
+      } else {
+        delete meta.preparedOn;
       }
       if (Object.keys(meta).length === 0) delete draft.meta;
       else draft.meta = meta;
+    } else if (field === 'address.postalCode') {
+      const current = (basics.address as Record<string, string> | undefined) ?? {};
+      const next = { ...current };
+      if (value === '') delete next.postalCode;
+      else next.postalCode = value;
+      if (Object.keys(next).length === 0) delete basics.address;
+      else basics.address = next;
+    } else if (field === 'contactAddress.postalCode') {
+      const current = (basics.contactAddress as Record<string, string> | undefined) ?? {};
+      const next = { ...current };
+      if (value === '') delete next.postalCode;
+      else next.postalCode = value;
+      if (Object.keys(next).length === 0) delete basics.contactAddress;
+      else basics.contactAddress = next;
     } else if (field === 'address.full') {
-      const parsed = parseAddressFull(value);
-      if (Object.keys(parsed).length === 0) delete basics.address;
-      else basics.address = parsed;
+      // 住所本文 (郵便番号は別セル)。parseAddressFull で 都道府県 / 残り に分解。
+      const current = (basics.address as Record<string, string> | undefined) ?? {};
+      const next: Record<string, string> = {};
+      if (current.postalCode !== undefined) next.postalCode = current.postalCode;
+      if (value !== '') {
+        const parsed = parseAddressFull(value);
+        if (parsed.prefecture !== undefined) next.prefecture = parsed.prefecture;
+        if (parsed.cityAndRest !== undefined) next.cityAndRest = parsed.cityAndRest;
+      }
+      if (Object.keys(next).length === 0) delete basics.address;
+      else basics.address = next;
     } else if (field === 'contactAddress.full') {
-      const parsed = parseAddressFull(value);
-      if (Object.keys(parsed).length === 0) delete basics.contactAddress;
-      else basics.contactAddress = parsed;
+      const current = (basics.contactAddress as Record<string, string> | undefined) ?? {};
+      const next: Record<string, string> = {};
+      if (current.postalCode !== undefined) next.postalCode = current.postalCode;
+      if (value !== '') {
+        const parsed = parseAddressFull(value);
+        if (parsed.prefecture !== undefined) next.prefecture = parsed.prefecture;
+        if (parsed.cityAndRest !== undefined) next.cityAndRest = parsed.cityAndRest;
+      }
+      if (Object.keys(next).length === 0) delete basics.contactAddress;
+      else basics.contactAddress = next;
     } else if (field === 'addressKana') {
       if (value === '') delete basics.addressKana;
       else basics.addressKana = value;
