@@ -92,6 +92,7 @@ const setupDom = (): void => {
     <button type="button" id="delete-button" disabled>削除</button>
     <button type="button" id="export-button">JSON エクスポート</button>
     <input type="file" id="import-file-input" />
+    <button type="button" id="print-button">PDF 出力</button>
     <form id="basics-form" data-section="basics">
       <div data-section="profilePhoto">
         <img id="profile-photo-thumbnail" alt="" hidden />
@@ -1409,6 +1410,54 @@ describe('local-web main flow', () => {
       const errorArea = document.getElementById('error-area');
       expect(errorArea?.hidden).toBe(false);
       expect(errorArea?.textContent).toContain('export できません');
+
+      vi.restoreAllMocks();
+    });
+
+    it('PDF 出力ボタン: invalid draft では window.open が呼ばれず error', async () => {
+      await importMain();
+      input('birth-date').value = '1800-01-01';
+      dispatchInput(input('birth-date'));
+
+      const openSpy = vi.fn().mockReturnValue({});
+      vi.spyOn(window, 'open').mockImplementation(openSpy);
+
+      button('print-button').click();
+      expect(openSpy).not.toHaveBeenCalled();
+      const errorArea = document.getElementById('error-area');
+      expect(errorArea?.hidden).toBe(false);
+      expect(errorArea?.textContent).toContain('PDF 出力できません');
+
+      vi.restoreAllMocks();
+    });
+
+    it('PDF 出力ボタン: valid draft で window.open が Blob URL 付きで呼ばれる', async () => {
+      await importMain();
+
+      const fakeWindow = {} as Window;
+      const openSpy = vi.fn().mockReturnValue(fakeWindow);
+      vi.spyOn(window, 'open').mockImplementation(openSpy);
+
+      button('print-button').click();
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      const [urlArg, targetArg] = openSpy.mock.calls[0] ?? [];
+      expect(typeof urlArg).toBe('string');
+      expect(String(urlArg).startsWith('blob:')).toBe(true);
+      expect(targetArg).toBe('_blank');
+
+      vi.restoreAllMocks();
+    });
+
+    it('PDF 出力ボタン: popup blocker (window.open=null) のとき error 表示', async () => {
+      await importMain();
+
+      vi.spyOn(window, 'open').mockReturnValue(null);
+
+      button('print-button').click();
+      const errorArea = document.getElementById('error-area');
+      expect(errorArea?.hidden).toBe(false);
+      expect(errorArea?.textContent).toContain('PDF 出力できません');
+      expect(errorArea?.textContent).toContain('popup');
 
       vi.restoreAllMocks();
     });
