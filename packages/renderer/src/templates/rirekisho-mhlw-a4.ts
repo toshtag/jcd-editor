@@ -62,10 +62,20 @@ const RIGHT_PAGE_THRESHOLD_MM = 210;
 const RIGHT_PAGE_X_OFFSET_MM = 205.23; // 228.85 - 23.62
 const PAGE2_Y_OFFSET_MM = 297;
 
+// 公式 PDF は罫線範囲が用紙に対して左右上下が不均等:
+//   - 左罫 23.62mm / 右罫 195.75mm (= 余白 左 23.62 / 右 14.25mm、9.37mm 差)
+//   - 上罫 38.86mm / 下罫 273.90mm (= 余白 上 38.86 / 下 23.10mm、15.76mm 差)
+// ユーザー指示で左右と上下を均等にするため、全座標を以下の量だけシフトする。
+//   X: (210 - (195.75-23.62)) / 2 - 23.62 = 18.935 - 23.62 = -4.685mm
+//   Y: (297 - (273.90-38.86)) / 2 - 38.86 = 30.98 - 38.86 = -7.88mm
+const MARGIN_BALANCE_X_OFFSET_MM = -4.685;
+const MARGIN_BALANCE_Y_OFFSET_MM = -7.88;
+
 const isRightPage = (xMm: number): boolean => xMm >= RIGHT_PAGE_THRESHOLD_MM;
-const transformX = (xMm: number): number => (isRightPage(xMm) ? xMm - RIGHT_PAGE_X_OFFSET_MM : xMm);
+const transformX = (xMm: number): number =>
+  (isRightPage(xMm) ? xMm - RIGHT_PAGE_X_OFFSET_MM : xMm) + MARGIN_BALANCE_X_OFFSET_MM;
 const transformY = (xMm: number, yMm: number): number =>
-  isRightPage(xMm) ? yMm + PAGE2_Y_OFFSET_MM : yMm;
+  (isRightPage(xMm) ? yMm + PAGE2_Y_OFFSET_MM : yMm) + MARGIN_BALANCE_Y_OFFSET_MM;
 
 const PHOTO_BOX_MM = { x: 154.77, y: 27.69, w: 30.31, h: 38.69 } as const;
 
@@ -179,13 +189,53 @@ const labelFontSizePt = (text: string): number => {
   // 「履歴書」タイトルの font-size: 公式 PDF の bbox 高さ ≈ 7.07mm に収まる
   // よう 22pt にする (28pt だと bbox を縦にはみ出し、下の罫線とほぼ接する)。
   if (text === '履歴書') return 22;
-  if (text.startsWith('※「性別」')) return 11;
+  // 公式 PDF bbox h で 8pt / 9pt / 10pt を判別:
+  //   - h=2.84mm = 8pt: 「※「性別」 欄...」 / 「写真をはる位置」
+  //   - h=3.17mm = 9pt: 「(現住所以外に連絡を希望する場合のみ記入)」
+  //   - h=3.51mm = 10pt: 「ふりがな」/ 「志望の動機…」/「本人希望記入欄…」 本体
+  //   - h=3.90mm = 11pt: 大部分のタイトル (現住所 / 氏名 / 学・職 等)
+  if (text.startsWith('※「性別」')) return 8;
   if (text.includes('現住所以外')) return 9;
   if (text.includes('(満') || text.includes('歳）')) return 12;
-  // 「ふりがな」 ラベルは公式 PDF で bbox h=3.51mm (≈9.9pt 相当)、他のラベル
-  // (現住所 / 連絡先 等の h=3.90mm = 11pt) より小さい。1 段控えめにする。
-  if (text === 'ふりがな') return 9;
+  if (text === 'ふりがな') return 10;
   return 11;
+};
+
+/**
+ * ラベル文字列の HTML 出力を組み立てる。
+ *
+ * 特例: 「本人希望記入欄（特に給料…）」 は textBbox 上 1 ラベル文字列だが、
+ * 公式の見た目では本体「本人希望記入欄」 部分と括弧内「（特に…）」 部分で
+ * font-size が異なる (本体 11pt、括弧 10pt)。1 つの div 内で <span> による
+ * inline 切り替えで再現する。
+ */
+const renderLabelText = (text: string): string => {
+  // 「本人希望記入欄（…）」 形式: 「本人希望記入欄」 部分 (div の baseSize) +
+  // 括弧以降 (10pt) を inline span で切り替える
+  if (text.startsWith('本人希望記入欄')) {
+    const m = text.match(/^(本人希望記入欄)(.*)$/);
+    if (m !== null) {
+      const main = escapeHtml(m[1] ?? '').replace(/\n/g, '<br>');
+      const rest = escapeHtml(m[2] ?? '').replace(/\n/g, '<br>');
+      if (rest !== '') {
+        return `${main}<span style="font-size:10pt;">${rest}</span>`;
+      }
+    }
+  }
+  return escapeHtml(text).replace(/\n/g, '<br>');
+};
+
+/**
+ * textBbox の x_mm を補正する。
+ *
+ * 公式 PDF 上で「志望の動機〜」 ラベルは box 左罫 (x=228.85) から 約4.39mm
+ * オフセット、「本人希望記入欄〜」 ラベルは 約2.69mm オフセットと 1.7mm 不揃い。
+ * ユーザー指示で左余白を統一するため、本人希望ラベルの x を志望動機側
+ * (textBbox 上の x=233.239) に揃える。
+ */
+const adjustLabelX = (text: string, xMm: number): number => {
+  if (text.startsWith('本人希望記入欄')) return 233.239;
+  return xMm;
 };
 
 const renderOfficialLabels = (): string => {
@@ -194,9 +244,10 @@ const renderOfficialLabels = (): string => {
     .map((t) => {
       const cls = labelFontClass(t.text);
       const size = labelFontSizePt(t.text);
-      const safe = escapeHtml(t.text).replace(/\n/g, '<br>');
-      const x = transformX(t.x_mm);
-      const y = transformY(t.x_mm, t.y_mm);
+      const safe = renderLabelText(t.text);
+      const adjustedX = adjustLabelX(t.text, t.x_mm);
+      const x = transformX(adjustedX);
+      const y = transformY(adjustedX, t.y_mm);
       return `<div class="${cls}" style="left:${x.toFixed(3)}mm;top:${y.toFixed(3)}mm;font-size:${size}pt;">${safe}</div>`;
     })
     .join('');
@@ -208,7 +259,10 @@ type ProfilePhoto = NonNullable<CareerProfile['basics']['profilePhoto']>;
 
 const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
   const { x, y, w, h } = PHOTO_BOX_MM;
-  const style = `left:${x}mm;top:${y}mm;width:${w}mm;height:${h}mm;`;
+  // PHOTO_BOX_MM は元値で保持、表示時に座標変換 (左右上下余白の均等化を含む)
+  const xT = transformX(x);
+  const yT = transformY(x, y);
+  const style = `left:${xT.toFixed(3)}mm;top:${yT.toFixed(3)}mm;width:${w}mm;height:${h}mm;`;
 
   const showGuide =
     profilePhoto === undefined ||
@@ -267,7 +321,7 @@ const renderUserNameKana = (basics: CareerProfile['basics'], editable: boolean):
   // top はラベルと同じ y=39.87 に揃えて baseline を一致させる。
   const { left, top } = placeOnA4(46, 39.87);
   const attrs = editableAttrs(editable, 'nameKana');
-  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;min-width:91mm;"${attrs}>${escapeHtml(text)}</div>`;
+  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:10pt;min-width:91mm;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
 /**
@@ -403,7 +457,7 @@ const renderAddressBlock = (
   if (editable || isNonEmpty(kanaVal)) {
     const { left, top } = placeOnA4(46, kanaY);
     const attrs = editableAttrs(editable, `${fieldPrefix}Kana`);
-    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;min-width:111mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
+    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:10pt;min-width:111mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
   }
 
   // 郵便番号 (例 "105-0013")、〒 はラベルとして固定描画されているので user は番号のみ。
@@ -490,19 +544,47 @@ type HistoryRowOrEntry =
       sourceIndex?: number;
     };
 
+// 行内の縦中央寄せオフセット (mm)。罫線で囲まれた行 box (rowHeight=9.06mm) に
+// 対し、font-size 11pt (≈ cap 高 3.9mm + ascender/descender) のテキストを
+// box の縦中央に置くには top に約 2.4mm のオフセットを足す必要がある。
+// (rowHeight - text 表示高 ≈ 4.27) / 2 ≈ 2.4
+const ROW_VERTICAL_CENTER_OFFSET_MM = 2.4;
+
+/**
+ * 学歴・職歴 内容セルの text-align を内容に応じて切り替える:
+ *   - 「学歴」「職歴」: 中央寄せ (見出し行扱い)
+ *   - 「以上」: 右寄せ (末尾の締め文言)
+ *   - その他: 左寄せ (default、通常の本文)
+ */
+const contentTextAlign = (content: string): 'left' | 'center' | 'right' => {
+  const trimmed = content.trim();
+  if (trimmed === '学歴' || trimmed === '職歴') return 'center';
+  if (trimmed === '以上') return 'right';
+  return 'left';
+};
+
 const renderHistoryRowAt = (
   row: HistoryRowOrEntry,
-  x: { yearX: number; monthX: number; contentX: number },
+  x: { yearX: number; monthX: number; contentX: number; rightEdgeX: number },
   yMm: number,
   editable: boolean,
 ): string => {
+  // yMm は box の上罫 y。値テキストを box 縦中央に置くためにオフセットを足す。
+  const yCentered = yMm + ROW_VERTICAL_CENTER_OFFSET_MM;
   if (row.kind === 'heading') {
-    const { left, top } = placeOnA4(x.contentX + 2, yMm);
-    return `<div class="jcd-mhlw-a4__history-heading" style="left:${left};top:${top};font-size:11pt;">${row.label}</div>`;
+    // 「学歴」「職歴」 heading: content box 全幅で中央寄せ
+    const contentWidthMm = x.rightEdgeX - x.contentX;
+    const { left, top } = placeOnA4(x.contentX, yCentered);
+    return `<div class="jcd-mhlw-a4__history-heading" style="left:${left};top:${top};font-size:11pt;width:${contentWidthMm.toFixed(2)}mm;text-align:center;">${row.label}</div>`;
   }
-  const yearPos = placeOnA4(x.yearX + 2, yMm);
-  const monthPos = placeOnA4(x.monthX + 2, yMm);
-  const contentPos = placeOnA4(x.contentX + 2, yMm);
+  // 年セル: box 全幅 (yearX〜monthX) で text-align:center (4 桁固定なので
+  // 中央揃え)。月セル: box 全幅 (monthX〜contentX) で 1〜2 桁に応じて右/中央。
+  const yearWidthMm = x.monthX - x.yearX;
+  const monthWidthMm = x.contentX - x.monthX;
+  const contentWidthMm = x.rightEdgeX - x.contentX;
+  const yearPos = placeOnA4(x.yearX, yCentered);
+  const monthPos = placeOnA4(x.monthX, yCentered);
+  const contentPos = placeOnA4(x.contentX, yCentered);
   const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
   const yearAttrs = hasSourceIndex
     ? editableAttrs(true, `historyRows.${row.sourceIndex}.year`)
@@ -516,15 +598,33 @@ const renderHistoryRowAt = (
 
   // editable mode のときは空セルでも div を出す (placeholder 表示)
   const showEmpty = editable && hasSourceIndex;
+  // 月セルは常に右寄せ。月罫線 box (幅 9.15mm) に対し、2 桁 (11/12、幅 ≈4mm)
+  // の文字を box の中央寄りに見せるため、左 padding 2.5mm、右 padding 2.75mm
+  // (= (9.15-4)/2 ≈ 2.575) を確保。1 桁 (4 等、幅 ≈2mm) も同 padding 設定で
+  // box 中央寄りに揃う。
+  const monthLeftPad = 2.5;
+  const monthRightPad = 2.75;
+  const monthInnerWidth = monthWidthMm - monthLeftPad - monthRightPad;
+  // 内容セルも左右に 2mm の padding を取って box 罫線とくっつかないように
+  const contentLeftPad = 2;
+  const contentRightPad = 2;
+  const contentInnerWidth = contentWidthMm - contentLeftPad - contentRightPad;
+  const contentAlign = contentTextAlign(row.content);
   const yearHtml =
     row.year === '' && !showEmpty
       ? ''
-      : `<div class="jcd-mhlw-a4__history-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;width:${yearWidthMm.toFixed(2)}mm;text-align:center;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
+  // 月 box を左に padding 分シフトして配置
+  const monthLeftMm = x.monthX + monthLeftPad;
+  const monthPosShifted = placeOnA4(monthLeftMm, yCentered);
   const monthHtml =
     row.month === '' && !showEmpty
       ? ''
-      : `<div class="jcd-mhlw-a4__history-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
-  const contentHtml = `<div class="jcd-mhlw-a4__history-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;min-width:130mm;"${contentAttrs}>${escapeHtml(row.content)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-month" style="left:${monthPosShifted.left};top:${monthPos.top};font-size:11pt;width:${monthInnerWidth.toFixed(2)}mm;text-align:right;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
+  // content セルは左 padding 分シフトして配置、その分 width も狭める
+  const contentLeftMm = x.contentX + contentLeftPad;
+  const contentPosShifted = placeOnA4(contentLeftMm, yCentered);
+  const contentHtml = `<div class="jcd-mhlw-a4__history-content" style="left:${contentPosShifted.left};top:${contentPos.top};font-size:11pt;width:${contentInnerWidth.toFixed(2)}mm;text-align:${contentAlign};"${contentAttrs}>${escapeHtml(row.content)}</div>`;
   return yearHtml + monthHtml + contentHtml;
 };
 
@@ -602,9 +702,17 @@ const renderCertificationSection = (careerProfile: CareerProfile, editable: bool
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {
     const row = rowsToRender[i] as CertRow;
-    const y = layout.firstRowY + i * layout.rowHeight;
-    const yearPos = placeOnA4(layout.yearX + 2, y);
-    const monthPos = placeOnA4(layout.monthX + 2, y);
+    // box 上罫 y に行内縦中央オフセット (+2.4mm) を加える
+    const y = layout.firstRowY + i * layout.rowHeight + ROW_VERTICAL_CENTER_OFFSET_MM;
+    // 学歴職歴表と同じく、年は box 全幅で中央寄せ、月は常に右寄せ
+    // (padding を左右にバランスよく取って 1〜2 桁とも box 中央寄りに見える)
+    const yearWidthMm = layout.monthX - layout.yearX;
+    const monthWidthMm = layout.contentX - layout.monthX;
+    const monthLeftPad = 2.5;
+    const monthRightPad = 2.75;
+    const monthInnerWidth = monthWidthMm - monthLeftPad - monthRightPad;
+    const yearPos = placeOnA4(layout.yearX, y);
+    const monthPos = placeOnA4(layout.monthX + monthLeftPad, y);
     const contentPos = placeOnA4(layout.contentX + 2, y);
     const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
     const yearAttrs = hasSourceIndex
@@ -621,11 +729,11 @@ const renderCertificationSection = (careerProfile: CareerProfile, editable: bool
     const yearHtml =
       row.year === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;width:${yearWidthMm.toFixed(2)}mm;text-align:center;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
     const monthHtml =
       row.month === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;width:${monthInnerWidth.toFixed(2)}mm;text-align:right;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
     const contentHtml =
       row.content === '' && !showEmpty
         ? ''
@@ -673,8 +781,11 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
-.jcd-mhlw-a4__rule--h { height: 0.5pt; }
-.jcd-mhlw-a4__rule--v { width: 0.5pt; }
+/* 公式 PDF の罫線は非常に細い (画像比較で 300dpi 1px 相当 = 0.25pt ≈ 0.088mm)。
+   現状 0.5pt は太すぎたので 0.25pt に下げる。print 時には print-color-adjust:exact
+   で background が保持されるため、細い罫線でも消えない。 */
+.jcd-mhlw-a4__rule--h { height: 0.25pt; }
+.jcd-mhlw-a4__rule--v { width: 0.25pt; }
 
 .jcd-mhlw-a4__label {
   position: absolute;
@@ -712,13 +823,25 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
 .jcd-mhlw-a4__free-text {
   position: absolute;
   z-index: 4;
-  font-size: 10pt;
-  line-height: 1.5;
+  /* 自由記述欄本文はヘッダーラベル本体 (志望動機 / 本人希望記入欄、11pt) と
+     同じ size に揃える (ユーザー指示「項目タイトルと同じに」)。 */
+  font-size: 11pt;
   white-space: pre-wrap;
   color: #000;
   overflow: hidden;
   padding: 1mm 2mm;
   box-sizing: border-box;
+}
+/* 本人希望記入欄: box 内に 9.06mm 間隔の中間罫線 4 本があるので、テキストの
+   line-height を罫線間隔と一致させて各行がぴったり罫線に乗るようにする。 */
+.jcd-mhlw-a4__personal-request {
+  line-height: 9.06mm;
+  padding-top: 0;
+}
+/* 志望動機: 中間罫線なしの 1 セル box。読みやすさ重視で line-height は本文の
+   標準値 (1.6 ≈ 9pt × 1.6 ≈ 5mm)。 */
+.jcd-mhlw-a4__summary {
+  line-height: 1.6;
 }
 
 /* editable mode の見た目: contenteditable に focus / hover で背景色変化。
@@ -735,7 +858,11 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   position: absolute;
   box-sizing: border-box;
   border: 0.75pt dashed #808080;
-  padding: 2.5mm 1.5mm 1.5mm;
+  /* 公式 PDF (textBbox) では:
+     - 「写真をはる位置」 (heading) が y=33.10mm (box top=27.69 から +5.41mm)
+     - 「写真をはる必要が...」 (body) が y=40.42mm (box top から +12.73mm)
+     padding-top で box 上端から heading までの距離を確保 (+5mm)。 */
+  padding: 5mm 1.5mm 1.5mm;
   /* 公式 PDF (pdffonts 解析) の通り、写真欄の案内テキストも明朝。本文と
      同じスタックを継承するため font-family は指定しない (article 既定を
      使う)。 */
@@ -751,8 +878,11 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
 .jcd-mhlw-a4__photo--filled { padding: 0; }
 .jcd-mhlw-a4__photo-heading {
   text-align: center;
-  font-size: 8.5pt;
-  margin-bottom: 1.5mm;
+  /* 公式 bbox h=2.84mm = 8pt 相当 */
+  font-size: 8pt;
+  /* heading (y=33.10) と body (y=40.42) の間隔 = 7.32mm 確保。
+     heading の line-height 込み高さ ≈ 3mm なので margin-bottom ≈ 4mm。 */
+  margin-bottom: 4mm;
   letter-spacing: 0.08em;
 }
 .jcd-mhlw-a4__photo-body { font-size: 7pt; }
