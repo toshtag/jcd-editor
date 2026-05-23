@@ -86,6 +86,28 @@ describe('rirekishoMhlwA3Template - 基本契約', () => {
     });
     expect(result.css).toContain('@page { size: A3 landscape;');
   });
+
+  it('公式 PDF と同じく明朝のみで構成され、ゴシック / 手書き風を含まない', () => {
+    const result = rirekishoMhlwA3Template.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+    });
+    expect(result.css).toMatch(/\.jcd-mhlw\s*\{[^}]*"Noto Serif JP"/);
+    expect(result.css).not.toContain('Noto Sans JP');
+    expect(result.css).not.toContain('Yu Gothic');
+    expect(result.css).not.toContain('Hiragino Sans');
+    expect(result.css).not.toContain('Klee One');
+    expect(result.css).not.toMatch(/transform:\s*scaleY/);
+  });
+
+  it('ラベル振り分けは「タイトル」と「通常」の 2 クラスのみ (gothic 振り分けを廃止)', () => {
+    const result = rirekishoMhlwA3Template.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+    });
+    expect(result.html).toContain('jcd-mhlw__label--title');
+    expect(result.html).not.toContain('jcd-mhlw__label--gothic');
+  });
 });
 
 describe('rirekishoMhlwA3Template - 罫線描画', () => {

@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>jcd-editor (local-web)</title>
     <!--
-      履歴書 template (rirekisho-mhlw-a4) は明朝系 (Noto Serif JP)、ゴシック系
-      (Noto Sans JP)、手書き風タイトル (Klee One) の 3 種類を使う。 OS 標準
-      フォントへの fallback chain も template CSS 側に書いているが、可能なら
-      Web Font の表示を意図に合わせる。preconnect は fonts.googleapis.com と
-      fonts.gstatic.com の両方に必要 (CSS / フォント本体が別 origin)。
+      履歴書 template (rirekisho-mhlw-a4) は公式 PDF を pdffonts 解析した結果、
+      MS-Mincho / MS-PMincho の明朝のみで構成されていることを確認済み。よって
+      Web Font は Noto Serif JP の 1 つに絞る (template CSS で
+      Yu Mincho / MS Mincho / Hiragino Mincho ProN への fallback chain も指定)。
+      preconnect は fonts.googleapis.com と fonts.gstatic.com の両方に必要
+      (CSS / フォント本体が別 origin)。
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Klee+One&family=Noto+Sans+JP&family=Noto+Serif+JP&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP&display=swap"
       rel="stylesheet"
     />
   </head>

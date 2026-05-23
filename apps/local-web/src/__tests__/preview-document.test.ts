@@ -64,12 +64,16 @@ describe('buildPreviewDocument', () => {
     expect(html).not.toContain('<base');
   });
 
-  it('Google Fonts (Klee One / Noto Sans JP / Noto Serif JP) の <link> を含む', () => {
+  it('Google Fonts (Noto Serif JP) の <link> を含む', () => {
     const html = buildPreviewDocument(baseDocument);
     expect(html).toContain('fonts.googleapis.com/css2');
-    expect(html).toContain('Klee+One');
-    expect(html).toContain('Noto+Sans+JP');
     expect(html).toContain('Noto+Serif+JP');
     expect(html).toContain('rel="preconnect"');
+  });
+
+  it('公式 PDF では使われていない Klee One / Noto Sans JP は読み込まない', () => {
+    const html = buildPreviewDocument(baseDocument);
+    expect(html).not.toContain('Klee+One');
+    expect(html).not.toContain('Noto+Sans+JP');
   });
 });
