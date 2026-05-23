@@ -80,7 +80,7 @@ describe('rirekishoMhlwA4Template - editable mode (Phase 2.1a)', () => {
     expect(r.html).toContain('data-field="nameKana"');
   });
 
-  it('editable: true で birthDate セルに data-field="birthDate" が付き、raw value を表示する', () => {
+  it('editable: true で birthDate は年/月/日 3 セルに分割され、それぞれ data-field が付く', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: { birthDate: '1993-04-01' },
@@ -90,10 +90,12 @@ describe('rirekishoMhlwA4Template - editable mode (Phase 2.1a)', () => {
       kind: 'rirekisho',
       editable: true,
     });
-    expect(r.html).toContain('data-field="birthDate"');
-    expect(r.html).toContain('1993-04-01');
-    // editable mode では年/月/日 分解は出さない
-    expect(r.html).not.toContain('jcd-mhlw-a4__birth-year');
+    expect(r.html).toContain('data-field="birthDate.year"');
+    expect(r.html).toContain('data-field="birthDate.month"');
+    expect(r.html).toContain('data-field="birthDate.day"');
+    expect(r.html).toContain('>1993<');
+    expect(r.html).toContain('>4<');
+    expect(r.html).toContain('>1<');
   });
 
   it('editable: false で birthDate は従来通り年/月/日 に分解される', () => {
@@ -109,49 +111,90 @@ describe('rirekishoMhlwA4Template - editable mode (Phase 2.1a)', () => {
     expect(r.html).not.toContain('data-field="birthDate"');
   });
 
-  it('editable: true で gender / preparedOn / summary / personalRequest にも data-field が付く', () => {
+  it('editable: true で gender / preparedOn (.year/.month/.day) / summary / personalRequest にも data-field が付く', () => {
     const r = rirekishoMhlwA4Template.render({
       careerProfile: MIN_PROFILE,
       kind: 'rirekisho',
       editable: true,
     });
     expect(r.html).toContain('data-field="gender"');
-    expect(r.html).toContain('data-field="preparedOn"');
+    expect(r.html).toContain('data-field="preparedOn.year"');
+    expect(r.html).toContain('data-field="preparedOn.month"');
+    expect(r.html).toContain('data-field="preparedOn.day"');
     expect(r.html).toContain('data-field="summary"');
     expect(r.html).toContain('data-field="personalRequest"');
   });
 
-  it('editable: true で住所 / 連絡先 セルに data-field が付く', () => {
+  it('editable: true で住所 / 連絡先 セルに data-field が付く (郵便番号と住所本文を別セル)', () => {
     const r = rirekishoMhlwA4Template.render({
       careerProfile: MIN_PROFILE,
       kind: 'rirekisho',
       editable: true,
     });
+    expect(r.html).toContain('data-field="address.postalCode"');
     expect(r.html).toContain('data-field="address.full"');
     expect(r.html).toContain('data-field="addressKana"');
     expect(r.html).toContain('data-field="phone"');
+    expect(r.html).toContain('data-field="contactAddress.postalCode"');
     expect(r.html).toContain('data-field="contactAddress.full"');
     expect(r.html).toContain('data-field="contactAddressKana"');
     expect(r.html).toContain('data-field="contactPhone"');
   });
 
-  it('editable: true でも 学歴職歴 / 免許資格 表は Phase 2.1a スコープ外 (data-field なし)', () => {
+  it('editable: true で historyRows があれば row セルに data-field="historyRows.{idx}.{field}" が付く', () => {
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
-      educationHistory: [{ institutionName: 'サンプル大学', startDate: '2016-04' }],
-      certifications: [{ name: '基本情報', acquiredDate: '2020-04' }],
+      historyRows: [
+        { year: '2016', month: '4', content: 'サンプル大学 入学' },
+        { year: '2020', month: '3', content: 'サンプル大学 卒業' },
+      ],
     });
     const r = rirekishoMhlwA4Template.render({
       careerProfile: profile,
       kind: 'rirekisho',
       editable: true,
     });
-    expect(r.html).not.toContain('data-field="educationHistory');
-    expect(r.html).not.toContain('data-field="certifications');
+    expect(r.html).toContain('data-field="historyRows.0.year"');
+    expect(r.html).toContain('data-field="historyRows.0.month"');
+    expect(r.html).toContain('data-field="historyRows.0.content"');
+    expect(r.html).toContain('data-field="historyRows.1.content"');
+    expect(r.html).toContain('サンプル大学 入学');
+    expect(r.html).toContain('サンプル大学 卒業');
+  });
+
+  it('editable: true で certificationRows があれば row セルに data-field="certificationRows.{idx}.{field}" が付く', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      certificationRows: [{ year: '2020', month: '4', content: '基本情報技術者試験' }],
+    });
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profile,
+      kind: 'rirekisho',
+      editable: true,
+    });
+    expect(r.html).toContain('data-field="certificationRows.0.year"');
+    expect(r.html).toContain('data-field="certificationRows.0.month"');
+    expect(r.html).toContain('data-field="certificationRows.0.content"');
+    expect(r.html).toContain('基本情報技術者試験');
+  });
+
+  it('historyRows が無くて educationHistory のみのとき: 旧来通り合成して描画 (editable 属性は出ない)', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: 'サンプル大学', startDate: '2016-04' }],
+    });
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profile,
+      kind: 'rirekisho',
+      editable: true,
+    });
+    // historyRows が無いので合成された row の data-field は付かない
+    expect(r.html).not.toContain('data-field="historyRows');
     // 表は通常通り描画される
     expect(r.html).toContain('サンプル大学');
-    expect(r.html).toContain('基本情報');
   });
 
   it('editable: true で article に data-editable="true" が付く', () => {

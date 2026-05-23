@@ -24,6 +24,11 @@ const EDUCATION_HISTORY_MAX = 30;
 const SKILLS_MAX = 200;
 const CERTIFICATIONS_MAX = 100;
 const PROJECTS_MAX = 200;
+// historyRows / certificationRows は WYSIWYG モードで raw 編集される 1 行データ。
+// 公式履歴書様式の「学歴・職歴」表 (左ページ 9 行 + 右ページ 11 行 = 20 行) /
+// 「免許・資格」表 (6 行) に対応した上限。
+const HISTORY_ROWS_MAX = 30;
+const CERTIFICATION_ROWS_MAX = 10;
 
 // 厚労省履歴書様式例 (Phase 1.2 で追加されたフィールド) の上限
 //
@@ -38,6 +43,34 @@ const GENDER_MAX_LENGTH = 50;
 const ADDRESS_KANA_MAX_LENGTH = 200;
 const SUMMARY_MAX_LENGTH = 2000;
 const PERSONAL_REQUEST_MAX_LENGTH = 1000;
+
+/**
+ * 「学歴・職歴」表または「免許・資格」表に表示される 1 行の raw データ。
+ *
+ * WYSIWYG エディタで row セルを直接編集するために導入された型。
+ * `educationHistory[]` / `workExperiences[]` / `certifications[]` の
+ * structured データから renderer が合成する 「年 / 月 / 内容」 とは別経路で、
+ * ユーザーが直接タイプした 行データ をそのまま保持する。
+ *
+ * 互換性: 旧 fixture (`historyRows` / `certificationRows` を持たない) は
+ * 引き続き structured データ経由で renderer が合成する従来動作。両方
+ * 存在する場合は WYSIWYG 入力である `historyRows` / `certificationRows` を
+ * 優先する。
+ */
+export type HistoryRowEntry = {
+  /** 年 (例: "2020" / 空) */
+  year?: string;
+  /** 月 (例: "4" / 空) */
+  month?: string;
+  /** 内容 (例: "サンプル大学 入学" / "現在に至る" 等、フリーテキスト) */
+  content?: string;
+};
+
+export type CertificationRowEntry = {
+  year?: string;
+  month?: string;
+  content?: string;
+};
 
 export type CareerProfile = {
   schemaVersion: SchemaVersion;
@@ -70,6 +103,17 @@ export type CareerProfile = {
   skills?: Skill[];
   certifications?: Certification[];
   projects?: Project[];
+  /**
+   * 学歴・職歴 表に表示する raw 1 行データ列。指定されていれば renderer は
+   * これを優先して表示する。未指定 (legacy fixture) なら educationHistory +
+   * workExperiences から合成。
+   */
+  historyRows?: HistoryRowEntry[];
+  /**
+   * 免許・資格 表に表示する raw 1 行データ列。同上 (certifications の
+   * 上位優先される)。
+   */
+  certificationRows?: CertificationRowEntry[];
   /** 文書属性。本人プロフィールではない、文書そのもののメタ情報。 */
   meta?: {
     /** 「年 月 日現在」欄の日付。未指定なら template 側で default 描画する。 */
@@ -121,6 +165,30 @@ export const careerProfileSchema = v.object({
   ),
   projects: v.optional(
     v.pipe(v.array(projectSchema), v.maxLength(PROJECTS_MAX, 'プロジェクトの件数が多すぎます')),
+  ),
+  historyRows: v.optional(
+    v.pipe(
+      v.array(
+        v.object({
+          year: v.optional(v.pipe(v.string(), v.maxLength(10))),
+          month: v.optional(v.pipe(v.string(), v.maxLength(10))),
+          content: v.optional(v.pipe(v.string(), v.maxLength(200))),
+        }),
+      ),
+      v.maxLength(HISTORY_ROWS_MAX, '学歴・職歴の行数が多すぎます'),
+    ),
+  ),
+  certificationRows: v.optional(
+    v.pipe(
+      v.array(
+        v.object({
+          year: v.optional(v.pipe(v.string(), v.maxLength(10))),
+          month: v.optional(v.pipe(v.string(), v.maxLength(10))),
+          content: v.optional(v.pipe(v.string(), v.maxLength(200))),
+        }),
+      ),
+      v.maxLength(CERTIFICATION_ROWS_MAX, '免許・資格の行数が多すぎます'),
+    ),
   ),
   meta: v.optional(
     v.object({

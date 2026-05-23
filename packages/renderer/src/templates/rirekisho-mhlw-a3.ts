@@ -352,9 +352,21 @@ const renderHistoryRowAt = (
 };
 
 const renderHistorySection = (careerProfile: CareerProfile): string => {
-  const educationRows = buildEducationRows(careerProfile.educationHistory);
-  const workRows = buildWorkRows(careerProfile.workExperiences);
-  const allRows = [...educationRows, ...workRows];
+  // historyRows が指定されていればそれを優先 (WYSIWYG エディタ出力)。
+  // 未指定なら従来通り educationHistory + workExperiences から合成。
+  let allRows: HistoryRow[];
+  if (careerProfile.historyRows !== undefined) {
+    allRows = careerProfile.historyRows.map((r) => ({
+      kind: 'entry' as const,
+      year: r.year ?? '',
+      month: r.month ?? '',
+      content: r.content ?? '',
+    }));
+  } else {
+    const educationRows = buildEducationRows(careerProfile.educationHistory);
+    const workRows = buildWorkRows(careerProfile.workExperiences);
+    allRows = [...educationRows, ...workRows];
+  }
   if (allRows.length === 0) return '';
 
   // 公式様式の行数 (左 9 行 + 右 11 行 = 20 行) を超えた分は切り捨て。
@@ -385,7 +397,16 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
 // === 免許・資格 表 === (row 構築ロジックは _internal/rirekisho-mhlw-shared.ts)
 
 const renderCertificationSection = (careerProfile: CareerProfile): string => {
-  const rows = buildCertificationRows(careerProfile.certifications);
+  let rows: CertificationRow[];
+  if (careerProfile.certificationRows !== undefined) {
+    rows = careerProfile.certificationRows.map((r) => ({
+      year: r.year ?? '',
+      month: r.month ?? '',
+      content: r.content ?? '',
+    }));
+  } else {
+    rows = buildCertificationRows(careerProfile.certifications);
+  }
   if (rows.length === 0) return '';
   const layout = CERTIFICATION_LAYOUT;
   const rowsToRender = rows.slice(0, layout.maxRows);

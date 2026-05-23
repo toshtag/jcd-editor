@@ -36,9 +36,8 @@ import {
   buildWorkRows,
   computeAgeOnDate,
   type CertificationRow,
-  type HistoryRow,
 } from '../_internal/rirekisho-mhlw-shared';
-import { formatAddress, isNonEmpty } from '../_internal/template-format';
+import { isNonEmpty } from '../_internal/template-format';
 import type { RenderInput } from '../render-input';
 import type { RenderedDocument } from '../rendered-document';
 import type { TemplateDefinition } from '../template-registry';
@@ -242,10 +241,15 @@ const renderUserName = (basics: CareerProfile['basics'], editable: boolean): str
   if (!editable && basics.name === undefined) return '';
   const family = basics.name?.family ?? '';
   const given = basics.name?.given ?? '';
+  // 公式様式の氏名は family と given の間に全角スペース 1 つ分の隙間
   const text = family !== '' && given !== '' ? `${family}　${given}` : `${family}${given}`;
-  const { left, top } = placeOnA4(60, 44.8);
+  // 公式: 氏名セル box は罫線実測で 左罫 x=23.62, 右罫 x=139.02 (※性別境)。
+  // 「氏」「名」 ラベルは同 box 内左寄せ (x=26.42 / 38.11) で y=44.80 にあるが、
+  // 値の y=52 では label と縦に被らないので、セル box 全幅で text-align:center
+  // にして box 中央 (x≈81.3mm) に値を配置する。font-size 24pt。
+  const { left, top } = placeOnA4(23.62, 52);
   const attrs = editableAttrs(editable, 'name');
-  return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:14pt;"${attrs}>${escapeHtml(text)}</div>`;
+  return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:24pt;min-width:115.4mm;text-align:center;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
 const renderUserNameKana = (basics: CareerProfile['basics'], editable: boolean): string => {
@@ -253,134 +257,188 @@ const renderUserNameKana = (basics: CareerProfile['basics'], editable: boolean):
   const family = basics.nameKana?.family ?? '';
   const given = basics.nameKana?.given ?? '';
   const text = family !== '' && given !== '' ? `${family}　${given}` : `${family}${given}`;
+  // ふりがなは「ふりがな」label 横、y=39.87、font-size 9pt のまま、min-width 拡大で
+  // 切れないように。
   const { left, top } = placeOnA4(60, 39.87);
   const attrs = editableAttrs(editable, 'nameKana');
-  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;"${attrs}>${escapeHtml(text)}</div>`;
+  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;min-width:80mm;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
+/**
+ * 生年月日を「年 / 月 / 日 / 満X歳」 の 4 セルに分解して描画する。
+ * editable=true のとき各セルが個別の contenteditable (data-field="birthDate.year" etc.)。
+ * 公式様式の「年 月 日生 (満　歳)」 ラベル位置に厳密に合わせるため、
+ * editable / read-only 共通レイアウト。
+ */
 const renderBirthDate = (
   basics: CareerProfile['basics'],
   preparedOn: string | undefined,
   editable: boolean,
 ): string => {
-  // editable mode: 「YYYY-MM-DD」を 1 セルで raw 編集 (将来 inline date picker 化検討)
-  // read-only mode: 年/月/日 を 3 セルに分解 + 年齢計算
-  if (editable) {
-    const value = basics.birthDate ?? '';
-    const { left, top } = placeOnA4(68, 74.3);
-    const attrs = editableAttrs(editable, 'birthDate');
-    return `<div class="jcd-mhlw-a4__birth-raw" style="left:${left};top:${top};font-size:11pt;min-width:30mm;"${attrs}>${escapeHtml(value)}</div>`;
+  // basics.birthDate が undefined のときは空文字で 3 セルを構築 (editable のとき
+  // 空セルが必要)。read-only mode で値が一切ないなら何も出さない。
+  if (!editable && basics.birthDate === undefined) return '';
+  let yStr = '';
+  let mStr = '';
+  let dStr = '';
+  if (basics.birthDate !== undefined) {
+    const m = basics.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m !== null) {
+      yStr = String(Number(m[1]));
+      mStr = String(Number(m[2]));
+      dStr = String(Number(m[3]));
+    }
   }
-  if (basics.birthDate === undefined) return '';
-  const m = basics.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m === null) return '';
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
   const ageStr =
-    preparedOn !== undefined
+    !editable && preparedOn !== undefined && basics.birthDate !== undefined
       ? (() => {
           const a = computeAgeOnDate(basics.birthDate as string, preparedOn);
           return a === undefined ? '' : String(a);
         })()
       : '';
-  const yPos = placeOnA4(68, 74.3);
-  const mPos = placeOnA4(83, 74.3);
-  const dPos = placeOnA4(99, 74.3);
-  const aPos = placeOnA4(113, 74.3);
+  // ラベル位置 (実測): 年 x=60.63, 月 x=76.21, 日生 x=91.79, (満 x=107.36, 歳） x=122.94
+  // 公式は値 → ラベルの順 (例: "1989年 1月 1日生 (満 32歳)")。
+  // 値セルは label の **左** に幅を確保し、text-align: right で右寄せ → label と接する。
+  const yPos = placeOnA4(46, 74.3);
+  const mPos = placeOnA4(63, 74.3);
+  const dPos = placeOnA4(80, 74.3);
+  const aPos = placeOnA4(110, 74.3);
+  const yAttrs = editableAttrs(editable, 'birthDate.year');
+  const mAttrs = editableAttrs(editable, 'birthDate.month');
+  const dAttrs = editableAttrs(editable, 'birthDate.day');
   return (
-    `<div class="jcd-mhlw-a4__birth-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;">${y}</div>` +
-    `<div class="jcd-mhlw-a4__birth-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;">${mo}</div>` +
-    `<div class="jcd-mhlw-a4__birth-day" style="left:${dPos.left};top:${dPos.top};font-size:11pt;">${d}</div>` +
+    `<div class="jcd-mhlw-a4__birth-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;min-width:14mm;text-align:right;"${yAttrs}>${escapeHtml(yStr)}</div>` +
+    `<div class="jcd-mhlw-a4__birth-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;min-width:12mm;text-align:right;"${mAttrs}>${escapeHtml(mStr)}</div>` +
+    `<div class="jcd-mhlw-a4__birth-day" style="left:${dPos.left};top:${dPos.top};font-size:11pt;min-width:10mm;text-align:right;"${dAttrs}>${escapeHtml(dStr)}</div>` +
     (ageStr === ''
       ? ''
-      : `<div class="jcd-mhlw-a4__age" style="left:${aPos.left};top:${aPos.top};font-size:11pt;">${ageStr}</div>`)
+      : `<div class="jcd-mhlw-a4__age" style="left:${aPos.left};top:${aPos.top};font-size:11pt;min-width:12mm;text-align:right;">${ageStr}</div>`)
   );
 };
 
 const renderGender = (basics: CareerProfile['basics'], editable: boolean): string => {
   const v = basics.gender ?? '';
   if (!editable && !isNonEmpty(v)) return '';
-  const { left, top } = placeOnA4(147, 71.72);
+  // 性別セル box (実測罫線): 左罫 x=139.02, 右罫 x=195.75, 上罫 y=71.71, 下罫 y=80.77
+  // 同じ行内に ※性別 ラベル (x=139.89〜151.57, y=71.72) が左寄せヘッダーとして
+  // 入っている。値はラベル右隣の空き (x≈153〜195.75) に置く。
+  // y は box 中央寄り (≈74.30、生年月日と同じ baseline)。
+  const { left, top } = placeOnA4(153, 74.3);
   const attrs = editableAttrs(editable, 'gender');
-  return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;min-width:20mm;"${attrs}>${escapeHtml(v)}</div>`;
+  return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;min-width:42mm;text-align:center;"${attrs}>${escapeHtml(v)}</div>`;
 };
 
 const renderPreparedOn = (preparedOn: string | undefined, editable: boolean): string => {
-  if (editable) {
-    const value = preparedOn ?? '';
-    const { left, top } = placeOnA4(104, 31.33);
-    const attrs = editableAttrs(editable, 'preparedOn');
-    return `<div class="jcd-mhlw-a4__prepared-raw" style="left:${left};top:${top};font-size:11pt;min-width:30mm;"${attrs}>${escapeHtml(value)}</div>`;
+  if (!editable && preparedOn === undefined) return '';
+  let yStr = '';
+  let mStr = '';
+  let dStr = '';
+  if (preparedOn !== undefined) {
+    const m = preparedOn.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m !== null) {
+      yStr = String(Number(m[1]));
+      mStr = String(Number(m[2]));
+      dStr = String(Number(m[3]));
+    }
   }
-  if (preparedOn === undefined) return '';
-  const m = preparedOn.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m === null) return '';
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  const yPos = placeOnA4(104, 31.33);
-  const mPos = placeOnA4(118, 31.33);
-  const dPos = placeOnA4(130, 31.33);
+  // ラベル位置 (実測): 年 x=112.79, 月 x=124.22, 日現在 x=134.48 (y=31.33)
+  // 公式は「YYYY 年 MM 月 DD 日現在」 の順。値セルは label の **左** に配置し
+  // text-align:right で label と接する。
+  // 年セル: 右端 x≈112 → left=98, min-width=14
+  // 月セル: 右端 x≈124 → left=116, min-width=8
+  // 日セル: 右端 x≈134 → left=126, min-width=8
+  const yPos = placeOnA4(98, 31.33);
+  const mPos = placeOnA4(116, 31.33);
+  const dPos = placeOnA4(126, 31.33);
+  const yAttrs = editableAttrs(editable, 'preparedOn.year');
+  const mAttrs = editableAttrs(editable, 'preparedOn.month');
+  const dAttrs = editableAttrs(editable, 'preparedOn.day');
   return (
-    `<div class="jcd-mhlw-a4__prepared-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;">${y}</div>` +
-    `<div class="jcd-mhlw-a4__prepared-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;">${mo}</div>` +
-    `<div class="jcd-mhlw-a4__prepared-day" style="left:${dPos.left};top:${dPos.top};font-size:11pt;">${d}</div>`
+    `<div class="jcd-mhlw-a4__prepared-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;min-width:14mm;text-align:right;"${yAttrs}>${escapeHtml(yStr)}</div>` +
+    `<div class="jcd-mhlw-a4__prepared-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;min-width:8mm;text-align:right;"${mAttrs}>${escapeHtml(mStr)}</div>` +
+    `<div class="jcd-mhlw-a4__prepared-day" style="left:${dPos.left};top:${dPos.top};font-size:11pt;min-width:8mm;text-align:right;"${dAttrs}>${escapeHtml(dStr)}</div>`
   );
 };
 
 /**
- * 住所欄を 1 セルとして描画する (kana + 〒住所 を別行 + 電話)。
- * editable mode では address は内部 field 個別ではなく、formatAddress された
- * 1 行文字列を 1 セルで編集できるようにする。が、これだと core schema との
- * 整合が難しい (postalCode / prefecture / cityAndRest に分解する必要)。
- * Phase 2.1a では editable mode でも「住所 1 行」を `data-field="address.full"`
- * として持つ。local-web 側で「全文字列を cityAndRest に押し込む」「正規表現で
- * 〒 と都道府県を分離する」 などのロジックを持つ。
+ * 住所欄を「ふりがな + 郵便番号 + 住所本文 + 電話」 4 セルとして描画する。
+ * 公式様式に合わせ、郵便番号と住所本文は別セル (〒 ラベルはテンプレート側に
+ * 既に描画されているので user セルには含めない)。
+ *
+ * editable mode の data-field:
+ *   - addressKana / contactAddressKana
+ *   - address.postalCode / contactAddress.postalCode (例: "105-0013")
+ *   - address.full / contactAddress.full (郵便番号を除いた住所本文)
+ *   - phone / contactPhone
+ *
+ * 公式 PDF の構造:
+ *   - 「現住所 〒」 ラベル (x≈26mm) の右に郵便番号セル (x≈58mm)
+ *   - 改行 (1 行下) して住所本文セル (x≈40mm から幅広)
+ *   - ふりがなは住所欄の上端 (kana の y は住所上端 -5mm)
  */
 const renderAddressBlock = (
   prefix: string,
-  baseY: number,
+  postalY: number, // 郵便番号 (and 〒 ラベルの y、住所欄上端)
+  fullY: number, // 住所本文 (改行後) の y
   address: CareerProfile['basics']['address'],
   addressKana: string | undefined,
   phone: string | undefined,
   editable: boolean,
-  fieldPrefix: string, // 'address' | 'contactAddress' (core の field 名と一致)
+  fieldPrefix: string,
 ): string => {
   let html = '';
 
-  // ふりがな (kana)
+  // ふりがな (kana) - 公式は住所欄の上ラベル横、y は postalY - 5mm 程度
   const kanaVal = addressKana ?? '';
   if (editable || isNonEmpty(kanaVal)) {
-    const { left, top } = placeOnA4(46, baseY - 7);
+    const { left, top } = placeOnA4(46, postalY - 5);
     const attrs = editableAttrs(editable, `${fieldPrefix}Kana`);
-    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;min-width:80mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
+    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;min-width:90mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
   }
 
-  // 住所 (full text、editable では 1 セル)
-  const addr = address === undefined ? '' : formatAddress(address);
-  if (editable || addr.length > 0) {
-    const { left, top } = placeOnA4(46, baseY);
+  // 郵便番号 (例 "105-0013")、〒 はラベルとして固定描画されているので user は番号のみ。
+  // 〒 ラベル (x=42.00, w=3.90) の右端 ≈46mm のすぐ横に置く。
+  const postal = address?.postalCode ?? '';
+  if (editable || isNonEmpty(postal)) {
+    const { left, top } = placeOnA4(47, postalY);
+    const attrs = editableAttrs(editable, `${fieldPrefix}.postalCode`);
+    html += `<div class="jcd-mhlw-a4__${prefix}-postal" style="left:${left};top:${top};font-size:11pt;min-width:25mm;"${attrs}>${escapeHtml(postal)}</div>`;
+  }
+
+  // 住所本文 (郵便番号を除く)。core では prefecture + cityAndRest だが、UI 上は
+  // 1 セルで「東京都港区...」と書く。data-field="address.full" として user に
+  // 渡し、local-web は parseAddressFull で逆変換。
+  const addressFull =
+    address === undefined
+      ? ''
+      : [address.prefecture, address.cityAndRest]
+          .filter((s) => s !== undefined && s !== '')
+          .join('');
+  if (editable || isNonEmpty(addressFull)) {
+    const { left, top } = placeOnA4(30, fullY);
     const attrs = editableAttrs(editable, `${fieldPrefix}.full`);
-    html += `<div class="jcd-mhlw-a4__${prefix}" style="left:${left};top:${top};font-size:11pt;min-width:80mm;"${attrs}>${escapeHtml(addr)}</div>`;
+    html += `<div class="jcd-mhlw-a4__${prefix}" style="left:${left};top:${top};font-size:11pt;min-width:130mm;"${attrs}>${escapeHtml(addressFull)}</div>`;
   }
 
-  // 電話
+  // 電話 (右端の縦長セル、ラベル「電話」の下に表示。値は中央寄せ気味)
   const phoneVal = phone ?? '';
   if (editable || isNonEmpty(phoneVal)) {
-    const { left, top } = placeOnA4(175, baseY);
+    const { left, top } = placeOnA4(165, postalY + 4);
     const phoneField = fieldPrefix === 'address' ? 'phone' : 'contactPhone';
     const attrs = editableAttrs(editable, phoneField);
-    html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;min-width:20mm;"${attrs}>${escapeHtml(phoneVal)}</div>`;
+    html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;min-width:35mm;"${attrs}>${escapeHtml(phoneVal)}</div>`;
   }
   return html;
 };
 
 const renderAddress = (basics: CareerProfile['basics'], editable: boolean): string => {
+  // 現住所欄: 郵便番号 y=87mm、住所本文 y=94mm (公式実測値ベース、改行 1 行下)
+  // 連絡先欄: 郵便番号 y=109.66mm、住所本文 y=116mm
   return (
     renderAddressBlock(
       'address',
       87,
+      94,
       basics.address,
       basics.addressKana,
       basics.phone,
@@ -390,6 +448,7 @@ const renderAddress = (basics: CareerProfile['basics'], editable: boolean): stri
     renderAddressBlock(
       'contact-address',
       109.66,
+      116,
       basics.contactAddress,
       basics.contactAddressKana,
       basics.contactPhone,
@@ -399,12 +458,28 @@ const renderAddress = (basics: CareerProfile['basics'], editable: boolean): stri
   );
 };
 
-// === 学歴・職歴 表 (Phase 2.1a では editable mode 未対応、Phase 2.1b で対応) ===
+// === 学歴・職歴 表 (Phase 2.1b で editable mode 対応) ===
+//
+// historyRows が存在すればそれを優先 (WYSIWYG エディタの出力)。
+// 未指定なら educationHistory + workExperiences から旧来通り合成する。
+
+type HistoryRowOrEntry =
+  | { kind: 'heading'; label: '学歴' | '職歴' }
+  | {
+      kind: 'entry';
+      year: string;
+      month: string;
+      content: string;
+      // editable mode で WYSIWYG 側の historyRows array index を data-field に
+      // 反映するため、source row index を保持する。
+      sourceIndex?: number;
+    };
 
 const renderHistoryRowAt = (
-  row: HistoryRow,
+  row: HistoryRowOrEntry,
   x: { yearX: number; monthX: number; contentX: number },
   yMm: number,
+  editable: boolean,
 ): string => {
   if (row.kind === 'heading') {
     const { left, top } = placeOnA4(x.contentX + 2, yMm);
@@ -413,22 +488,56 @@ const renderHistoryRowAt = (
   const yearPos = placeOnA4(x.yearX + 2, yMm);
   const monthPos = placeOnA4(x.monthX + 2, yMm);
   const contentPos = placeOnA4(x.contentX + 2, yMm);
+  const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
+  const yearAttrs = hasSourceIndex
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.year`)
+    : '';
+  const monthAttrs = hasSourceIndex
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.month`)
+    : '';
+  const contentAttrs = hasSourceIndex
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.content`)
+    : '';
+
+  // editable mode のときは空セルでも div を出す (placeholder 表示)
+  const showEmpty = editable && hasSourceIndex;
   const yearHtml =
-    row.year === ''
+    row.year === '' && !showEmpty
       ? ''
-      : `<div class="jcd-mhlw-a4__history-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;">${escapeHtml(row.year)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
   const monthHtml =
-    row.month === ''
+    row.month === '' && !showEmpty
       ? ''
-      : `<div class="jcd-mhlw-a4__history-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;">${escapeHtml(row.month)}</div>`;
-  const contentHtml = `<div class="jcd-mhlw-a4__history-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;">${escapeHtml(row.content)}</div>`;
+      : `<div class="jcd-mhlw-a4__history-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
+  const contentHtml = `<div class="jcd-mhlw-a4__history-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;min-width:130mm;"${contentAttrs}>${escapeHtml(row.content)}</div>`;
   return yearHtml + monthHtml + contentHtml;
 };
 
-const renderHistorySection = (careerProfile: CareerProfile): string => {
-  const educationRows = buildEducationRows(careerProfile.educationHistory);
-  const workRows = buildWorkRows(careerProfile.workExperiences);
-  const allRows = [...educationRows, ...workRows];
+const renderHistorySection = (careerProfile: CareerProfile, editable: boolean): string => {
+  let allRows: HistoryRowOrEntry[];
+
+  if (careerProfile.historyRows !== undefined) {
+    // WYSIWYG モード相当: 各 row に source index を持たせて data-field 化可能に
+    allRows = careerProfile.historyRows.map((r, idx) => ({
+      kind: 'entry' as const,
+      year: r.year ?? '',
+      month: r.month ?? '',
+      content: r.content ?? '',
+      sourceIndex: idx,
+    }));
+  } else {
+    // legacy: educationHistory + workExperiences から合成 (read-only)
+    const educationRows = buildEducationRows(careerProfile.educationHistory);
+    const workRows = buildWorkRows(careerProfile.workExperiences);
+    allRows = [...educationRows, ...workRows] as HistoryRowOrEntry[];
+  }
+
+  // editable mode で historyRows が無い (= 完全新規) なら空 row を 1 つ追加して
+  // クリック対象を提供。local-web 側が「+追加」ボタンで row を増やす想定だが、
+  // safety net として常に「最後の空行」を表示する選択肢もある (本 PR では
+  // 何もしない、空 row は local-web が historyRows に push して renderer に
+  // 再渡しすれば現れる)。
+
   if (allRows.length === 0) return '';
   const left = HISTORY_LAYOUT.leftPage;
   const right = HISTORY_LAYOUT.rightPage;
@@ -438,13 +547,13 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
   const rowsToRender = allRows.slice(0, totalCapacity);
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {
-    const row = rowsToRender[i] as HistoryRow;
+    const row = rowsToRender[i] as HistoryRowOrEntry;
     if (i < leftCapacity) {
       const y = left.firstRowY + i * left.rowHeight;
-      html.push(renderHistoryRowAt(row, left, y));
+      html.push(renderHistoryRowAt(row, left, y, editable));
     } else {
       const y = right.firstRowY + (i - leftCapacity) * right.rowHeight;
-      html.push(renderHistoryRowAt(row, right, y));
+      html.push(renderHistoryRowAt(row, right, y, editable));
     }
   }
   return html.join('');
@@ -452,30 +561,60 @@ const renderHistorySection = (careerProfile: CareerProfile): string => {
 
 // === 免許・資格 ===
 
-const renderCertificationSection = (careerProfile: CareerProfile): string => {
-  const rows = buildCertificationRows(careerProfile.certifications);
+type CertRow = { year: string; month: string; content: string; sourceIndex?: number };
+
+const renderCertificationSection = (careerProfile: CareerProfile, editable: boolean): string => {
+  let rows: CertRow[];
+  if (careerProfile.certificationRows !== undefined) {
+    rows = careerProfile.certificationRows.map((r, idx) => ({
+      year: r.year ?? '',
+      month: r.month ?? '',
+      content: r.content ?? '',
+      sourceIndex: idx,
+    }));
+  } else {
+    rows = (buildCertificationRows(careerProfile.certifications) as CertificationRow[]).map(
+      (r) => ({
+        year: r.year,
+        month: r.month,
+        content: r.content,
+      }),
+    );
+  }
   if (rows.length === 0) return '';
   const layout = CERTIFICATION_LAYOUT;
   const rowsToRender = rows.slice(0, layout.maxRows);
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {
-    const row = rowsToRender[i] as CertificationRow;
+    const row = rowsToRender[i] as CertRow;
     const y = layout.firstRowY + i * layout.rowHeight;
     const yearPos = placeOnA4(layout.yearX + 2, y);
     const monthPos = placeOnA4(layout.monthX + 2, y);
     const contentPos = placeOnA4(layout.contentX + 2, y);
+    const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
+    const yearAttrs = hasSourceIndex
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.year`)
+      : '';
+    const monthAttrs = hasSourceIndex
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.month`)
+      : '';
+    const contentAttrs = hasSourceIndex
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.content`)
+      : '';
+
+    const showEmpty = editable && hasSourceIndex;
     const yearHtml =
-      row.year === ''
+      row.year === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;">${escapeHtml(row.year)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-year" style="left:${yearPos.left};top:${yearPos.top};font-size:11pt;"${yearAttrs}>${escapeHtml(row.year)}</div>`;
     const monthHtml =
-      row.month === ''
+      row.month === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;">${escapeHtml(row.month)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-month" style="left:${monthPos.left};top:${monthPos.top};font-size:11pt;"${monthAttrs}>${escapeHtml(row.month)}</div>`;
     const contentHtml =
-      row.content === ''
+      row.content === '' && !showEmpty
         ? ''
-        : `<div class="jcd-mhlw-a4__cert-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;">${escapeHtml(row.content)}</div>`;
+        : `<div class="jcd-mhlw-a4__cert-content" style="left:${contentPos.left};top:${contentPos.top};font-size:11pt;min-width:130mm;"${contentAttrs}>${escapeHtml(row.content)}</div>`;
     html.push(yearHtml + monthHtml + contentHtml);
   }
   return html.join('');
@@ -537,8 +676,8 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
 .jcd-mhlw-a4__birth-year, .jcd-mhlw-a4__birth-month, .jcd-mhlw-a4__birth-day, .jcd-mhlw-a4__age, .jcd-mhlw-a4__birth-raw,
 .jcd-mhlw-a4__gender,
 .jcd-mhlw-a4__prepared-year, .jcd-mhlw-a4__prepared-month, .jcd-mhlw-a4__prepared-day, .jcd-mhlw-a4__prepared-raw,
-.jcd-mhlw-a4__address, .jcd-mhlw-a4__address-kana, .jcd-mhlw-a4__address-phone,
-.jcd-mhlw-a4__contact-address, .jcd-mhlw-a4__contact-address-kana, .jcd-mhlw-a4__contact-address-phone,
+.jcd-mhlw-a4__address, .jcd-mhlw-a4__address-kana, .jcd-mhlw-a4__address-postal, .jcd-mhlw-a4__address-phone,
+.jcd-mhlw-a4__contact-address, .jcd-mhlw-a4__contact-address-kana, .jcd-mhlw-a4__contact-address-postal, .jcd-mhlw-a4__contact-address-phone,
 .jcd-mhlw-a4__history-heading, .jcd-mhlw-a4__history-year, .jcd-mhlw-a4__history-month, .jcd-mhlw-a4__history-content,
 .jcd-mhlw-a4__cert-year, .jcd-mhlw-a4__cert-month, .jcd-mhlw-a4__cert-content {
   position: absolute;
@@ -617,8 +756,8 @@ const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
   const prepared = renderPreparedOn(preparedOn, editable);
   const address = renderAddress(careerProfile.basics, editable);
   // Phase 2.1a スコープ: 学歴職歴 / 免許資格 表は editable 未対応 (Phase 2.1b)
-  const history = renderHistorySection(careerProfile);
-  const certifications = renderCertificationSection(careerProfile);
+  const history = renderHistorySection(careerProfile, editable);
+  const certifications = renderCertificationSection(careerProfile, editable);
   const summary = renderFreeTextBox(
     'jcd-mhlw-a4__summary',
     SUMMARY_BOX_MM,
