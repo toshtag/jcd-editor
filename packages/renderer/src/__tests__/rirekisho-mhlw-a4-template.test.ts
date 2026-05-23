@@ -61,6 +61,15 @@ describe('rirekishoMhlwA4Template - 基本契約', () => {
     expect(r.html).toContain('jcd-mhlw-a4__rule');
     expect(r.html).not.toContain('class="jcd-mhlw"'); // A3 prefix が紛れ込まない
   });
+
+  it('罫線と写真欄に print-color-adjust:exact が適用される (PDF 出力時に消えない)', () => {
+    const r = rirekishoMhlwA4Template.render({ careerProfile: MIN_PROFILE, kind: 'rirekisho' });
+    // 罫線 (.jcd-mhlw-a4__rule): background:#000 を print 時にも保持
+    expect(r.css).toMatch(/\.jcd-mhlw-a4__rule\s*\{[^}]*print-color-adjust:\s*exact/);
+    expect(r.css).toMatch(/\.jcd-mhlw-a4__rule\s*\{[^}]*-webkit-print-color-adjust:\s*exact/);
+    // 写真欄 (.jcd-mhlw-a4__photo): dashed border と案内テキストを print 時にも保持
+    expect(r.css).toMatch(/\.jcd-mhlw-a4__photo\s*\{[^}]*print-color-adjust:\s*exact/);
+  });
 });
 
 describe('rirekishoMhlwA4Template - 罫線描画 (A3 → A4 座標変換)', () => {

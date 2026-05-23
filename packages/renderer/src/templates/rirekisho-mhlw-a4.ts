@@ -648,7 +648,16 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   color: #000;
   font-family: "Noto Serif JP", "Yu Mincho", "MS Mincho", "Hiragino Mincho ProN", serif;
 }
-.jcd-mhlw-a4__rule { position: absolute; background: #000; }
+.jcd-mhlw-a4__rule {
+  position: absolute;
+  background: #000;
+  /* print 時に background を保持しないと罫線が消える (Chromium default は
+     background-color を印刷対象から除外する)。罫線は本書類で必須要素なので
+     exact 適用で強制的に印刷に含める。標準 print-color-adjust と prefix 版
+     -webkit-print-color-adjust を両方指定 (古い Chromium / Safari fallback)。 */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 .jcd-mhlw-a4__rule--h { height: 0.5pt; }
 .jcd-mhlw-a4__rule--v { width: 0.5pt; }
 
@@ -723,6 +732,9 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   z-index: 2;
   color: #000;
   overflow: hidden;
+  /* 写真欄ガイド (border / 案内テキスト) を print 時にも残すため exact 適用。 */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 .jcd-mhlw-a4__photo--filled { padding: 0; }
 .jcd-mhlw-a4__photo-heading {
