@@ -203,3 +203,64 @@ describe('rirekishoMhlwA4Template - データ流し込み (A3 と挙動互換)',
     expect(r.html).toMatch(/jcd-mhlw-a4__history-content[^>]*top:3\d\d\.\d+mm[^>]*>学校/);
   });
 });
+
+// 公式 PDF (pdffonts + 罫線実測) を base にした位置検証。値セルがラベル直右
+// もしくは box 境界と一致しているかを style 文字列で assert する。
+// 数値は mm 値 (placeOnA4(...) の出力)。座標が変わったら test も更新する前提。
+describe('rirekishoMhlwA4Template - 値セル位置 (公式 bbox / 罫線実測準拠)', () => {
+  it('nameKana 値セルは「ふりがな」ラベル右端から 4mm 隙間 (left=46mm, top はラベルと baseline 一致)', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: { nameKana: { family: 'ヤマダ', given: 'タロウ' } },
+    });
+    const r = rirekishoMhlwA4Template.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(r.html).toMatch(/jcd-mhlw-a4__name-kana[^>]*left:46\.000mm/);
+    // ラベル y=39.87 と同じ top に揃えて baseline 一致
+    expect(r.html).toMatch(/jcd-mhlw-a4__name-kana[^>]*top:39\.870mm/);
+  });
+
+  it('addressKana / contactAddressKana も ラベル直右 (left=46mm) + 公式ラベル y と同 top', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: { addressKana: 'トウキョウト', contactAddressKana: 'チヨダ' },
+    });
+    const r = rirekishoMhlwA4Template.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(r.html).toMatch(/jcd-mhlw-a4__address-kana[^>]*left:46\.000mm/);
+    expect(r.html).toMatch(/jcd-mhlw-a4__address-kana[^>]*top:81\.950mm/);
+    expect(r.html).toMatch(/jcd-mhlw-a4__contact-address-kana[^>]*left:46\.000mm/);
+    expect(r.html).toMatch(/jcd-mhlw-a4__contact-address-kana[^>]*top:104\.480mm/);
+  });
+
+  it('「ふりがな」 ラベルは font-size 9pt で描画される (公式 bbox h=3.51mm 準拠)', () => {
+    const r = rirekishoMhlwA4Template.render({ careerProfile: MIN_PROFILE, kind: 'rirekisho' });
+    // ふりがな の <div class="...label..."> に font-size:9pt が指定される
+    expect(r.html).toMatch(/jcd-mhlw-a4__label[^>]*font-size:9pt[^>]*>ふりがな</);
+  });
+
+  it('addressPhone / contactAddressPhone 値セルは電話 box 全幅 (left=160.44, w=35.31mm) に text-align:center で X 軸中央寄せ', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: { phone: '03-1234-5678', contactPhone: '090-1234-5678' },
+    });
+    const r = rirekishoMhlwA4Template.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(r.html).toMatch(/jcd-mhlw-a4__address-phone[^>]*left:160\.440mm/);
+    expect(r.html).toMatch(/jcd-mhlw-a4__address-phone[^>]*text-align:center/);
+    expect(r.html).toMatch(/jcd-mhlw-a4__contact-address-phone[^>]*left:160\.440mm/);
+    expect(r.html).toMatch(/jcd-mhlw-a4__contact-address-phone[^>]*text-align:center/);
+  });
+
+  it('summary / personalRequest box は罫線実測値 (x=228.85 → A4 で 23.62) に揃う', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: { summary: '志望の動機', personalRequest: '希望' },
+    });
+    const r = rirekishoMhlwA4Template.render({ careerProfile: profile, kind: 'rirekisho' });
+    // SUMMARY_BOX_MM.x = 228.85 → transformX で -205.23 = 23.62
+    expect(r.html).toMatch(/jcd-mhlw-a4__summary[^>]*left:23\.62\dmm/);
+    // SUMMARY_BOX_MM.y = 171.96 → A4 page 2 = +297 = 468.96
+    expect(r.html).toMatch(/jcd-mhlw-a4__summary[^>]*top:468\.96\dmm/);
+    // personalRequest: x=228.85 同様、y=237.49+297=534.49
+    expect(r.html).toMatch(/jcd-mhlw-a4__personal-request[^>]*left:23\.62\dmm/);
+    expect(r.html).toMatch(/jcd-mhlw-a4__personal-request[^>]*top:534\.49\dmm/);
+  });
+});

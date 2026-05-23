@@ -100,8 +100,11 @@ const CERTIFICATION_LAYOUT = {
   maxRows: 6,
 } as const;
 
-const SUMMARY_BOX_MM = { x: 230, y: 172, w: 169, h: 53 } as const;
-const PERSONAL_REQUEST_BOX_MM = { x: 230, y: 237, w: 169, h: 37 } as const;
+// 公式 box の罫線実測値:
+//   summary:         x=228.85〜400.98, y=171.96〜225.98 (右ページ、A3 座標)
+//   personalRequest: x=228.85〜400.98, y=237.49〜273.90
+const SUMMARY_BOX_MM = { x: 228.85, y: 171.96, w: 172.13, h: 54.02 } as const;
+const PERSONAL_REQUEST_BOX_MM = { x: 228.85, y: 237.49, w: 172.13, h: 36.41 } as const;
 
 // === editable mode helpers ===
 //
@@ -179,6 +182,9 @@ const labelFontSizePt = (text: string): number => {
   if (text.startsWith('※「性別」')) return 11;
   if (text.includes('現住所以外')) return 9;
   if (text.includes('(満') || text.includes('歳）')) return 12;
+  // 「ふりがな」 ラベルは公式 PDF で bbox h=3.51mm (≈9.9pt 相当)、他のラベル
+  // (現住所 / 連絡先 等の h=3.90mm = 11pt) より小さい。1 段控えめにする。
+  if (text === 'ふりがな') return 9;
   return 11;
 };
 
@@ -255,11 +261,13 @@ const renderUserNameKana = (basics: CareerProfile['basics'], editable: boolean):
   const family = basics.nameKana?.family ?? '';
   const given = basics.nameKana?.given ?? '';
   const text = family !== '' && given !== '' ? `${family}　${given}` : `${family}${given}`;
-  // ふりがなは「ふりがな」label 横、y=39.87、font-size 9pt のまま、min-width 拡大で
-  // 切れないように。
-  const { left, top } = placeOnA4(60, 39.87);
+  // 氏名ふりがな box (罫線実測): x=23.62〜139.02, y=38.86〜44.37。
+  // 「ふりがな」 ラベル (x=26.21, w=14.17, font-size 9pt, y=39.87) の右端 x≈40.4
+  // から 4mm の隙間を空けて値を left=46 に置く。
+  // top はラベルと同じ y=39.87 に揃えて baseline を一致させる。
+  const { left, top } = placeOnA4(46, 39.87);
   const attrs = editableAttrs(editable, 'nameKana');
-  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;min-width:80mm;"${attrs}>${escapeHtml(text)}</div>`;
+  return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:9pt;min-width:91mm;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
 /**
@@ -376,6 +384,7 @@ const renderPreparedOn = (preparedOn: string | undefined, editable: boolean): st
  */
 const renderAddressBlock = (
   prefix: string,
+  kanaY: number, // ふりがな ラベル / 値 の y (公式 textBbox の y_mm と同じ)
   postalY: number, // 郵便番号 (and 〒 ラベルの y、住所欄上端)
   fullY: number, // 住所本文 (改行後) の y
   address: CareerProfile['basics']['address'],
@@ -386,12 +395,15 @@ const renderAddressBlock = (
 ): string => {
   let html = '';
 
-  // ふりがな (kana) - 公式は住所欄の上ラベル横、y は postalY - 5mm 程度
+  // ふりがな (kana) - ふりがな box (罫線実測): 住所欄上端の 1 段上の細い帯。
+  // 「ふりがな」 ラベル (x=26.21, w=14.17, font-size 9pt) の右端 x≈40.4 から
+  // 4mm の隙間を空けて left=46。top はラベル top と同じ kanaY に置いて、
+  // ラベル baseline と値 baseline を揃える。
   const kanaVal = addressKana ?? '';
   if (editable || isNonEmpty(kanaVal)) {
-    const { left, top } = placeOnA4(46, postalY - 5);
+    const { left, top } = placeOnA4(46, kanaY);
     const attrs = editableAttrs(editable, `${fieldPrefix}Kana`);
-    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;min-width:90mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
+    html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:9pt;min-width:111mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
   }
 
   // 郵便番号 (例 "105-0013")、〒 はラベルとして固定描画されているので user は番号のみ。
@@ -418,23 +430,27 @@ const renderAddressBlock = (
     html += `<div class="jcd-mhlw-a4__${prefix}" style="left:${left};top:${top};font-size:11pt;min-width:130mm;"${attrs}>${escapeHtml(addressFull)}</div>`;
   }
 
-  // 電話 (右端の縦長セル、ラベル「電話」の下に表示。値は中央寄せ気味)
+  // 電話 box (罫線実測): x=160.44〜195.75 (w=35.31), y=postalY-6.24〜postalY+16.45。
+  // 「電話」 ラベル (x=163.25, y=postalY-5.22) の下、box 縦中央寄りに値を置く。
+  // 値は box 全幅で text-align:center し、box 横中央 (≈x=178) に表示。
   const phoneVal = phone ?? '';
   if (editable || isNonEmpty(phoneVal)) {
-    const { left, top } = placeOnA4(165, postalY + 4);
+    const { left, top } = placeOnA4(160.44, postalY + 4);
     const phoneField = fieldPrefix === 'address' ? 'phone' : 'contactPhone';
     const attrs = editableAttrs(editable, phoneField);
-    html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;min-width:35mm;"${attrs}>${escapeHtml(phoneVal)}</div>`;
+    html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;min-width:35.31mm;text-align:center;"${attrs}>${escapeHtml(phoneVal)}</div>`;
   }
   return html;
 };
 
 const renderAddress = (basics: CareerProfile['basics'], editable: boolean): string => {
-  // 現住所欄: 郵便番号 y=87mm、住所本文 y=94mm (公式実測値ベース、改行 1 行下)
-  // 連絡先欄: 郵便番号 y=109.66mm、住所本文 y=116mm
+  // 公式 textBbox のラベル位置 (y_mm):
+  //   現住所: ふりがな y=81.95, 〒/現住所 y=87.01, 住所本文 (改行) y=94
+  //   連絡先: ふりがな y=104.48, 〒/連絡先 y=109.66, 住所本文 (改行) y=116
   return (
     renderAddressBlock(
       'address',
+      81.95,
       87,
       94,
       basics.address,
@@ -445,6 +461,7 @@ const renderAddress = (basics: CareerProfile['basics'], editable: boolean): stri
     ) +
     renderAddressBlock(
       'contact-address',
+      104.48,
       109.66,
       116,
       basics.contactAddress,
