@@ -68,6 +68,7 @@ import { createIndexedDbStorageAdapter, type StoredProfileId } from '@jcd-editor
 import './styles.css';
 
 import { buildPreviewDocument } from './preview-document';
+import { buildPrintDocument } from './print-document';
 import {
   buildBasicsFromForm,
   buildDraft,
@@ -153,6 +154,7 @@ const projectsList = requireElement('projects-list', HTMLDivElement);
 const addProjectButton = requireElement('add-project-button', HTMLButtonElement);
 const exportButton = requireElement('export-button', HTMLButtonElement);
 const importFileInput = requireElement('import-file-input', HTMLInputElement);
+const printButton = requireElement('print-button', HTMLButtonElement);
 const profilePhotoInput = requireElement('profile-photo-input', HTMLInputElement);
 const profilePhotoRemoveButton = requireElement('profile-photo-remove-button', HTMLButtonElement);
 const profilePhotoThumbnail = requireElement('profile-photo-thumbnail', HTMLImageElement);
@@ -756,6 +758,61 @@ if (!parsed.success) {
     showStatus('JSON を export しました');
   };
 
+  /**
+   * 現在の kind / profile を renderer で描画し、新規 window/tab に Blob URL で
+   * 開いて自動的に print dialog を起動する。ユーザーは print dialog 内で
+   * 「PDF として保存」 を選ぶことで PDF を取得する (OS の標準機能)。
+   *
+   * 設計:
+   *   - editable=false で render (PDF 出力時は contenteditable 属性を付けない)
+   *   - Blob URL を window.open に渡す (data: URL より大きな HTML に強い)
+   *   - 新 window 内の <script> が onload → window.print() → afterprint → close
+   *     の流れを担当 (buildPrintDocument 参照)
+   *   - popup blocker 回避のため、click handler の同期実行内で window.open を
+   *     呼ぶ
+   *   - URL.revokeObjectURL は新 window が読み込み終わってから (一定時間後)
+   */
+  const onPrint = (kind: DocumentKind): void => {
+    if (!isCurrentDraftValid) {
+      showError(
+        'PDF 出力できません',
+        'form に validation エラーがあります。修正後に再度お試しください。',
+      );
+      showStatus('PDF 出力失敗 (validation エラー)');
+      return;
+    }
+    try {
+      const rendered = renderDocument({ careerProfile: profile, kind }, registry);
+      const html = buildPrintDocument(rendered);
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (win === null) {
+        URL.revokeObjectURL(url);
+        showError(
+          'PDF 出力できません',
+          'ブラウザの popup blocker が新しいタブを開くのをブロックしました。ポップアップを許可してから再度お試しください。',
+        );
+        showStatus('PDF 出力失敗 (popup ブロック)');
+        return;
+      }
+      // 新 window が Blob URL を fetch し終わるまでの余裕を持って revoke する。
+      // 短すぎると新 window 側で load 前に URL が破棄されて空ページになる。
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      showStatus('PDF 出力 (印刷ダイアログ)');
+    } catch (error) {
+      const message =
+        error instanceof RendererError
+          ? `${error.code}: ${error.message}`
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      showError('PDF 出力エラー', message);
+      showStatus('PDF 出力失敗 (レンダリングエラー)');
+      console.error('print render failed:', error);
+    }
+  };
+
   const readFileAsText = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1097,6 +1154,10 @@ if (!parsed.success) {
 
   exportButton.addEventListener('click', () => {
     onExport();
+  });
+
+  printButton.addEventListener('click', () => {
+    onPrint(currentKind);
   });
 
   importFileInput.addEventListener('change', () => {
