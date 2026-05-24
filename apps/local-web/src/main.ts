@@ -1257,6 +1257,16 @@ if (!parsed.success) {
     if (field === null) return;
     const value = (target.textContent ?? '').trim();
 
+    // 学歴・職歴 内容セルは「学歴」「職歴」: 中央寄せ / 「以上」: 右寄せ /
+    // その他: 左寄せ。renderer 側で同じロジックが render されているが、入力中
+    // は renderWysiwyg を呼ばずに DOM だけ追従させたいため、ここで target.style
+    // を直接書き換える。月セルは常に右寄せのため切替不要。
+    if (/^historyRows\.\d+\.content$/.test(field)) {
+      if (value === '学歴' || value === '職歴') target.style.textAlign = 'center';
+      else if (value === '以上') target.style.textAlign = 'right';
+      else target.style.textAlign = 'left';
+    }
+
     // 現在 state を draft object に展開
     const draft: Record<string, unknown> = JSON.parse(JSON.stringify(profile));
     const basics = (draft.basics ?? {}) as Record<string, unknown>;
