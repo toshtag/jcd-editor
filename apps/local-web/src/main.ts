@@ -1183,6 +1183,43 @@ if (!parsed.success) {
     onPhotoRemove();
   });
 
+  /**
+   * ドラッグ&ドロップで写真ファイルを受け付ける drop zone を element に取り付ける。
+   * - dragover / dragleave で `is-dragover` クラスを toggle (CSS で視覚フィードバック)
+   * - drop されたファイルの先頭 1 つを onPhotoSelected に渡す (複数選択は無視)
+   * - dataTransfer.types に "Files" が含まれるときだけ反応 (テキストドラッグは無視)
+   */
+  const attachPhotoDropZone = (el: HTMLElement): void => {
+    const isFileDrag = (e: DragEvent): boolean =>
+      Array.from(e.dataTransfer?.types ?? []).includes('Files');
+    el.addEventListener('dragover', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer !== null) e.dataTransfer.dropEffect = 'copy';
+      el.classList.add('is-dragover');
+    });
+    el.addEventListener('dragleave', () => {
+      el.classList.remove('is-dragover');
+    });
+    el.addEventListener('drop', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      el.classList.remove('is-dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file === undefined) return;
+      void onPhotoSelected(file);
+    });
+  };
+
+  // SP 版フォーム pane の写真エリア (thumbnail + 控えるボタンを内包)
+  const photoFormSection = document.querySelector<HTMLElement>('[data-section="profilePhoto"]');
+  if (photoFormSection !== null) attachPhotoDropZone(photoFormSection);
+
+  // PC 版 WYSIWYG editor 内の 写真欄 (renderer 出力後に存在する要素なので
+  // wysiwygPane を delegated drop zone として扱い、e.target が photo box 内なら
+  // onPhotoSelected を呼ぶ)。
+  attachPhotoDropZone(wysiwygPane);
+
   // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を
   // 表示する。最新ブラウザはカスタム message を表示しない (browser 既定文言)
   // が、確認 dialog 自体は出る。

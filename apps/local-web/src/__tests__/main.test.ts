@@ -1213,6 +1213,70 @@ describe('local-web main flow', () => {
       expect(thumbnail().hidden).toBe(true);
     });
 
+    /**
+     * profile-photo セクションに drop event を dispatch する helper。
+     * jsdom の DataTransfer はファイル付きに対応しないので、files / types を
+     * Object.defineProperty で細工する。
+     */
+    const dispatchDrop = (target: HTMLElement, file: File): void => {
+      const fileList = {
+        0: file,
+        length: 1,
+        item: (i: number) => (i === 0 ? file : null),
+      } as unknown as FileList;
+      const event = new Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'dataTransfer', {
+        value: { files: fileList, types: ['Files'] },
+        configurable: true,
+      });
+      target.dispatchEvent(event);
+    };
+
+    it('DnD: profile-photo セクションに PNG をドロップで thumbnail に反映される', async () => {
+      await importMain();
+      const section = document.querySelector<HTMLElement>('[data-section="profilePhoto"]');
+      if (section === null) throw new Error('Missing profilePhoto section');
+      const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'dropped.png', {
+        type: 'image/png',
+      });
+      dispatchDrop(section, file);
+      await waitForPhotoProcessing();
+
+      expect(thumbnail().hidden).toBe(false);
+      expect(thumbnail().src.startsWith('data:image/png;base64,')).toBe(true);
+    });
+
+    it('DnD: 無効な MIME (image/gif) をドロップで error 表示、thumbnail 変化なし', async () => {
+      await importMain();
+      const section = document.querySelector<HTMLElement>('[data-section="profilePhoto"]');
+      if (section === null) throw new Error('Missing profilePhoto section');
+      const file = makeFile(1000, 'image/gif', 'dropped.gif');
+      dispatchDrop(section, file);
+      await waitForPhotoProcessing();
+
+      expect(errorEl().hidden).toBe(false);
+      expect(errorEl().textContent).toContain('image/gif');
+      expect(thumbnail().hidden).toBe(true);
+    });
+
+    it('DnD: dragover でセクションに is-dragover クラスが付き、dragleave で外れる', async () => {
+      await importMain();
+      const section = document.querySelector<HTMLElement>('[data-section="profilePhoto"]');
+      if (section === null) throw new Error('Missing profilePhoto section');
+      const makeDragEvent = (type: string): Event => {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'dataTransfer', {
+          value: { types: ['Files'] },
+          configurable: true,
+        });
+        return event;
+      };
+      section.dispatchEvent(makeDragEvent('dragover'));
+      expect(section.classList.contains('is-dragover')).toBe(true);
+      section.dispatchEvent(makeDragEvent('dragleave'));
+      expect(section.classList.contains('is-dragover')).toBe(false);
+    });
+
     it('写真選択後に削除ボタン: thumbnail が hidden に戻る', async () => {
       await importMain();
       const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {

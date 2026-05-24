@@ -270,6 +270,28 @@ body {
   overflow: hidden;
 }
 
+/* DnD ドラッグ中の視覚フィードバック (form pane の写真セクション全体に対して):
+   外枠を青く強調 + 背景を薄く青くして「ここにドロップ可能」 と示す */
+.profile-photo.is-dragover {
+  border-color: #4a90e2;
+  background: #f0f6fd;
+  outline: 2px dashed #4a90e2;
+  outline-offset: -2px;
+}
+.profile-photo.is-dragover .profile-photo__thumbnail-wrapper {
+  border-color: #4a90e2;
+}
+
+/* WYSIWYG editor 内の写真欄 (.jcd-mhlw-a4__photo) は editable mode で
+   drop zone になる。wysiwygPane 全体に attach されるが、視覚上は写真欄に
+   ドロップ可能であることを示すため、pane が drag 中のときに photo 要素を
+   青枠で強調する。 */
+.app__wysiwyg-pane.is-dragover .jcd-mhlw-a4__photo {
+  border-color: #4a90e2;
+  border-width: 1.5pt;
+  background: rgba(74, 144, 226, 0.08);
+}
+
 .profile-photo__thumbnail {
   max-width: 100%;
   max-height: 100%;
