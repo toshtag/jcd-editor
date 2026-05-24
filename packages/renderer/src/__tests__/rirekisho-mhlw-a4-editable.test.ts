@@ -180,7 +180,10 @@ describe('rirekishoMhlwA4Template - editable mode (Phase 2.1a)', () => {
     expect(r.html).toContain('基本情報技術者試験');
   });
 
-  it('historyRows が無くて educationHistory のみのとき: 旧来通り合成して描画 (editable 属性は出ない)', () => {
+  it('editable: true では historyRows の有無に関わらず常に 22 行 (公式罫線数 15+7) を編集可能で描画する', () => {
+    // historyRows なし / educationHistory のみのケース: 新仕様では editable=true
+    // のとき historyRows を無視して 22 行 (= 左ページ 15 + 右ページ 7) の空
+    // editable セルを描画 (educationHistory からの合成は PDF 出力 editable=false 時のみ)
     const profile = parseCareerProfile({
       schemaVersion: 1,
       basics: {},
@@ -191,9 +194,58 @@ describe('rirekishoMhlwA4Template - editable mode (Phase 2.1a)', () => {
       kind: 'rirekisho',
       editable: true,
     });
-    // historyRows が無いので合成された row の data-field は付かない
+    // historyRows.0.year .. .21.content まで 22 行分の data-field が付与される
+    expect(r.html).toContain('data-field="historyRows.0.year"');
+    expect(r.html).toContain('data-field="historyRows.21.content"');
+    // 23 行目はない
+    expect(r.html).not.toContain('data-field="historyRows.22.content"');
+    // educationHistory からの合成は editable=true では行わない
+    expect(r.html).not.toContain('サンプル大学');
+  });
+
+  it('見出し行 (「学歴」「職歴」「現在に至る」「以上」) の年/月セルは placeholder を出さない', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      historyRows: [
+        { content: '学歴' },
+        { year: '2016', month: '4', content: 'サンプル大学 入学' },
+        { content: '職歴' },
+        { content: '以上' },
+      ],
+    });
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profile,
+      kind: 'rirekisho',
+      editable: true,
+    });
+    // 「学歴」 (idx=0) / 「職歴」 (idx=2) / 「以上」 (idx=3) の年/月セルは
+    // placeholder を持たない
+    expect(r.html).toMatch(
+      /jcd-mhlw-a4__history-year[^>]*data-field="historyRows\.0\.year"(?![^>]*data-placeholder)/,
+    );
+    expect(r.html).toMatch(
+      /jcd-mhlw-a4__history-year[^>]*data-field="historyRows\.2\.year"(?![^>]*data-placeholder)/,
+    );
+    // 通常行 (idx=1) の年/月セルには placeholder が付与される
+    expect(r.html).toMatch(
+      /jcd-mhlw-a4__history-year[^>]*data-field="historyRows\.1\.year"[^>]*data-placeholder="YYYY"/,
+    );
+  });
+
+  it('editable: false で historyRows が無いとき: educationHistory から合成 (PDF 出力フロー)', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: {},
+      educationHistory: [{ institutionName: 'サンプル大学', startDate: '2016-04' }],
+    });
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profile,
+      kind: 'rirekisho',
+    });
+    // editable=false の legacy フォールバック: educationHistory から合成された
+    // 行が描画される (data-field は付かない、PDF 出力用)
     expect(r.html).not.toContain('data-field="historyRows');
-    // 表は通常通り描画される
     expect(r.html).toContain('サンプル大学');
   });
 

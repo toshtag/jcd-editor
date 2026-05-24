@@ -553,15 +553,15 @@ if (!parsed.success) {
 
       // WYSIWYG editor は履歴書 kind のときだけ visible にする (editable HTML
       // を直接 DOM 注入)。職務経歴書 kind では編集形式が異なるので隠す。
+      // 学歴・職歴 / 資格 の「1 行追加」 ボタンは編集モデル変更 (常に 公式罫線
+      // 行数 20 / 6 を全て編集可能として表示) により不要になったので常に hidden
+      // のまま (HTML の hidden 属性を維持)。将来的に列追加・削除 UI が必要に
+      // なれば再有効化する。
       if (kind === 'rirekisho') {
         wysiwygPane.hidden = false;
-        addHistoryRowButton.hidden = false;
-        addCertificationRowButton.hidden = false;
         renderWysiwyg();
       } else {
         wysiwygPane.hidden = true;
-        addHistoryRowButton.hidden = true;
-        addCertificationRowButton.hidden = true;
       }
 
       hideError();
