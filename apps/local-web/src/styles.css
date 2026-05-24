@@ -282,10 +282,20 @@ body {
   border-color: #4a90e2;
 }
 
-/* WYSIWYG editor 内の写真欄 (.jcd-mhlw-a4__photo) は editable mode で
-   drop zone になる。wysiwygPane 全体に attach されるが、視覚上は写真欄に
-   ドロップ可能であることを示すため、pane が drag 中のときに photo 要素を
-   青枠で強調する。 */
+/* WYSIWYG editor 内の写真欄 (.jcd-mhlw-a4__photo): クリック / DnD 両方で
+   ファイル選択が可能なので cursor: pointer。hover で背景を薄く青くして
+   「クリック可能」 と示す。 */
+.app__wysiwyg-pane .jcd-mhlw-a4__photo {
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+.app__wysiwyg-pane .jcd-mhlw-a4__photo:hover {
+  background: rgba(74, 144, 226, 0.06);
+}
+
+/* WYSIWYG editor 内の写真欄は editable mode で drop zone になる。
+   wysiwygPane 全体に attach されるが、視覚上は写真欄にドロップ可能で
+   あることを示すため、pane が drag 中のときに photo 要素を青枠で強調する。 */
 .app__wysiwyg-pane.is-dragover .jcd-mhlw-a4__photo {
   border-color: #4a90e2;
   border-width: 1.5pt;

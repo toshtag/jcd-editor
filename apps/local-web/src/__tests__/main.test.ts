@@ -1190,6 +1190,42 @@ describe('local-web main flow', () => {
       expect(button('profile-photo-remove-button').disabled).toBe(false);
     });
 
+    it('写真アップロード成功時に showStatus (ヘッダー status 領域) に「写真を追加しました」メッセージが出る', async () => {
+      await importMain();
+      const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'success.png', {
+        type: 'image/png',
+      });
+      setFileInput(file);
+      await waitForPhotoProcessing();
+      const statusEl = document.getElementById('status');
+      expect(statusEl?.textContent).toContain('写真を追加しました');
+      expect(statusEl?.textContent).toContain('success.png');
+    });
+
+    it('WYSIWYG editor 内の写真枠をクリックすると profile-photo-input.click() が呼ばれる', async () => {
+      await importMain();
+      // renderer の wysiwygPane に .jcd-mhlw-a4__photo を疑似配置 (実 renderer
+      // 出力が無い test 環境用)。
+      const wysiwygPane = document.getElementById('wysiwyg-editor');
+      if (wysiwygPane === null) throw new Error('Missing wysiwyg-editor');
+      const photoBox = document.createElement('div');
+      photoBox.className = 'jcd-mhlw-a4__photo';
+      wysiwygPane.appendChild(photoBox);
+
+      let clickInvoked = false;
+      const input = photoInput();
+      const originalClick = input.click.bind(input);
+      input.click = () => {
+        clickInvoked = true;
+      };
+      try {
+        photoBox.click();
+      } finally {
+        input.click = originalClick;
+      }
+      expect(clickInvoked).toBe(true);
+    });
+
     it('image/gif を選択: error 表示、thumbnail 変化なし', async () => {
       await importMain();
       const file = makeFile(1000, 'image/gif', 'photo.gif');

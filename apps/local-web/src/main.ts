@@ -696,6 +696,11 @@ if (!parsed.success) {
     currentPhoto = { source: { kind: 'dataUri', dataUri, mediaType } };
     updatePhotoThumbnail();
     onFormInput();
+    // アップロード成功フィードバック (DnD / クリック 両方の経路で表示):
+    // ヘッダーの status 領域に短いメッセージを出して、ユーザーが「反映された」
+    // ことを確認できるようにする。aria-live="polite" 付き要素なので screen
+    // reader にも読み上げられる。
+    showStatus(`写真を追加しました (${file.name})`);
     // a11y: 写真選択直後の典型的な次操作は「気に入らなければ削除」。
     // 削除ボタンに focus を移す。
     profilePhotoRemoveButton.focus();
@@ -1213,9 +1218,23 @@ if (!parsed.success) {
   if (photoFormSection !== null) attachPhotoDropZone(photoFormSection);
 
   // PC 版 WYSIWYG editor 内の 写真欄 (renderer 出力後に存在する要素なので
-  // wysiwygPane を delegated drop zone として扱い、e.target が photo box 内なら
-  // onPhotoSelected を呼ぶ)。
+  // wysiwygPane を delegated drop zone として扱う)。
   attachPhotoDropZone(wysiwygPane);
+
+  // PC 版 WYSIWYG では「写真を選択」 ボタンが form pane と共に非表示なので、
+  // 写真欄 (.jcd-mhlw-a4__photo) を直接クリックしてもファイル選択ダイアログが
+  // 開くようにする。delegated click handler で profile-photo-input の click()
+  // を呼ぶ (= 同じファイル選択フローを再利用)。
+  wysiwygPane.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    const photoBox = target.closest('.jcd-mhlw-a4__photo');
+    if (photoBox === null) return;
+    // 写真が既に挿入済みの場合 (`.jcd-mhlw-a4__photo--filled`) もクリックで
+    // 再選択できるようにする (= 写真の差し替え操作)。
+    e.preventDefault();
+    profilePhotoInput.click();
+  });
 
   // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を
   // 表示する。最新ブラウザはカスタム message を表示しない (browser 既定文言)
