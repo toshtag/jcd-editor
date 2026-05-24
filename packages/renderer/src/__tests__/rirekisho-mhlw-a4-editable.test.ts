@@ -307,4 +307,40 @@ describe('rirekishoMhlwA4Template - editable mode (Phase 2.1a)', () => {
     expect(r.html).not.toMatch(/ contenteditable="/);
     expect(r.html).not.toMatch(/ data-placeholder="/);
   });
+
+  it('生年月日 + 作成日 が揃っていれば年齢を自動算出して __age セルに表示する (editable / read-only 共通)', () => {
+    const profile = parseCareerProfile({
+      schemaVersion: 1,
+      basics: { birthDate: '1993-04-01' },
+      meta: { preparedOn: '2026-05-23' },
+    });
+    // read-only
+    const ro = rirekishoMhlwA4Template.render({ careerProfile: profile, kind: 'rirekisho' });
+    expect(ro.html).toMatch(/jcd-mhlw-a4__age[^>]*data-derived="age"[^>]*>33</);
+    // editable (WYSIWYG)
+    const ed = rirekishoMhlwA4Template.render({
+      careerProfile: profile,
+      kind: 'rirekisho',
+      editable: true,
+    });
+    expect(ed.html).toMatch(/jcd-mhlw-a4__age[^>]*data-derived="age"[^>]*>33</);
+  });
+
+  it('editable: true で生年月日 / 作成日 が無くても __age 空セルを出す (後から DOM 更新できる足場)', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+      editable: true,
+    });
+    // 空でも data-derived="age" の div は出す
+    expect(r.html).toMatch(/jcd-mhlw-a4__age[^>]*data-derived="age"[^>]*><\/div>/);
+  });
+
+  it('editable: false で生年月日 / 作成日 が無い場合は __age セル自体出さない', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+    });
+    expect(r.html).not.toContain('jcd-mhlw-a4__age');
+  });
 });

@@ -1,4 +1,5 @@
 export { builtinTemplates, createDefaultTemplateRegistry } from './builtin-templates';
+export { computeAgeOnDate } from './_internal/rirekisho-mhlw-shared';
 export type { DocumentKind } from './document-kind';
 export { RendererError, type RendererErrorCode } from './errors';
 export { renderDocument } from './render-document';

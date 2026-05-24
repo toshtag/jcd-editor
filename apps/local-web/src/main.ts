@@ -58,6 +58,7 @@ import {
   type ValidationIssue,
 } from '@jcd-editor/core';
 import {
+  computeAgeOnDate,
   createDefaultTemplateRegistry,
   renderDocument,
   RendererError,
@@ -1294,26 +1295,19 @@ if (!parsed.success) {
       field === 'birthDate.month' ||
       field === 'birthDate.day'
     ) {
-      // 3 セル分割 birthDate: 編集中の field を更新し、3 つすべてが揃ったら
-      // YYYY-MM-DD として basics.birthDate に格納、揃わなければ削除
-      const subField = field.split('.')[1] as 'year' | 'month' | 'day';
-      const current = (basics.birthDate as string | undefined) ?? '';
-      const m = current.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      let y = m?.[1] ?? '';
-      let mo = m?.[2] ?? '';
-      let d = m?.[3] ?? '';
-      if (subField === 'year') y = value;
-      else if (subField === 'month') mo = value.padStart(2, '0');
-      else d = value.padStart(2, '0');
-      // 全て揃った場合のみ basics.birthDate を更新
-      if (y.length === 4 && mo.length === 2 && d.length === 2) {
+      // DOM 上の 3 セルから読む (state から復元すると、部分的な入力中に削除済みの
+      // 他セル分が失われるバグになる)。3 つすべてが揃ったら YYYY-MM-DD として
+      // basics.birthDate に格納、揃わなければ削除。
+      const readCell = (f: string): string => {
+        const el = wysiwygPane.querySelector<HTMLElement>(`[data-field="${f}"]`);
+        return (el?.textContent ?? '').trim();
+      };
+      const y = readCell('birthDate.year');
+      const mo = readCell('birthDate.month').padStart(2, '0');
+      const d = readCell('birthDate.day').padStart(2, '0');
+      if (y.length === 4 && mo.length === 2 && mo !== '00' && d.length === 2 && d !== '00') {
         basics.birthDate = `${y}-${mo}-${d}`;
-      } else if (y === '' && mo === '00' && d === '00') {
-        delete basics.birthDate;
       } else {
-        // 部分的な入力中: 既存 birthDate を維持 (再描画で値が消えると user が
-        // 数字入力中に他のセル値も消える事故になる)。新規入力中の途中状態は
-        // accept できないので、basics.birthDate は削除して invalid を許容。
         delete basics.birthDate;
       }
     } else if (
@@ -1322,16 +1316,16 @@ if (!parsed.success) {
       field === 'preparedOn.day'
     ) {
       const meta = (draft.meta ?? {}) as Record<string, unknown>;
-      const subField = field.split('.')[1] as 'year' | 'month' | 'day';
-      const current = (meta.preparedOn as string | undefined) ?? '';
-      const m = current.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      let y = m?.[1] ?? '';
-      let mo = m?.[2] ?? '';
-      let d = m?.[3] ?? '';
-      if (subField === 'year') y = value;
-      else if (subField === 'month') mo = value.padStart(2, '0');
-      else d = value.padStart(2, '0');
-      if (y.length === 4 && mo.length === 2 && d.length === 2) {
+      // state の preparedOn から復元するのではなく、DOM 上の 3 セルの textContent
+      // を直接読む (state を都度削除しているので state から復元できない)
+      const readCell = (f: string): string => {
+        const el = wysiwygPane.querySelector<HTMLElement>(`[data-field="${f}"]`);
+        return (el?.textContent ?? '').trim();
+      };
+      const y = readCell('preparedOn.year');
+      const mo = readCell('preparedOn.month').padStart(2, '0');
+      const d = readCell('preparedOn.day').padStart(2, '0');
+      if (y.length === 4 && mo.length === 2 && mo !== '00' && d.length === 2 && d !== '00') {
         meta.preparedOn = `${y}-${mo}-${d}`;
       } else {
         delete meta.preparedOn;
@@ -1433,6 +1427,28 @@ if (!parsed.success) {
       showValidationIssues(parsed.issues);
       showStatus(STATUS_INVALID);
       updateButtonStates();
+    }
+
+    // 生年月日 / 作成日 が変わったら DOM の年齢セルを再計算して書き換える。
+    // renderWysiwyg() で全体再描画しないので、年齢セルだけ直接更新する。
+    // 値は basics.birthDate と meta.preparedOn から計算 (draft ベース、parse の
+    // 成否に関わらず最新値を反映)。
+    if (field.startsWith('birthDate.') || field.startsWith('preparedOn.')) {
+      const ageCell = wysiwygPane.querySelector<HTMLElement>(
+        '.jcd-mhlw-a4__age[data-derived="age"]',
+      );
+      if (ageCell !== null) {
+        const draftBasics = (draft.basics ?? {}) as Record<string, unknown>;
+        const draftMeta = (draft.meta ?? {}) as Record<string, unknown>;
+        const birth = draftBasics.birthDate as string | undefined;
+        const prepared = draftMeta.preparedOn as string | undefined;
+        if (typeof birth === 'string' && typeof prepared === 'string') {
+          const age = computeAgeOnDate(birth, prepared);
+          ageCell.textContent = age === undefined ? '' : String(age);
+        } else {
+          ageCell.textContent = '';
+        }
+      }
     }
   };
 
