@@ -87,7 +87,8 @@ const HISTORY_LAYOUT = {
     rightEdgeX: 195.75,
     firstRowY: 137.58,
     rowHeight: 9.06,
-    maxRows: 9,
+    // 罫線実測 (y=129.96, 137.58, ..., 273.90): ヘッダー除く 15 行
+    maxRows: 15,
   },
   rightPage: {
     yearX: 228.85,
@@ -96,7 +97,8 @@ const HISTORY_LAYOUT = {
     rightEdgeX: 400.98,
     firstRowY: 35.31,
     rowHeight: 9.06,
-    maxRows: 11,
+    // 罫線実測 (y=27.60, 35.31, ..., 98.98): ヘッダー除く 7 行
+    maxRows: 7,
   },
 } as const;
 
@@ -591,11 +593,20 @@ const renderHistoryRowAt = (
   const monthPos = placeOnA4(x.monthX, yCentered);
   const contentPos = placeOnA4(x.contentX, yCentered);
   const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
+  // 見出し行 (「学歴」「職歴」「現在に至る」「以上」 等) の年/月セルには
+  // placeholder を出さない (公式の見え方に合わせる、見出しは年月が無いのが自然)
+  const isHeadingLike =
+    row.content === '学歴' ||
+    row.content === '職歴' ||
+    row.content === '現在に至る' ||
+    row.content === '以上';
+  const yearPlaceholder = isHeadingLike ? undefined : 'YYYY';
+  const monthPlaceholder = isHeadingLike ? undefined : 'M';
   const yearAttrs = hasSourceIndex
-    ? editableAttrs(true, `historyRows.${row.sourceIndex}.year`, 'YYYY')
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.year`, yearPlaceholder)
     : '';
   const monthAttrs = hasSourceIndex
-    ? editableAttrs(true, `historyRows.${row.sourceIndex}.month`, 'M')
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.month`, monthPlaceholder)
     : '';
   const contentAttrs = hasSourceIndex
     ? editableAttrs(true, `historyRows.${row.sourceIndex}.content`, '学歴・職歴を記入')
@@ -634,10 +645,28 @@ const renderHistoryRowAt = (
 };
 
 const renderHistorySection = (careerProfile: CareerProfile, editable: boolean): string => {
+  const left = HISTORY_LAYOUT.leftPage;
+  const right = HISTORY_LAYOUT.rightPage;
+  const leftCapacity = left.maxRows;
+  const rightCapacity = right.maxRows;
+  const totalCapacity = leftCapacity + rightCapacity;
+
   let allRows: HistoryRowOrEntry[];
 
-  if (careerProfile.historyRows !== undefined) {
-    // WYSIWYG モード相当: 各 row に source index を持たせて data-field 化可能に
+  if (editable) {
+    // editable mode (PC 版 WYSIWYG): 紙の罫線と同じく常に全 totalCapacity 行を
+    // 描画し、すべて編集可能。historyRows にデータがある分だけ値を入れ、残りは
+    // 空セル + sourceIndex で表示 (= 紙の Excel のように、どこからでも入力可能)。
+    const source = careerProfile.historyRows ?? [];
+    allRows = Array.from({ length: totalCapacity }, (_, idx) => ({
+      kind: 'entry' as const,
+      year: source[idx]?.year ?? '',
+      month: source[idx]?.month ?? '',
+      content: source[idx]?.content ?? '',
+      sourceIndex: idx,
+    }));
+  } else if (careerProfile.historyRows !== undefined) {
+    // PDF 出力 (editable=false) で historyRows がある: そのまま描画 (空セルは出さない)
     allRows = careerProfile.historyRows.map((r, idx) => ({
       kind: 'entry' as const,
       year: r.year ?? '',
@@ -646,24 +675,14 @@ const renderHistorySection = (careerProfile: CareerProfile, editable: boolean): 
       sourceIndex: idx,
     }));
   } else {
-    // legacy: educationHistory + workExperiences から合成 (read-only)
+    // PDF 出力で historyRows なし: legacy として educationHistory + workExperiences
+    // から合成 (heading 行を含む read-only モード)
     const educationRows = buildEducationRows(careerProfile.educationHistory);
     const workRows = buildWorkRows(careerProfile.workExperiences);
     allRows = [...educationRows, ...workRows] as HistoryRowOrEntry[];
   }
 
-  // editable mode で historyRows が無い (= 完全新規) なら空 row を 1 つ追加して
-  // クリック対象を提供。local-web 側が「+追加」ボタンで row を増やす想定だが、
-  // safety net として常に「最後の空行」を表示する選択肢もある (本 PR では
-  // 何もしない、空 row は local-web が historyRows に push して renderer に
-  // 再渡しすれば現れる)。
-
   if (allRows.length === 0) return '';
-  const left = HISTORY_LAYOUT.leftPage;
-  const right = HISTORY_LAYOUT.rightPage;
-  const leftCapacity = left.maxRows;
-  const rightCapacity = right.maxRows;
-  const totalCapacity = leftCapacity + rightCapacity;
   const rowsToRender = allRows.slice(0, totalCapacity);
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {
@@ -684,8 +703,18 @@ const renderHistorySection = (careerProfile: CareerProfile, editable: boolean): 
 type CertRow = { year: string; month: string; content: string; sourceIndex?: number };
 
 const renderCertificationSection = (careerProfile: CareerProfile, editable: boolean): string => {
+  const layout = CERTIFICATION_LAYOUT;
   let rows: CertRow[];
-  if (careerProfile.certificationRows !== undefined) {
+  if (editable) {
+    // editable mode: 紙の罫線と同じく常に layout.maxRows 行を描画し、すべて編集可能
+    const source = careerProfile.certificationRows ?? [];
+    rows = Array.from({ length: layout.maxRows }, (_, idx) => ({
+      year: source[idx]?.year ?? '',
+      month: source[idx]?.month ?? '',
+      content: source[idx]?.content ?? '',
+      sourceIndex: idx,
+    }));
+  } else if (careerProfile.certificationRows !== undefined) {
     rows = careerProfile.certificationRows.map((r, idx) => ({
       year: r.year ?? '',
       month: r.month ?? '',
@@ -702,7 +731,6 @@ const renderCertificationSection = (careerProfile: CareerProfile, editable: bool
     );
   }
   if (rows.length === 0) return '';
-  const layout = CERTIFICATION_LAYOUT;
   const rowsToRender = rows.slice(0, layout.maxRows);
   const html: string[] = [];
   for (let i = 0; i < rowsToRender.length; i += 1) {

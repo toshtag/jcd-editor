@@ -68,6 +68,21 @@ export const sampleProfileInput = {
       acquiredDate: '2018-06',
     },
   ],
+  // historyRows / certificationRows は WYSIWYG エディタ (PC 版) で
+  // 直接編集可能にするための raw 3-column 表現。educationHistory /
+  // workExperiences / certifications と内容は同じだが、これらは構造化された
+  // form 入力 (SP 版) のため残し、表ベースの表示・編集には historyRows /
+  // certificationRows を source of truth として使う。
+  // 内容が一致するよう sample-profile.test.ts で同期チェックする。
+  historyRows: [
+    { content: '学歴' },
+    { year: '2016', month: '4', content: 'サンプル大学 情報工学部 情報科学科 入学' },
+    { year: '2020', month: '3', content: 'サンプル大学 情報工学部 情報科学科 卒業' },
+    { content: '職歴' },
+    { year: '2020', month: '4', content: '株式会社サンプル 入社(正社員 / ソフトウェアエンジニア)' },
+    { content: '現在に至る' },
+  ],
+  certificationRows: [{ year: '2018', month: '6', content: '基本情報技術者試験 (IPA)' }],
   projects: [
     {
       name: 'サンプルプロジェクト',
