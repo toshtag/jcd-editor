@@ -214,4 +214,45 @@ describe('rirekishoMhlwA4Template - editable mode (Phase 2.1a)', () => {
     });
     expect(r.css).toContain('[contenteditable="plaintext-only"]:empty::before');
   });
+
+  it('editable: true で WYSIWYG ガイド装飾 CSS (非アクティブ時の薄い背景色) が含まれる', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+      editable: true,
+    });
+    // contenteditable に常時薄い背景 (PC 版での入力可能箇所可視化)
+    expect(r.css).toMatch(
+      /\[contenteditable="plaintext-only"\][^{]*\{[^}]*background:\s*rgba\(120,\s*170,\s*255/,
+    );
+  });
+
+  it('editable: true で各セルに data-placeholder 属性 (入力ヒント) が付く', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+      editable: true,
+    });
+    // 主要セルの placeholder
+    expect(r.html).toContain('data-placeholder="氏 名"');
+    expect(r.html).toContain('data-placeholder="シメイ ふりがな"');
+    expect(r.html).toContain('data-placeholder="YYYY"');
+    expect(r.html).toContain('data-placeholder="M"');
+    expect(r.html).toContain('data-placeholder="D"');
+    expect(r.html).toContain('data-placeholder="000-0000"');
+    expect(r.html).toContain('data-placeholder="都道府県 市区町村 番地"');
+  });
+
+  it('editable: false (PDF 出力等) では contenteditable 属性 / data-editable / data-placeholder すべて出ない', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: MIN_PROFILE,
+      kind: 'rirekisho',
+    });
+    // article に data-editable="true" は付かない
+    expect(r.html).not.toContain('data-editable="true"');
+    // 各セル div に contenteditable 属性 / data-placeholder 属性は付かない
+    // (CSS 内の selector としては存在するが、要素属性として書き出されない)
+    expect(r.html).not.toMatch(/ contenteditable="/);
+    expect(r.html).not.toMatch(/ data-placeholder="/);
+  });
 });

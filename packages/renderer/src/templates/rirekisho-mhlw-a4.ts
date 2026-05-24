@@ -118,12 +118,17 @@ const PERSONAL_REQUEST_BOX_MM = { x: 228.85, y: 237.49, w: 172.13, h: 36.41 } as
 
 // === editable mode helpers ===
 //
-// `editableAttrs(field)` は editable=true のときだけ
-// `contenteditable="plaintext-only" data-field="..."` を返す。
-// false のときは空文字列 (= 通常の read-only div)。
+// `editableAttrs(field, placeholder?)` は editable=true のときだけ
+// `contenteditable="plaintext-only" data-field="..." data-placeholder="..."` を
+// 返す。false のときは空文字列 (= 通常の read-only div、placeholder も不要)。
+// placeholder は :empty::before で表示される入力ヒント。
 
-const editableAttrs = (editable: boolean, field: string): string =>
-  editable ? ` contenteditable="plaintext-only" data-field="${field}"` : '';
+const editableAttrs = (editable: boolean, field: string, placeholder?: string): string => {
+  if (!editable) return '';
+  const placeholderAttr =
+    placeholder !== undefined ? ` data-placeholder="${escapeHtml(placeholder)}"` : '';
+  return ` contenteditable="plaintext-only" data-field="${field}"${placeholderAttr}`;
+};
 
 // === HTML helpers ===
 
@@ -306,7 +311,7 @@ const renderUserName = (basics: CareerProfile['basics'], editable: boolean): str
   // 値の y=52 では label と縦に被らないので、セル box 全幅で text-align:center
   // にして box 中央 (x≈81.3mm) に値を配置する。font-size 24pt。
   const { left, top } = placeOnA4(23.62, 52);
-  const attrs = editableAttrs(editable, 'name');
+  const attrs = editableAttrs(editable, 'name', '氏 名');
   return `<div class="jcd-mhlw-a4__name" style="left:${left};top:${top};font-size:24pt;min-width:115.4mm;text-align:center;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
@@ -320,7 +325,7 @@ const renderUserNameKana = (basics: CareerProfile['basics'], editable: boolean):
   // から 4mm の隙間を空けて値を left=46 に置く。
   // top はラベルと同じ y=39.87 に揃えて baseline を一致させる。
   const { left, top } = placeOnA4(46, 39.87);
-  const attrs = editableAttrs(editable, 'nameKana');
+  const attrs = editableAttrs(editable, 'nameKana', 'シメイ ふりがな');
   return `<div class="jcd-mhlw-a4__name-kana" style="left:${left};top:${top};font-size:10pt;min-width:91mm;"${attrs}>${escapeHtml(text)}</div>`;
 };
 
@@ -363,9 +368,9 @@ const renderBirthDate = (
   const mPos = placeOnA4(63, 74.3);
   const dPos = placeOnA4(80, 74.3);
   const aPos = placeOnA4(110, 74.3);
-  const yAttrs = editableAttrs(editable, 'birthDate.year');
-  const mAttrs = editableAttrs(editable, 'birthDate.month');
-  const dAttrs = editableAttrs(editable, 'birthDate.day');
+  const yAttrs = editableAttrs(editable, 'birthDate.year', 'YYYY');
+  const mAttrs = editableAttrs(editable, 'birthDate.month', 'M');
+  const dAttrs = editableAttrs(editable, 'birthDate.day', 'D');
   return (
     `<div class="jcd-mhlw-a4__birth-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;min-width:14mm;text-align:right;"${yAttrs}>${escapeHtml(yStr)}</div>` +
     `<div class="jcd-mhlw-a4__birth-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;min-width:12mm;text-align:right;"${mAttrs}>${escapeHtml(mStr)}</div>` +
@@ -384,7 +389,7 @@ const renderGender = (basics: CareerProfile['basics'], editable: boolean): strin
   // 入っている。値はラベル右隣の空き (x≈153〜195.75) に置く。
   // y は box 中央寄り (≈74.30、生年月日と同じ baseline)。
   const { left, top } = placeOnA4(153, 74.3);
-  const attrs = editableAttrs(editable, 'gender');
+  const attrs = editableAttrs(editable, 'gender', '男性 / 女性 / 記載しない');
   return `<div class="jcd-mhlw-a4__gender" style="left:${left};top:${top};font-size:11pt;min-width:42mm;text-align:center;"${attrs}>${escapeHtml(v)}</div>`;
 };
 
@@ -410,9 +415,9 @@ const renderPreparedOn = (preparedOn: string | undefined, editable: boolean): st
   const yPos = placeOnA4(98, 31.33);
   const mPos = placeOnA4(116, 31.33);
   const dPos = placeOnA4(126, 31.33);
-  const yAttrs = editableAttrs(editable, 'preparedOn.year');
-  const mAttrs = editableAttrs(editable, 'preparedOn.month');
-  const dAttrs = editableAttrs(editable, 'preparedOn.day');
+  const yAttrs = editableAttrs(editable, 'preparedOn.year', 'YYYY');
+  const mAttrs = editableAttrs(editable, 'preparedOn.month', 'M');
+  const dAttrs = editableAttrs(editable, 'preparedOn.day', 'D');
   return (
     `<div class="jcd-mhlw-a4__prepared-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;min-width:14mm;text-align:right;"${yAttrs}>${escapeHtml(yStr)}</div>` +
     `<div class="jcd-mhlw-a4__prepared-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;min-width:8mm;text-align:right;"${mAttrs}>${escapeHtml(mStr)}</div>` +
@@ -456,7 +461,7 @@ const renderAddressBlock = (
   const kanaVal = addressKana ?? '';
   if (editable || isNonEmpty(kanaVal)) {
     const { left, top } = placeOnA4(46, kanaY);
-    const attrs = editableAttrs(editable, `${fieldPrefix}Kana`);
+    const attrs = editableAttrs(editable, `${fieldPrefix}Kana`, '住所ふりがな');
     html += `<div class="jcd-mhlw-a4__${prefix}-kana" style="left:${left};top:${top};font-size:10pt;min-width:111mm;"${attrs}>${escapeHtml(kanaVal)}</div>`;
   }
 
@@ -465,7 +470,7 @@ const renderAddressBlock = (
   const postal = address?.postalCode ?? '';
   if (editable || isNonEmpty(postal)) {
     const { left, top } = placeOnA4(47, postalY);
-    const attrs = editableAttrs(editable, `${fieldPrefix}.postalCode`);
+    const attrs = editableAttrs(editable, `${fieldPrefix}.postalCode`, '000-0000');
     html += `<div class="jcd-mhlw-a4__${prefix}-postal" style="left:${left};top:${top};font-size:11pt;min-width:25mm;"${attrs}>${escapeHtml(postal)}</div>`;
   }
 
@@ -480,7 +485,7 @@ const renderAddressBlock = (
           .join('');
   if (editable || isNonEmpty(addressFull)) {
     const { left, top } = placeOnA4(30, fullY);
-    const attrs = editableAttrs(editable, `${fieldPrefix}.full`);
+    const attrs = editableAttrs(editable, `${fieldPrefix}.full`, '都道府県 市区町村 番地');
     html += `<div class="jcd-mhlw-a4__${prefix}" style="left:${left};top:${top};font-size:11pt;min-width:130mm;"${attrs}>${escapeHtml(addressFull)}</div>`;
   }
 
@@ -491,7 +496,7 @@ const renderAddressBlock = (
   if (editable || isNonEmpty(phoneVal)) {
     const { left, top } = placeOnA4(160.44, postalY + 4);
     const phoneField = fieldPrefix === 'address' ? 'phone' : 'contactPhone';
-    const attrs = editableAttrs(editable, phoneField);
+    const attrs = editableAttrs(editable, phoneField, '000-0000-0000');
     html += `<div class="jcd-mhlw-a4__${prefix}-phone" style="left:${left};top:${top};font-size:11pt;min-width:35.31mm;text-align:center;"${attrs}>${escapeHtml(phoneVal)}</div>`;
   }
   return html;
@@ -587,13 +592,13 @@ const renderHistoryRowAt = (
   const contentPos = placeOnA4(x.contentX, yCentered);
   const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
   const yearAttrs = hasSourceIndex
-    ? editableAttrs(true, `historyRows.${row.sourceIndex}.year`)
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.year`, 'YYYY')
     : '';
   const monthAttrs = hasSourceIndex
-    ? editableAttrs(true, `historyRows.${row.sourceIndex}.month`)
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.month`, 'M')
     : '';
   const contentAttrs = hasSourceIndex
-    ? editableAttrs(true, `historyRows.${row.sourceIndex}.content`)
+    ? editableAttrs(true, `historyRows.${row.sourceIndex}.content`, '学歴・職歴を記入')
     : '';
 
   // editable mode のときは空セルでも div を出す (placeholder 表示)
@@ -716,13 +721,13 @@ const renderCertificationSection = (careerProfile: CareerProfile, editable: bool
     const contentPos = placeOnA4(layout.contentX + 2, y);
     const hasSourceIndex = editable && typeof row.sourceIndex === 'number';
     const yearAttrs = hasSourceIndex
-      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.year`)
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.year`, 'YYYY')
       : '';
     const monthAttrs = hasSourceIndex
-      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.month`)
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.month`, 'M')
       : '';
     const contentAttrs = hasSourceIndex
-      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.content`)
+      ? editableAttrs(true, `certificationRows.${row.sourceIndex}.content`, '免許・資格を記入')
       : '';
 
     const showEmpty = editable && hasSourceIndex;
@@ -751,12 +756,13 @@ const renderFreeTextBox = (
   text: string | undefined,
   editable: boolean,
   field: string,
+  placeholder?: string,
 ): string => {
   const value = text ?? '';
   if (!editable && !isNonEmpty(value)) return '';
   const safe = escapeHtml(value).replace(/\n/g, '<br>');
   const { left, top } = placeOnA4(box.x, box.y);
-  const attrs = editableAttrs(editable, field);
+  const attrs = editableAttrs(editable, field, placeholder);
   return `<div class="jcd-mhlw-a4__free-text ${cls}" style="left:${left};top:${top};width:${box.w}mm;height:${box.h}mm;"${attrs}>${safe}</div>`;
 };
 
@@ -844,11 +850,25 @@ const CSS = `@page { size: A4 portrait; margin: 0; }
   line-height: 1.6;
 }
 
-/* editable mode の見た目: contenteditable に focus / hover で背景色変化。
+/* editable mode の見た目:
+   - 非アクティブ時も薄い背景色で入力可能箇所を可視化 (ユーザーがどこを
+     クリックすればよいか分かる)
+   - hover で色を少し濃く
+   - focus でさらに濃く + outline で active セルを示す
    read-only mode (preview / PDF 出力) では contenteditable 属性自体が無いので
-   これらの :focus / :hover は発火しない。 */
-[contenteditable="plaintext-only"]:focus { outline: none; background: rgba(255, 230, 100, 0.32); box-shadow: 0 0 0 1px rgba(120, 110, 30, 0.5); }
-[contenteditable="plaintext-only"]:hover:not(:focus) { background: rgba(255, 230, 100, 0.18); }
+   これらの :focus / :hover / non-active 装飾はすべて適用されない。 */
+[contenteditable="plaintext-only"] {
+  background: rgba(120, 170, 255, 0.08);
+  border-radius: 1px;
+}
+[contenteditable="plaintext-only"]:hover:not(:focus) {
+  background: rgba(120, 170, 255, 0.18);
+}
+[contenteditable="plaintext-only"]:focus {
+  outline: none;
+  background: rgba(255, 230, 100, 0.32);
+  box-shadow: 0 0 0 1px rgba(120, 110, 30, 0.5);
+}
 [contenteditable="plaintext-only"]:empty::before {
   content: attr(data-placeholder);
   color: rgba(0, 0, 0, 0.28);
@@ -918,6 +938,7 @@ const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
     careerProfile.basics.summary,
     editable,
     'summary',
+    '志望の動機、特技、好きな学科、アピールポイントなどを記入',
   );
   const personalRequest = renderFreeTextBox(
     'jcd-mhlw-a4__personal-request',
@@ -925,6 +946,7 @@ const renderRirekishoMhlwA4 = (input: RenderInput): RenderedDocument => {
     careerProfile.basics.personalRequest,
     editable,
     'personalRequest',
+    '特に給料・職種・勤務時間・勤務地・その他についての希望などを記入',
   );
 
   const userData =
