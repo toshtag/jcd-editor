@@ -356,8 +356,10 @@ const renderBirthDate = (
       dStr = String(Number(m[3]));
     }
   }
+  // 年齢: birthDate + preparedOn が揃っていれば自動算出 (editable / read-only
+  // 共通)。computeAgeOnDate は年月日比較で誕生日前後を正確に判定する。
   const ageStr =
-    !editable && preparedOn !== undefined && basics.birthDate !== undefined
+    preparedOn !== undefined && basics.birthDate !== undefined
       ? (() => {
           const a = computeAgeOnDate(basics.birthDate as string, preparedOn);
           return a === undefined ? '' : String(a);
@@ -373,13 +375,19 @@ const renderBirthDate = (
   const yAttrs = editableAttrs(editable, 'birthDate.year', 'YYYY');
   const mAttrs = editableAttrs(editable, 'birthDate.month', 'M');
   const dAttrs = editableAttrs(editable, 'birthDate.day', 'D');
+  // 年齢セル: editable=true でも値があれば表示。ただし contenteditable は付けず
+  // 自動算出専用 (data-derived="age" で local-web 側からも識別できる)。
+  // 空セル (= birthDate / preparedOn 不足) のときは editable mode のみ div を
+  // 出力し、後から DOM 更新できるようにする (local-web の onWysiwygInput が
+  // birthDate / preparedOn 更新時に textContent を書き換える)。
+  const showAgeCell = editable || ageStr !== '';
   return (
     `<div class="jcd-mhlw-a4__birth-year" style="left:${yPos.left};top:${yPos.top};font-size:11pt;min-width:14mm;text-align:right;"${yAttrs}>${escapeHtml(yStr)}</div>` +
     `<div class="jcd-mhlw-a4__birth-month" style="left:${mPos.left};top:${mPos.top};font-size:11pt;min-width:12mm;text-align:right;"${mAttrs}>${escapeHtml(mStr)}</div>` +
     `<div class="jcd-mhlw-a4__birth-day" style="left:${dPos.left};top:${dPos.top};font-size:11pt;min-width:10mm;text-align:right;"${dAttrs}>${escapeHtml(dStr)}</div>` +
-    (ageStr === ''
-      ? ''
-      : `<div class="jcd-mhlw-a4__age" style="left:${aPos.left};top:${aPos.top};font-size:11pt;min-width:12mm;text-align:right;">${ageStr}</div>`)
+    (showAgeCell
+      ? `<div class="jcd-mhlw-a4__age" data-derived="age" style="left:${aPos.left};top:${aPos.top};font-size:11pt;min-width:12mm;text-align:right;">${escapeHtml(ageStr)}</div>`
+      : '')
   );
 };
 

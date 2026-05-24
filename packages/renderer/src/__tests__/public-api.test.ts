@@ -205,6 +205,7 @@ describe('@jcd-editor/renderer 公開 API', () => {
     expect(Object.keys(Renderer).sort()).toEqual([
       'RendererError',
       'builtinTemplates',
+      'computeAgeOnDate',
       'createDefaultTemplateRegistry',
       'createTemplateRegistry',
       'renderDocument',
