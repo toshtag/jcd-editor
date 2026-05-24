@@ -19,8 +19,8 @@ describe('ALLOWED_PHOTO_MIME_TYPES', () => {
 });
 
 describe('MAX_PHOTO_FILE_BYTES', () => {
-  it('3 MB に設定されている (core schema の dataUri 上限 5MB に対し base64 膨張分の余裕を取る)', () => {
-    expect(MAX_PHOTO_FILE_BYTES).toBe(3_000_000);
+  it('10 MiB に設定されている (スマホ撮影の高解像度写真を受け付けるため、超過分は profile-photo-resize で自動縮小して core schema 上限内に収める。 1024 基底で揃えるのは hint 文言との一貫性のため)', () => {
+    expect(MAX_PHOTO_FILE_BYTES).toBe(10 * 1024 * 1024);
   });
 });
 
@@ -90,11 +90,11 @@ describe('validatePhotoFile', () => {
   });
 
   it('message の format: 大きい size は MB で表示される', () => {
-    const file = makeFile(5_000_000, 'image/jpeg');
+    const file = makeFile(12_582_912, 'image/jpeg'); // 12 MiB
     const result = validatePhotoFile(file);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.message).toMatch(/4\.\d MB/);
+      expect(result.message).toMatch(/12\.0 MB/);
     }
   });
 });

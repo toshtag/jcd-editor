@@ -98,6 +98,7 @@ import {
 } from './education-form';
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import { validatePhotoFile } from './profile-photo';
+import { resizePhotoToDataUri } from './profile-photo-resize';
 import { formatTranslatedIssue } from './validation-labels';
 import { buildIssueInputSelector } from './validation-inputs';
 import { issueElementId, summarizeIssues } from './validation-summary';
@@ -471,17 +472,6 @@ if (!parsed.success) {
     }
   };
 
-  const readFileAsDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
-      reader.onload = () => {
-        const text = typeof reader.result === 'string' ? reader.result : '';
-        resolve(text);
-      };
-      reader.readAsDataURL(file);
-    });
-
   const registry = createDefaultTemplateRegistry();
   const storage = createIndexedDbStorageAdapter();
 
@@ -684,21 +674,33 @@ if (!parsed.success) {
     const validation = validatePhotoFile(file);
     if (!validation.ok) {
       showPhotoError(validation.message);
+      // form pane が PC 版で display:none のため、 sidebar 内の error 表示
+      // は見えない。 header の status 領域 (showStatus) にも同じメッセージ
+      // を出して、 PC / SP 両方のユーザーがエラーを認知できるようにする。
+      showStatus(`写真エラー: ${validation.message}`);
       return;
     }
     let dataUri: string;
+    let mediaType: 'image/jpeg' | 'image/png';
     try {
-      dataUri = await readFileAsDataUrl(file);
+      const resized = await resizePhotoToDataUri(file);
+      dataUri = resized.dataUri;
+      mediaType = resized.mediaType;
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      showPhotoError(`ファイル読み込みに失敗しました: ${detail}`);
+      const message = `ファイル処理に失敗しました: ${detail}`;
+      showPhotoError(message);
+      showStatus(`写真エラー: ${message}`);
       return;
     }
-    // file.type は事前検証で 'image/jpeg' | 'image/png' のみ通過済み。
-    const mediaType = file.type as 'image/jpeg' | 'image/png';
     currentPhoto = { source: { kind: 'dataUri', dataUri, mediaType } };
     updatePhotoThumbnail();
     onFormInput();
+    // アップロード成功フィードバック (DnD / クリック 両方の経路で表示):
+    // ヘッダーの status 領域に短いメッセージを出して、ユーザーが「反映された」
+    // ことを確認できるようにする。aria-live="polite" 付き要素なので screen
+    // reader にも読み上げられる。
+    showStatus(`写真を追加しました (${file.name})`);
     // a11y: 写真選択直後の典型的な次操作は「気に入らなければ削除」。
     // 削除ボタンに focus を移す。
     profilePhotoRemoveButton.focus();
@@ -1181,6 +1183,57 @@ if (!parsed.success) {
 
   profilePhotoRemoveButton.addEventListener('click', () => {
     onPhotoRemove();
+  });
+
+  /**
+   * ドラッグ&ドロップで写真ファイルを受け付ける drop zone を element に取り付ける。
+   * - dragover / dragleave で `is-dragover` クラスを toggle (CSS で視覚フィードバック)
+   * - drop されたファイルの先頭 1 つを onPhotoSelected に渡す (複数選択は無視)
+   * - dataTransfer.types に "Files" が含まれるときだけ反応 (テキストドラッグは無視)
+   */
+  const attachPhotoDropZone = (el: HTMLElement): void => {
+    const isFileDrag = (e: DragEvent): boolean =>
+      Array.from(e.dataTransfer?.types ?? []).includes('Files');
+    el.addEventListener('dragover', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer !== null) e.dataTransfer.dropEffect = 'copy';
+      el.classList.add('is-dragover');
+    });
+    el.addEventListener('dragleave', () => {
+      el.classList.remove('is-dragover');
+    });
+    el.addEventListener('drop', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      el.classList.remove('is-dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file === undefined) return;
+      void onPhotoSelected(file);
+    });
+  };
+
+  // SP 版フォーム pane の写真エリア (thumbnail + 控えるボタンを内包)
+  const photoFormSection = document.querySelector<HTMLElement>('[data-section="profilePhoto"]');
+  if (photoFormSection !== null) attachPhotoDropZone(photoFormSection);
+
+  // PC 版 WYSIWYG editor 内の 写真欄 (renderer 出力後に存在する要素なので
+  // wysiwygPane を delegated drop zone として扱う)。
+  attachPhotoDropZone(wysiwygPane);
+
+  // PC 版 WYSIWYG では「写真を選択」 ボタンが form pane と共に非表示なので、
+  // 写真欄 (.jcd-mhlw-a4__photo) を直接クリックしてもファイル選択ダイアログが
+  // 開くようにする。delegated click handler で profile-photo-input の click()
+  // を呼ぶ (= 同じファイル選択フローを再利用)。
+  wysiwygPane.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    const photoBox = target.closest('.jcd-mhlw-a4__photo');
+    if (photoBox === null) return;
+    // 写真が既に挿入済みの場合 (`.jcd-mhlw-a4__photo--filled`) もクリックで
+    // 再選択できるようにする (= 写真の差し替え操作)。
+    e.preventDefault();
+    profilePhotoInput.click();
   });
 
   // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を
