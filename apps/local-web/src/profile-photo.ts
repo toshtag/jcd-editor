@@ -11,10 +11,13 @@
 //
 // schema (packages/core/src/domain/profile-photo.ts) との関係:
 //   - core の dataUri は max 5,000,000 chars
-//   - base64 化で raw bytes が約 4/3 倍に膨らむため、raw file 上限は ~3.75 MB
-//   - 安全側に倒し 3 MB を local-web 側の上限とする (典型的な 履歴書 写真の
-//     必要サイズ 100〜500 KB に対し十分。リサイズせず phone 撮影画像を投入
-//     したケースは reject される)
+//   - base64 化で raw bytes が約 4/3 倍に膨らむため、生バイナリ ~3.75 MB が
+//     core schema 上限
+//   - local-web の入力上限は 10 MB と緩く設定し、core schema 上限を超える
+//     ファイルは profile-photo-resize.ts の resizePhotoToDataUri で Canvas
+//     縮小 + JPEG 再エンコードしてから data URI 化する
+//   - これにより スマホ撮影の高解像度写真 (5〜10 MB) も投入可能。10 MB 超は
+//     reject (memory 圧迫 / 読み込み時間 を防ぐ)
 //   - MIME type は core の ProfilePhotoMediaType ('image/jpeg' | 'image/png')
 //     と同期する
 
@@ -25,7 +28,9 @@ export const ALLOWED_PHOTO_MIME_TYPES: readonly ProfilePhotoMediaType[] = [
   'image/png',
 ];
 
-export const MAX_PHOTO_FILE_BYTES = 3_000_000;
+// 10 MiB (=10 * 1024 * 1024)。 formatBytes は 1024 基底で表示するので、 hint
+// 文言 (「最大 10 MB」) と error 文言 (「上限 10.0 MB」) の数値が一致する。
+export const MAX_PHOTO_FILE_BYTES = 10_485_760;
 
 export type PhotoValidationResult =
   | { ok: true }

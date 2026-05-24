@@ -98,6 +98,7 @@ import {
 } from './education-form';
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import { validatePhotoFile } from './profile-photo';
+import { resizePhotoToDataUri } from './profile-photo-resize';
 import { formatTranslatedIssue } from './validation-labels';
 import { buildIssueInputSelector } from './validation-inputs';
 import { issueElementId, summarizeIssues } from './validation-summary';
@@ -471,17 +472,6 @@ if (!parsed.success) {
     }
   };
 
-  const readFileAsDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
-      reader.onload = () => {
-        const text = typeof reader.result === 'string' ? reader.result : '';
-        resolve(text);
-      };
-      reader.readAsDataURL(file);
-    });
-
   const registry = createDefaultTemplateRegistry();
   const storage = createIndexedDbStorageAdapter();
 
@@ -684,18 +674,25 @@ if (!parsed.success) {
     const validation = validatePhotoFile(file);
     if (!validation.ok) {
       showPhotoError(validation.message);
+      // form pane が PC 版で display:none のため、 sidebar 内の error 表示
+      // は見えない。 header の status 領域 (showStatus) にも同じメッセージ
+      // を出して、 PC / SP 両方のユーザーがエラーを認知できるようにする。
+      showStatus(`写真エラー: ${validation.message}`);
       return;
     }
     let dataUri: string;
+    let mediaType: 'image/jpeg' | 'image/png';
     try {
-      dataUri = await readFileAsDataUrl(file);
+      const resized = await resizePhotoToDataUri(file);
+      dataUri = resized.dataUri;
+      mediaType = resized.mediaType;
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      showPhotoError(`ファイル読み込みに失敗しました: ${detail}`);
+      const message = `ファイル処理に失敗しました: ${detail}`;
+      showPhotoError(message);
+      showStatus(`写真エラー: ${message}`);
       return;
     }
-    // file.type は事前検証で 'image/jpeg' | 'image/png' のみ通過済み。
-    const mediaType = file.type as 'image/jpeg' | 'image/png';
     currentPhoto = { source: { kind: 'dataUri', dataUri, mediaType } };
     updatePhotoThumbnail();
     onFormInput();

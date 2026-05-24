@@ -1204,7 +1204,8 @@ describe('local-web main flow', () => {
 
     it('上限超のサイズを選択: error 表示、thumbnail 変化なし', async () => {
       await importMain();
-      const file = makeFile(4_000_000, 'image/jpeg', 'big.jpg');
+      // MAX_PHOTO_FILE_BYTES (10 MiB) 超過。スマホ撮影でも稀なサイズ
+      const file = makeFile(11 * 1024 * 1024, 'image/jpeg', 'huge.jpg');
       setFileInput(file);
       await waitForPhotoProcessing();
 
@@ -1257,6 +1258,25 @@ describe('local-web main flow', () => {
       expect(errorEl().hidden).toBe(false);
       expect(errorEl().textContent).toContain('image/gif');
       expect(thumbnail().hidden).toBe(true);
+    });
+
+    it('size 超過エラーは showStatus (ヘッダー status 領域) にも出る (PC 版で form pane が display:none でも見える)', async () => {
+      await importMain();
+      const file = makeFile(11 * 1024 * 1024, 'image/jpeg', 'huge.jpg');
+      setFileInput(file);
+      await waitForPhotoProcessing();
+      const statusEl = document.getElementById('status');
+      expect(statusEl?.textContent).toContain('写真エラー');
+      expect(statusEl?.textContent).toContain('上限');
+    });
+
+    it('MIME 不正エラーは showStatus にも出る', async () => {
+      await importMain();
+      const file = makeFile(1000, 'image/gif', 'wrong.gif');
+      setFileInput(file);
+      await waitForPhotoProcessing();
+      const statusEl = document.getElementById('status');
+      expect(statusEl?.textContent).toContain('写真エラー');
     });
 
     it('DnD: dragover でセクションに is-dragover クラスが付き、dragleave で外れる', async () => {
