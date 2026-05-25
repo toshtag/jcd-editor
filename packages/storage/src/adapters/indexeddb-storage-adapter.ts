@@ -44,7 +44,9 @@ import type {
 
 const DEFAULT_DATABASE_NAME = 'jcd-editor';
 const DEFAULT_STORE_NAME = 'profiles';
-const DATABASE_VERSION = 2;
+// v3: StoredProfileMetadata に name / committedAt を追加 (バージョン管理)。
+// 旧 (v1/v2) データには name が無いので upgrade 時に '' を backfill する。
+const DATABASE_VERSION = 3;
 
 export type IndexedDbStorageAdapterOptions = {
   /** Database name. Default: 'jcd-editor' */
@@ -89,13 +91,18 @@ const openDatabase = (
         : db.createObjectStore(metadataStoreName, { keyPath: 'id' });
 
       if (event.oldVersion > 0 && tx !== null && metadataStore !== undefined) {
+        // profile store を真とし metadata store を再構築する。
+        // profile store と metadata store は saveProfile / updateMetadata で常に
+        // 同期して書かれるので、profile store から metadata を引き写せば十分。
+        // v1/v2 の旧データは name フィールドが無いので '' を補完する (v3 migration)。
         const profileStore = tx.objectStore(storeName);
         const cursorRequest = profileStore.openCursor();
         cursorRequest.onsuccess = () => {
           const cursor = cursorRequest.result;
           if (cursor === null) return;
           if (hasStoredProfileMetadata(cursor.value)) {
-            metadataStore.put(cursor.value.metadata);
+            const metadata = cursor.value.metadata as StoredProfileMetadata & { name?: string };
+            metadataStore.put({ ...metadata, name: metadata.name ?? '' });
           }
           cursor.continue();
         };
@@ -232,7 +239,14 @@ export const createIndexedDbStorageAdapter = (
     if (!parsed.success) {
       throw new StorageError(`Stored profile is corrupt: ${id}`, 'PROFILE_CORRUPT');
     }
-    return { metadata: stored.metadata, profile: parsed.data };
+    // 旧 (v1/v2) データは profile store 埋め込み metadata に name が無いので
+    // defensive に '' 補完する (metadata store 側は migration で補完済みだが、
+    // loadProfile は profile store を読むため個別に補う)。
+    const metadata: StoredProfileMetadata = {
+      ...stored.metadata,
+      name: stored.metadata.name ?? '',
+    };
+    return { metadata, profile: parsed.data };
   };
 
   const listProfiles = async (): Promise<readonly StoredProfileMetadata[]> => {

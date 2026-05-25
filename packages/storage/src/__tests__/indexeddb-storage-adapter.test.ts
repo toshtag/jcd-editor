@@ -110,6 +110,35 @@ const createVersion1DatabaseWithProfile = async (
   }
 };
 
+// v2 DB を再現: profile store + metadata store の両方を持ち、 metadata は
+// name フィールドを持たない (v2 時点の形)。value.metadata を両ストアに put する。
+const createVersion2DatabaseWithProfile = async (
+  databaseName: string,
+  value: { metadata: Record<string, unknown>; profile: unknown },
+): Promise<void> => {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(databaseName, 2);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(PROFILE_STORE_NAME, { keyPath: 'metadata.id' });
+      request.result.createObjectStore(METADATA_STORE_NAME, { keyPath: 'id' });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([PROFILE_STORE_NAME, METADATA_STORE_NAME], 'readwrite');
+      tx.objectStore(PROFILE_STORE_NAME).put(value);
+      tx.objectStore(METADATA_STORE_NAME).put(value.metadata);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+};
+
 describe('createIndexedDbStorageAdapter: saveProfile', () => {
   it('id 省略時: adapter が新規 id を生成して create する (createdAt === updatedAt)', async () => {
     const port = createAdapter();
@@ -235,7 +264,7 @@ describe('createIndexedDbStorageAdapter: listProfiles', () => {
     expect(list).toEqual([saved.metadata]);
   });
 
-  it('v1 database upgrade 時に既存 profile から metadata store を backfill する', async () => {
+  it('v1 database upgrade 時に既存 profile から metadata store を backfill し name に "" を補完する', async () => {
     const dbName = uniqueDatabaseName();
     const profile = buildValidProfile();
     const metadata = {
@@ -249,7 +278,8 @@ describe('createIndexedDbStorageAdapter: listProfiles', () => {
     const port = createAdapter(dbName);
     const list = await port.listProfiles();
 
-    expect(list).toEqual([metadata]);
+    // v3 migration で name: '' が補完される
+    expect(list).toEqual([{ ...metadata, name: '' }]);
 
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(dbName);
@@ -261,6 +291,26 @@ describe('createIndexedDbStorageAdapter: listProfiles', () => {
     } finally {
       db.close();
     }
+  });
+
+  it('v2 database (name 無しの metadata) を開くと name: "" を補完する (v2→v3 migration)', async () => {
+    const dbName = uniqueDatabaseName();
+    const profile = buildValidProfile();
+    const metadata = {
+      id: 'v2-id',
+      createdAt: '2026-02-01T00:00:00.000Z',
+      updatedAt: '2026-02-01T00:00:02.000Z',
+      schemaVersion: profile.schemaVersion,
+    };
+    await createVersion2DatabaseWithProfile(dbName, { metadata, profile });
+
+    const port = createAdapter(dbName);
+    const list = await port.listProfiles();
+    expect(list).toEqual([{ ...metadata, name: '' }]);
+
+    // load しても name が補完されている
+    const loaded = await port.loadProfile('v2-id');
+    expect(loaded.metadata.name).toBe('');
   });
 });
 
