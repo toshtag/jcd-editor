@@ -154,6 +154,86 @@ describe('rirekishoMhlwA4Template - 写真欄 (A4 page 1 に残る)', () => {
   });
 });
 
+describe('rirekishoMhlwA4Template - 写真欄 transform.zoom', () => {
+  const profileWithPhoto = (transform?: { zoom?: number }) =>
+    ({
+      schemaVersion: 1 as const,
+      basics: {
+        profilePhoto: {
+          source: {
+            kind: 'dataUri' as const,
+            dataUri: 'data:image/jpeg;base64,AAAA',
+            mediaType: 'image/jpeg' as const,
+          },
+          ...(transform !== undefined ? { transform } : {}),
+        },
+      },
+    }) as never;
+
+  it('transform 未指定: img に scale style を付けない', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profileWithPhoto(),
+      kind: 'rirekisho',
+    });
+    expect(r.html).toContain('jcd-mhlw-a4__photo--filled');
+    expect(r.html).not.toMatch(/transform:\s*scale/);
+  });
+
+  it('zoom = 1: scale style を付けない (cover 等倍と等価のため)', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profileWithPhoto({ zoom: 1 }),
+      kind: 'rirekisho',
+    });
+    expect(r.html).not.toMatch(/transform:\s*scale/);
+  });
+
+  it('zoom = 1.5: img に transform:scale(1.5) と中央焦点 (50% 50%) を付ける', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profileWithPhoto({ zoom: 1.5 }),
+      kind: 'rirekisho',
+    });
+    expect(r.html).toMatch(/transform:scale\(1\.5\)/);
+    expect(r.html).toMatch(/transform-origin:50% 50%/);
+  });
+
+  it('zoom = 2.7: 小数値でもそのまま反映される', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profileWithPhoto({ zoom: 2.7 }),
+      kind: 'rirekisho',
+    });
+    expect(r.html).toMatch(/transform:scale\(2\.7\)/);
+  });
+
+  it('offset 指定: object-position に反映される (zoom=1 でも)', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profileWithPhoto({ offsetX: 30, offsetY: 70 }),
+      kind: 'rirekisho',
+    });
+    expect(r.html).toMatch(/object-position:30% 70%/);
+    // zoom=1 なので scale は付かない
+    expect(r.html).not.toMatch(/transform:scale/);
+  });
+
+  it('offset = 中央 (50,50) のみ: style を付けない', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profileWithPhoto({ offsetX: 50, offsetY: 50 }),
+      kind: 'rirekisho',
+    });
+    expect(r.html).not.toMatch(/object-position/);
+    expect(r.html).not.toMatch(/transform:scale/);
+  });
+
+  it('zoom + offset 併用: object-position と scale と焦点一致の transform-origin', () => {
+    const r = rirekishoMhlwA4Template.render({
+      careerProfile: profileWithPhoto({ zoom: 2, offsetX: 25, offsetY: 80 }),
+      kind: 'rirekisho',
+    });
+    expect(r.html).toMatch(/object-position:25% 80%/);
+    expect(r.html).toMatch(/transform:scale\(2\)/);
+    expect(r.html).toMatch(/transform-origin:25% 80%/);
+  });
+});
+
 describe('rirekishoMhlwA4Template - データ流し込み (A3 と挙動互換)', () => {
   it('basics.name を流し込む', () => {
     const profile = parseCareerProfile({
