@@ -15,6 +15,7 @@ export type {
   ProfilePhoto,
   ProfilePhotoMediaType,
   ProfilePhotoSource,
+  ProfilePhotoTransform,
   Project,
   SchemaVersion,
   Skill,
