@@ -155,7 +155,7 @@ describe('rirekishoMhlwA4Template - 写真欄 (A4 page 1 に残る)', () => {
 });
 
 describe('rirekishoMhlwA4Template - 写真欄 transform.zoom', () => {
-  const profileWithPhoto = (transform?: { zoom?: number }) =>
+  const profileWithPhoto = (transform?: { zoom?: number; offsetX?: number; offsetY?: number }) =>
     ({
       schemaVersion: 1 as const,
       basics: {
