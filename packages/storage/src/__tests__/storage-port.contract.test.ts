@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { safeParseCareerProfile, type CareerProfile } from '@jcd-editor/core';
 
 import { StorageError } from '../errors';
+import { isCommitted } from '../storage-port';
 import type {
   SaveProfileInput,
   StoragePort,
@@ -62,11 +63,14 @@ const createInMemoryStoragePort = (options: {
       const id = input.id ?? options.generateId();
       const nowIso = options.now();
       const existing = store.get(id);
+      const existingCommittedAt = existing?.metadata.committedAt;
       const stored: StoredProfile = {
         metadata: {
           id,
+          name: input.name ?? existing?.metadata.name ?? '',
           createdAt: existing?.metadata.createdAt ?? nowIso,
           updatedAt: nowIso,
+          ...(existingCommittedAt !== undefined ? { committedAt: existingCommittedAt } : {}),
           schemaVersion: input.profile.schemaVersion,
         },
         profile: input.profile,
@@ -136,6 +140,61 @@ describe('StoragePort contract: saveProfile', () => {
     const profile = buildValidProfile();
     const result = await port.saveProfile({ profile });
     expect(result.metadata.schemaVersion).toBe(profile.schemaVersion);
+  });
+
+  it('name 指定時は metadata.name に保存される', async () => {
+    const port = createPort();
+    const profile = buildValidProfile();
+    const result = await port.saveProfile({ name: 'A 社用', profile });
+    expect(result.metadata.name).toBe('A 社用');
+  });
+
+  it('name 省略時 (新規) は空文字', async () => {
+    const port = createPort();
+    const profile = buildValidProfile();
+    const result = await port.saveProfile({ profile });
+    expect(result.metadata.name).toBe('');
+  });
+
+  it('update で name 省略時は既存 name を保持する (自動保存で名前が消えない)', async () => {
+    const port = createPort();
+    const profile = buildValidProfile();
+    await port.saveProfile({ id: 'my-id', name: 'A 社用', profile });
+    const second = await port.saveProfile({ id: 'my-id', profile });
+    expect(second.metadata.name).toBe('A 社用');
+  });
+
+  it('saveProfile は committedAt を更新しない (新規は undefined のまま)', async () => {
+    const port = createPort();
+    const profile = buildValidProfile();
+    const result = await port.saveProfile({ profile });
+    expect(result.metadata.committedAt).toBeUndefined();
+  });
+});
+
+describe('isCommitted', () => {
+  const base: StoredProfileMetadata = {
+    id: 'x',
+    name: '',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:05.000Z',
+    schemaVersion: 1,
+  };
+
+  it('committedAt 未設定なら未確定 (false)', () => {
+    expect(isCommitted(base)).toBe(false);
+  });
+
+  it('committedAt < updatedAt なら未確定 (確定後に自動保存された)', () => {
+    expect(isCommitted({ ...base, committedAt: '2026-01-01T00:00:01.000Z' })).toBe(false);
+  });
+
+  it('committedAt === updatedAt なら確定済み', () => {
+    expect(isCommitted({ ...base, committedAt: base.updatedAt })).toBe(true);
+  });
+
+  it('committedAt > updatedAt でも確定済み (rename 等で起こりうる)', () => {
+    expect(isCommitted({ ...base, committedAt: '2026-01-01T00:00:09.000Z' })).toBe(true);
   });
 });
 

@@ -150,11 +150,18 @@ export const createIndexedDbStorageAdapter = (
     getRequest.onsuccess = () => {
       const existing = getRequest.result as StoredProfile | undefined;
       const nowIso = now();
+      // name: input 優先 → 既存保持 → '' (新規 / 旧 migration 欠損)。
+      // committedAt: saveProfile では一切更新せず既存値を引き継ぐ
+      //   (自動保存で updatedAt のみ進み「未確定」に転ぶ)。
+      //   exactOptionalPropertyTypes 対応で conditional spread で omit する。
+      const existingCommittedAt = existing?.metadata.committedAt;
       stored = {
         metadata: {
           id,
+          name: input.name ?? existing?.metadata.name ?? '',
           createdAt: existing?.metadata.createdAt ?? nowIso,
           updatedAt: nowIso,
+          ...(existingCommittedAt !== undefined ? { committedAt: existingCommittedAt } : {}),
           schemaVersion: input.profile.schemaVersion,
         },
         profile: input.profile,

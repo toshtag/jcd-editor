@@ -1,10 +1,11 @@
 export { StorageError, type StorageErrorCode } from './errors';
-export type {
-  SaveProfileInput,
-  StoragePort,
-  StoredProfile,
-  StoredProfileId,
-  StoredProfileMetadata,
+export {
+  isCommitted,
+  type SaveProfileInput,
+  type StoragePort,
+  type StoredProfile,
+  type StoredProfileId,
+  type StoredProfileMetadata,
 } from './storage-port';
 export {
   createIndexedDbStorageAdapter,
