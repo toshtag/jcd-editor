@@ -15,7 +15,12 @@
 //
 // これらは A3 / A4 で根本的に違うので template 側に閉じる。
 
-import type { Certification, Education, WorkExperience } from '@jcd-editor/core';
+import type {
+  Certification,
+  Education,
+  ProfilePhotoTransform,
+  WorkExperience,
+} from '@jcd-editor/core';
 
 import { formatYearMonth, isNonEmpty } from './template-format';
 
@@ -162,4 +167,34 @@ export const computeAgeOnDate = (birthDate: string, baseDate: string): number | 
   let age = ty - by;
   if (tm < bm || (tm === bm && td < bd)) age -= 1;
   return age >= 0 ? age : undefined;
+};
+
+/**
+ * 証明写真 <img> の inline style 文字列を transform から組み立てる。
+ *
+ * a3 / a4 共通。画像実寸に依存せず `object-fit: cover` を前提に、
+ *   - offsetX / offsetY → `object-position: X% Y%` (cover overflow 内での pan)
+ *   - zoom → `transform: scale(zoom)` + `transform-origin` を焦点に合わせる
+ * で crop を表現する。PDF (印刷) でも DOM 計測なしで同一結果になる。
+ *
+ * 既定値 (zoom=1, offsetX=50, offsetY=50) では空文字を返し、余計な style を
+ * 出さない (= 従来の素の cover 表示)。
+ *
+ * @returns ` style="..."` (先頭スペース込み) または `''`
+ */
+export const buildPhotoImageStyle = (transform: ProfilePhotoTransform | undefined): string => {
+  const zoom = transform?.zoom ?? 1;
+  const offsetX = transform?.offsetX ?? 50;
+  const offsetY = transform?.offsetY ?? 50;
+  const hasOffset = offsetX !== 50 || offsetY !== 50;
+  const hasZoom = zoom > 1;
+  if (!hasOffset && !hasZoom) return '';
+  const parts: string[] = [];
+  if (hasOffset) parts.push(`object-position:${offsetX}% ${offsetY}%`);
+  if (hasZoom) {
+    parts.push(`transform:scale(${zoom})`);
+    // zoom の焦点を pan 位置に合わせる (拡大しても見せたい部分が動かない)。
+    parts.push(`transform-origin:${offsetX}% ${offsetY}%`);
+  }
+  return ` style="${parts.join(';')};"`;
 };

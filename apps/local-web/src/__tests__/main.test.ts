@@ -98,6 +98,7 @@ const setupDom = (): void => {
         <img id="profile-photo-thumbnail" alt="" hidden />
         <span id="profile-photo-placeholder">証明写真</span>
         <input type="file" id="profile-photo-input" />
+        <button type="button" id="profile-photo-adjust-button" disabled>位置・拡大を調整</button>
         <button type="button" id="profile-photo-remove-button" disabled>写真を削除</button>
         <p id="profile-photo-error" hidden></p>
       </div>
@@ -1345,6 +1346,60 @@ describe('local-web main flow', () => {
       button('profile-photo-remove-button').click();
       expect(thumbnail().hidden).toBe(true);
       expect(button('profile-photo-remove-button').disabled).toBe(true);
+    });
+
+    it('調整ボタン: 写真が無いと disabled、選択後に enabled になる', async () => {
+      await importMain();
+      expect(button('profile-photo-adjust-button').disabled).toBe(true);
+      const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {
+        type: 'image/png',
+      });
+      setFileInput(file);
+      await waitForPhotoProcessing();
+      expect(button('profile-photo-adjust-button').disabled).toBe(false);
+    });
+
+    it('調整ボタン click で調整モーダルが開く', async () => {
+      await importMain();
+      const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {
+        type: 'image/png',
+      });
+      setFileInput(file);
+      await waitForPhotoProcessing();
+
+      expect(document.querySelector('.photo-adjust-backdrop')).toBeNull();
+      button('profile-photo-adjust-button').click();
+      expect(document.querySelector('.photo-adjust-backdrop')).not.toBeNull();
+      // cleanup: ESC で閉じる
+      document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
+    });
+
+    it('調整モーダルで適用すると transform が currentPhoto に反映され WYSIWYG img に出る', async () => {
+      await importMain();
+      const file = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {
+        type: 'image/png',
+      });
+      setFileInput(file);
+      await waitForPhotoProcessing();
+
+      button('profile-photo-adjust-button').click();
+      const backdrop = document.querySelector('.photo-adjust-backdrop');
+      if (backdrop === null) throw new Error('modal not open');
+      const slider = backdrop.querySelector<HTMLInputElement>('.photo-adjust-zoom__slider');
+      if (slider === null) throw new Error('no slider');
+      slider.value = '2';
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      const applyBtn = Array.from(backdrop.querySelectorAll('button')).find(
+        (b) => b.textContent === '適用',
+      );
+      applyBtn?.click();
+      await flushPromises();
+
+      // WYSIWYG editor の写真 img に transform:scale(2) が乗る
+      const wysiwygImg = document.querySelector<HTMLElement>(
+        '#wysiwyg-editor .jcd-mhlw-a4__photo--filled img',
+      );
+      expect(wysiwygImg?.getAttribute('style')).toContain('scale(2)');
     });
 
     it('写真選択 → save → 編集して別写真選択 → load で元写真が復元される', async () => {

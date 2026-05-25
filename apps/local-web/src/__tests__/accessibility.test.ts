@@ -30,6 +30,11 @@ const AXE_OPTIONS: axe.RunOptions = {
   },
 };
 
+// axe-core のスキャンは大きな DOM に対して 5〜8 秒かかることがあり、 vitest の
+// 既定 timeout (5000ms) を超えて flaky に落ちる。 実 violation 検査ではなく
+// スキャン時間の問題なので、 これらの test には余裕のある timeout を設定する。
+const AXE_TEST_TIMEOUT_MS = 30_000;
+
 const expectNoAxeViolations = async (): Promise<void> => {
   const context = {
     include: [document],
@@ -147,29 +152,41 @@ describe('accessibility (axe-core)', () => {
     vi.restoreAllMocks();
   });
 
-  it('mount 直後 (sample fixture loaded) で axe violations なし', async () => {
-    await mountAppFromIndexHtml();
-    await expectNoAxeViolations();
-  });
+  it(
+    'mount 直後 (sample fixture loaded) で axe violations なし',
+    async () => {
+      await mountAppFromIndexHtml();
+      await expectNoAxeViolations();
+    },
+    AXE_TEST_TIMEOUT_MS,
+  );
 
-  it('validation エラー発生中 (summary + inline error 表示中) で axe violations なし', async () => {
-    await mountAppFromIndexHtml();
-    const birthInput = document.getElementById('birth-date');
-    if (!(birthInput instanceof HTMLInputElement)) throw new Error('Missing birth-date');
-    birthInput.value = '1800-01-01';
-    birthInput.dispatchEvent(new Event('input', { bubbles: true }));
+  it(
+    'validation エラー発生中 (summary + inline error 表示中) で axe violations なし',
+    async () => {
+      await mountAppFromIndexHtml();
+      const birthInput = document.getElementById('birth-date');
+      if (!(birthInput instanceof HTMLInputElement)) throw new Error('Missing birth-date');
+      birthInput.value = '1800-01-01';
+      birthInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-    expect(document.getElementById('validation-summary')?.hidden).toBe(false);
-    await expectNoAxeViolations();
-  });
+      expect(document.getElementById('validation-summary')?.hidden).toBe(false);
+      await expectNoAxeViolations();
+    },
+    AXE_TEST_TIMEOUT_MS,
+  );
 
-  it('section entry を追加した後の動的 DOM で axe violations なし', async () => {
-    await mountAppFromIndexHtml();
-    const addBtn = document.getElementById('add-education-button');
-    if (!(addBtn instanceof HTMLButtonElement)) throw new Error('Missing add-education-button');
-    addBtn.click();
-    await flushPromises();
+  it(
+    'section entry を追加した後の動的 DOM で axe violations なし',
+    async () => {
+      await mountAppFromIndexHtml();
+      const addBtn = document.getElementById('add-education-button');
+      if (!(addBtn instanceof HTMLButtonElement)) throw new Error('Missing add-education-button');
+      addBtn.click();
+      await flushPromises();
 
-    await expectNoAxeViolations();
-  });
+      await expectNoAxeViolations();
+    },
+    AXE_TEST_TIMEOUT_MS,
+  );
 });

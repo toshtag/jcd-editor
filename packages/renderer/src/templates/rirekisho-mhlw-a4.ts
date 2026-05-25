@@ -33,6 +33,7 @@ import { escapeHtml } from '../_internal/html-escape';
 import {
   buildCertificationRows,
   buildEducationRows,
+  buildPhotoImageStyle,
   buildWorkRows,
   computeAgeOnDate,
   type CertificationRow,
@@ -287,7 +288,8 @@ const renderPhotoBox = (profilePhoto: ProfilePhoto | undefined): string => {
     return '';
   }
   const altText = isNonEmpty(photo.altText) ? photo.altText : PROFILE_PHOTO_DEFAULT_ALT_TEXT;
-  return `<div class="jcd-mhlw-a4__photo jcd-mhlw-a4__photo--filled" style="${style}"><img class="jcd-mhlw-a4__photo-image" src="${escapeHtml(source.dataUri)}" alt="${escapeHtml(altText)}"></div>`;
+  const imgStyle = buildPhotoImageStyle(photo.transform);
+  return `<div class="jcd-mhlw-a4__photo jcd-mhlw-a4__photo--filled" style="${style}"><img class="jcd-mhlw-a4__photo-image" src="${escapeHtml(source.dataUri)}" alt="${escapeHtml(altText)}"${imgStyle}></div>`;
 };
 
 // === basics 流し込み (座標変換 + editable mode 対応) ===

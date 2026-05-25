@@ -392,6 +392,175 @@ body {
   color: #d33;
 }
 
+.profile-photo__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.profile-photo__adjust-button {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #4a90e2;
+  border-radius: 2px;
+  background: #fff;
+  color: #4a90e2;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.profile-photo__adjust-button:hover:not(:disabled) {
+  background: #f0f6fd;
+}
+.profile-photo__adjust-button:disabled {
+  border-color: #ccc;
+  color: #999;
+  cursor: not-allowed;
+}
+
+/* === 写真調整モーダル (位置・拡大) === */
+.photo-adjust-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 1rem;
+}
+.photo-adjust-dialog {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  width: min(420px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+.photo-adjust-dialog__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+.photo-adjust-dialog__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #666;
+  line-height: 1.5;
+}
+/* crop frame: 写真欄のアスペクト比を JS で aspect-ratio に設定する */
+.photo-adjust-frame {
+  position: relative;
+  width: 100%;
+  max-width: 260px;
+  align-self: center;
+  overflow: hidden;
+  border: 2px solid #4a90e2;
+  border-radius: 2px;
+  background: #f0f0f0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.photo-adjust-frame.is-grabbing {
+  cursor: grabbing;
+}
+.photo-adjust-frame__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+/* 三分割グリッド (ドラッグ中のみ表示) */
+.photo-adjust-frame__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.6) 1px, transparent 1px);
+  background-size:
+    1px 100%,
+    1px 100%,
+    100% 1px,
+    100% 1px;
+  background-repeat: no-repeat;
+  background-position:
+    33.33% 0,
+    66.66% 0,
+    0 33.33%,
+    0 66.66%;
+}
+.photo-adjust-frame.is-grabbing .photo-adjust-frame__grid {
+  opacity: 1;
+}
+.photo-adjust-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.photo-adjust-zoom__label {
+  font-size: 0.8rem;
+  color: #444;
+  white-space: nowrap;
+}
+.photo-adjust-zoom__slider {
+  flex: 1;
+  accent-color: #4a90e2;
+}
+.photo-adjust-zoom__value {
+  font-variant-numeric: tabular-nums;
+  color: #4a90e2;
+  font-weight: 600;
+  min-width: 2.6em;
+  text-align: right;
+}
+.photo-adjust-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+.photo-adjust-actions__spacer {
+  flex: 1;
+}
+.photo-adjust-button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 3px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #444;
+  cursor: pointer;
+}
+.photo-adjust-button:hover {
+  background: #f5f5f5;
+}
+.photo-adjust-button--primary {
+  border-color: #4a90e2;
+  background: #4a90e2;
+  color: #fff;
+}
+.photo-adjust-button--primary:hover {
+  background: #3a7bc8;
+}
+.photo-adjust-button:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+
 .basics-form__title {
   margin: 0 0 0.25rem;
   font-size: 0.95rem;

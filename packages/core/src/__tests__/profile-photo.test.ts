@@ -212,6 +212,79 @@ describe('profilePhotoSchema (internal)', () => {
       expect(safeParse(profilePhotoSchema, { altText: 'あ'.repeat(201) }).success).toBe(false);
     });
   });
+
+  describe('transform.zoom', () => {
+    it('未指定 (transform 自体を省略) を受理する', () => {
+      expect(safeParse(profilePhotoSchema, {}).success).toBe(true);
+    });
+
+    it('transform: {} (zoom 未指定) を受理する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: {} }).success).toBe(true);
+    });
+
+    it('zoom = 1 (cover 等倍) を受理する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { zoom: 1 } }).success).toBe(true);
+    });
+
+    it('zoom = 1.5 を受理する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { zoom: 1.5 } }).success).toBe(true);
+    });
+
+    it('zoom = 3 (上限) を受理する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { zoom: 3 } }).success).toBe(true);
+    });
+
+    it('zoom < 1 を拒否する (cover 以下にすると白余白が出る)', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { zoom: 0.5 } }).success).toBe(false);
+    });
+
+    it('zoom > 3 を拒否する (拡大しすぎは画質劣化)', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { zoom: 3.5 } }).success).toBe(false);
+    });
+
+    it('zoom が string を拒否する', () => {
+      expect(
+        safeParse(profilePhotoSchema, { transform: { zoom: '1.5' as unknown as number } }).success,
+      ).toBe(false);
+    });
+  });
+
+  describe('transform.offsetX / offsetY', () => {
+    it('offsetX = 50 / offsetY = 50 (中央) を受理する', () => {
+      expect(
+        safeParse(profilePhotoSchema, { transform: { offsetX: 50, offsetY: 50 } }).success,
+      ).toBe(true);
+    });
+
+    it('offsetX = 0 (左端) を受理する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { offsetX: 0 } }).success).toBe(true);
+    });
+
+    it('offsetY = 100 (下端) を受理する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { offsetY: 100 } }).success).toBe(true);
+    });
+
+    it('zoom + offset を組み合わせて受理する', () => {
+      expect(
+        safeParse(profilePhotoSchema, { transform: { zoom: 2, offsetX: 30, offsetY: 70 } }).success,
+      ).toBe(true);
+    });
+
+    it('offsetX < 0 を拒否する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { offsetX: -1 } }).success).toBe(false);
+    });
+
+    it('offsetY > 100 を拒否する', () => {
+      expect(safeParse(profilePhotoSchema, { transform: { offsetY: 101 } }).success).toBe(false);
+    });
+
+    it('offsetX が string を拒否する', () => {
+      expect(
+        safeParse(profilePhotoSchema, { transform: { offsetX: '50' as unknown as number } })
+          .success,
+      ).toBe(false);
+    });
+  });
 });
 
 describe('ProfilePhoto via safeParseCareerProfile (public API)', () => {
