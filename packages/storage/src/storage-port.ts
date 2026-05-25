@@ -40,8 +40,15 @@ export type StoredProfileId = string;
 
 export type StoredProfileMetadata = {
   id: StoredProfileId;
+  // 宛先・用途名 (例「A 社用」)。バージョン一覧の主軸。空文字許容
+  // (旧データの migration デフォルト / 名称未設定)。
+  name: string;
   createdAt: string;
   updatedAt: string;
+  // 最後に「確定」した時刻 (ISO)。未確定 (一度も確定していない) なら undefined。
+  // 自動保存は updatedAt のみ進め committedAt は据え置くため、
+  // committedAt < updatedAt なら「未確定の変更あり」を意味する (isCommitted 参照)。
+  committedAt?: string;
   schemaVersion: number;
 };
 
@@ -52,12 +59,31 @@ export type StoredProfile = {
 
 export type SaveProfileInput = {
   id?: StoredProfileId;
+  // 省略時は既存 name を保持 (新規なら '')。自動保存は name を渡さない。
+  name?: string;
   profile: CareerProfile;
 };
 
 export type StoragePort = {
+  // upsert。committedAt は更新しない (確定は commitProfile の責務)。
   saveProfile(input: SaveProfileInput): Promise<StoredProfile>;
+  // 現在保存済みの内容を「確定」する。committedAt = 現在の updatedAt にする
+  // (updatedAt は触らない)。missing id は PROFILE_NOT_FOUND。
+  commitProfile(id: StoredProfileId): Promise<StoredProfile>;
+  // 名前のみ変更。updatedAt / committedAt は触らない (確定状態を壊さない)。
+  // missing id は PROFILE_NOT_FOUND。
+  renameProfile(id: StoredProfileId, name: string): Promise<StoredProfile>;
   loadProfile(id: StoredProfileId): Promise<StoredProfile>;
   listProfiles(): Promise<readonly StoredProfileMetadata[]>;
   deleteProfile(id: StoredProfileId): Promise<void>;
 };
+
+/**
+ * バージョンが「確定済み」か (= 未確定の変更が無いか) を判定する純関数。
+ *
+ * committedAt が存在し、かつ updatedAt 以上 (= 確定後に自動保存で内容が
+ * 進んでいない) なら確定済み。ISO 8601 文字列は辞書順 = 時系列順なので
+ * 文字列比較で判定できる。
+ */
+export const isCommitted = (metadata: StoredProfileMetadata): boolean =>
+  metadata.committedAt !== undefined && metadata.committedAt >= metadata.updatedAt;

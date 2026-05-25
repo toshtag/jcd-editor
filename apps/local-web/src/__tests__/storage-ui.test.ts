@@ -4,11 +4,9 @@ import type { StoredProfileMetadata } from '@jcd-editor/storage';
 
 import { formatStoredProfileOption } from '../storage-ui';
 
-// regex で構造のみ assert (timezone 依存を避けるため厳密な文字列一致はしない)
-const FORMAT_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \([0-9a-fA-F-]{1,8}\)$/;
-
 const buildMetadata = (overrides: Partial<StoredProfileMetadata>): StoredProfileMetadata => ({
   id: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+  name: '',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-05-21T14:30:45.000Z',
   schemaVersion: 1,
@@ -16,37 +14,41 @@ const buildMetadata = (overrides: Partial<StoredProfileMetadata>): StoredProfile
 });
 
 describe('formatStoredProfileOption', () => {
-  it('updatedAt と id 先頭 8 文字を含む YYYY-MM-DD HH:MM:SS (idPrefix) 形式に format', () => {
-    const result = formatStoredProfileOption(buildMetadata({}));
-    expect(result).toMatch(FORMAT_PATTERN);
-    // id 先頭 8 文字が含まれる
-    expect(result).toContain('a1b2c3d4');
+  it('名前を主軸に表示する', () => {
+    const result = formatStoredProfileOption(buildMetadata({ name: 'A 社用' }));
+    expect(result.startsWith('A 社用')).toBe(true);
   });
 
-  it('month / day / hour / minute / second の 0 padding (single digit を保つ)', () => {
+  it('名前が空なら (名称未設定)', () => {
+    const result = formatStoredProfileOption(buildMetadata({ name: '' }));
+    expect(result).toContain('(名称未設定)');
+  });
+
+  it('未確定 (committedAt 無し) なら ● 未確定 マークと更新日時', () => {
+    const result = formatStoredProfileOption(buildMetadata({ name: 'A 社用' }));
+    expect(result).toContain('● 未確定');
+    expect(result).toContain('更新');
+  });
+
+  it('未確定 (committedAt < updatedAt) でも ● 未確定', () => {
     const result = formatStoredProfileOption(
-      buildMetadata({ updatedAt: '2026-01-02T03:04:05.000Z' }),
+      buildMetadata({ name: 'A 社用', committedAt: '2026-05-20T00:00:00.000Z' }),
     );
-    expect(result).toMatch(FORMAT_PATTERN);
-    // local timezone により時刻部分は変動するが、date 部分 (2026-01-02) は UTC midnight 以降の
-    // local timezone 差分次第。最低限 0 padding 形式 (YYYY-MM-DD) になることを構造で確認
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}/);
+    expect(result).toContain('● 未確定');
   });
 
-  it('id の先頭 8 文字のみ抽出される (full UUID 36 文字を含まない)', () => {
-    const result = formatStoredProfileOption(buildMetadata({}));
-    // full id (36 文字、ハイフン込み) は含まれない
-    expect(result).not.toContain('a1b2c3d4-e5f6-7890-1234-567890abcdef');
-    // 先頭 8 文字のみ含む
-    expect(result).toContain('(a1b2c3d4)');
+  it('確定済み (committedAt >= updatedAt) なら マーク無しで確定日時', () => {
+    const result = formatStoredProfileOption(
+      buildMetadata({ name: 'A 社用', committedAt: '2026-05-21T14:30:45.000Z' }),
+    );
+    expect(result).not.toContain('● 未確定');
+    expect(result).toContain('確定');
   });
 
-  it('異なる id でも同じ format pattern を保つ (構造の安定性)', () => {
-    const r1 = formatStoredProfileOption(buildMetadata({ id: '11111111-2222-...' }));
-    const r2 = formatStoredProfileOption(buildMetadata({ id: 'ffffffff-0000-...' }));
-    expect(r1).toMatch(FORMAT_PATTERN);
-    expect(r2).toMatch(FORMAT_PATTERN);
-    expect(r1).toContain('(11111111)');
-    expect(r2).toContain('(ffffffff)');
+  it('日時は YYYY-MM-DD HH:MM 形式 (0 padding)', () => {
+    const result = formatStoredProfileOption(
+      buildMetadata({ name: 'x', updatedAt: '2026-01-02T03:04:05.000Z' }),
+    );
+    expect(result).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
   });
 });

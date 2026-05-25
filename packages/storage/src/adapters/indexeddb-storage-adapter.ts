@@ -44,7 +44,9 @@ import type {
 
 const DEFAULT_DATABASE_NAME = 'jcd-editor';
 const DEFAULT_STORE_NAME = 'profiles';
-const DATABASE_VERSION = 2;
+// v3: StoredProfileMetadata に name / committedAt を追加 (バージョン管理)。
+// 旧 (v1/v2) データには name が無いので upgrade 時に '' を backfill する。
+const DATABASE_VERSION = 3;
 
 export type IndexedDbStorageAdapterOptions = {
   /** Database name. Default: 'jcd-editor' */
@@ -89,13 +91,18 @@ const openDatabase = (
         : db.createObjectStore(metadataStoreName, { keyPath: 'id' });
 
       if (event.oldVersion > 0 && tx !== null && metadataStore !== undefined) {
+        // profile store を真とし metadata store を再構築する。
+        // profile store と metadata store は saveProfile / updateMetadata で常に
+        // 同期して書かれるので、profile store から metadata を引き写せば十分。
+        // v1/v2 の旧データは name フィールドが無いので '' を補完する (v3 migration)。
         const profileStore = tx.objectStore(storeName);
         const cursorRequest = profileStore.openCursor();
         cursorRequest.onsuccess = () => {
           const cursor = cursorRequest.result;
           if (cursor === null) return;
           if (hasStoredProfileMetadata(cursor.value)) {
-            metadataStore.put(cursor.value.metadata);
+            const metadata = cursor.value.metadata as StoredProfileMetadata & { name?: string };
+            metadataStore.put({ ...metadata, name: metadata.name ?? '' });
           }
           cursor.continue();
         };
@@ -150,11 +157,18 @@ export const createIndexedDbStorageAdapter = (
     getRequest.onsuccess = () => {
       const existing = getRequest.result as StoredProfile | undefined;
       const nowIso = now();
+      // name: input 優先 → 既存保持 → '' (新規 / 旧 migration 欠損)。
+      // committedAt: saveProfile では一切更新せず既存値を引き継ぐ
+      //   (自動保存で updatedAt のみ進み「未確定」に転ぶ)。
+      //   exactOptionalPropertyTypes 対応で conditional spread で omit する。
+      const existingCommittedAt = existing?.metadata.committedAt;
       stored = {
         metadata: {
           id,
+          name: input.name ?? existing?.metadata.name ?? '',
           createdAt: existing?.metadata.createdAt ?? nowIso,
           updatedAt: nowIso,
+          ...(existingCommittedAt !== undefined ? { committedAt: existingCommittedAt } : {}),
           schemaVersion: input.profile.schemaVersion,
         },
         profile: input.profile,
@@ -174,6 +188,45 @@ export const createIndexedDbStorageAdapter = (
     return stored;
   };
 
+  // 既存レコードの metadata を一部更新して put し直す共通ヘルパー。
+  // get の onsuccess 内 (synchronous tick) で put を発行し auto-commit を回避する
+  // (saveProfile / deleteProfile と同じ lifecycle)。
+  const updateMetadata = async (
+    id: StoredProfileId,
+    updater: (metadata: StoredProfileMetadata) => StoredProfileMetadata,
+  ): Promise<StoredProfile> => {
+    const db = await getDatabase();
+    const tx = db.transaction([storeName, metadataStoreName], 'readwrite');
+    const store = tx.objectStore(storeName);
+    const metadataStore = tx.objectStore(metadataStoreName);
+
+    let updated: StoredProfile | undefined;
+
+    const getRequest = store.get(id);
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as StoredProfile | undefined;
+      if (existing === undefined) return; // not found は put せず、下で throw
+      updated = { metadata: updater(existing.metadata), profile: existing.profile };
+      store.put(updated);
+      metadataStore.put(updated.metadata);
+    };
+
+    await waitForTransaction(tx);
+
+    if (updated === undefined) {
+      throw new StorageError(`Profile not found: ${id}`, 'PROFILE_NOT_FOUND');
+    }
+    return updated;
+  };
+
+  const commitProfile = (id: StoredProfileId): Promise<StoredProfile> =>
+    // updatedAt は触らず committedAt = updatedAt にする (確定 = 「今の内容を正とする」)。
+    updateMetadata(id, (m) => ({ ...m, committedAt: m.updatedAt }));
+
+  const renameProfile = (id: StoredProfileId, name: string): Promise<StoredProfile> =>
+    // name のみ変更。updatedAt / committedAt は触らない (確定状態を壊さない)。
+    updateMetadata(id, (m) => ({ ...m, name }));
+
   const loadProfile = async (id: StoredProfileId): Promise<StoredProfile> => {
     const db = await getDatabase();
     const tx = db.transaction(storeName, 'readonly');
@@ -186,7 +239,14 @@ export const createIndexedDbStorageAdapter = (
     if (!parsed.success) {
       throw new StorageError(`Stored profile is corrupt: ${id}`, 'PROFILE_CORRUPT');
     }
-    return { metadata: stored.metadata, profile: parsed.data };
+    // 旧 (v1/v2) データは profile store 埋め込み metadata に name が無いので
+    // defensive に '' 補完する (metadata store 側は migration で補完済みだが、
+    // loadProfile は profile store を読むため個別に補う)。
+    const metadata: StoredProfileMetadata = {
+      ...stored.metadata,
+      name: stored.metadata.name ?? '',
+    };
+    return { metadata, profile: parsed.data };
   };
 
   const listProfiles = async (): Promise<readonly StoredProfileMetadata[]> => {
@@ -223,5 +283,5 @@ export const createIndexedDbStorageAdapter = (
     }
   };
 
-  return { saveProfile, loadProfile, listProfiles, deleteProfile };
+  return { saveProfile, commitProfile, renameProfile, loadProfile, listProfiles, deleteProfile };
 };
