@@ -130,14 +130,24 @@
                     accept="image/jpeg,image/png"
                   />
                 </label>
-                <button
-                  type="button"
-                  id="profile-photo-remove-button"
-                  class="profile-photo__remove-button"
-                  disabled
-                >
-                  写真を削除
-                </button>
+                <div class="profile-photo__buttons">
+                  <button
+                    type="button"
+                    id="profile-photo-adjust-button"
+                    class="profile-photo__adjust-button"
+                    disabled
+                  >
+                    位置・拡大を調整
+                  </button>
+                  <button
+                    type="button"
+                    id="profile-photo-remove-button"
+                    class="profile-photo__remove-button"
+                    disabled
+                  >
+                    写真を削除
+                  </button>
+                </div>
                 <p class="profile-photo__hint">
                   対応形式: JPEG / PNG、最大 10 MB。大きな画像は自動で縮小されます。写真は個人情報として扱われ、ブラウザ内で
                   data URI 化されます (外部送信なし)。

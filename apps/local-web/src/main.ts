@@ -99,6 +99,7 @@ import {
 import { buildExportFileName, parseJsonImport, serializeProfileToJson } from './profile-io';
 import { validatePhotoFile } from './profile-photo';
 import { resizePhotoToDataUri } from './profile-photo-resize';
+import { openPhotoAdjustModal, type PhotoTransform } from './photo-adjust-modal';
 import { formatTranslatedIssue } from './validation-labels';
 import { buildIssueInputSelector } from './validation-inputs';
 import { issueElementId, summarizeIssues } from './validation-summary';
@@ -162,6 +163,7 @@ const profilePhotoRemoveButton = requireElement('profile-photo-remove-button', H
 const profilePhotoThumbnail = requireElement('profile-photo-thumbnail', HTMLImageElement);
 const profilePhotoPlaceholder = requireElement('profile-photo-placeholder', HTMLSpanElement);
 const profilePhotoError = requireElement('profile-photo-error', HTMLParagraphElement);
+const profilePhotoAdjustButton = requireElement('profile-photo-adjust-button', HTMLButtonElement);
 const statusEl = document.getElementById('status');
 const errorArea = document.getElementById('error-area');
 const dirtyIndicator = document.getElementById('dirty-indicator');
@@ -464,11 +466,14 @@ if (!parsed.success) {
       profilePhotoThumbnail.hidden = false;
       profilePhotoPlaceholder.hidden = true;
       profilePhotoRemoveButton.disabled = false;
+      // 写真があるときだけ「位置・拡大を調整」 を有効化。
+      profilePhotoAdjustButton.disabled = false;
     } else {
       profilePhotoThumbnail.removeAttribute('src');
       profilePhotoThumbnail.hidden = true;
       profilePhotoPlaceholder.hidden = false;
       profilePhotoRemoveButton.disabled = true;
+      profilePhotoAdjustButton.disabled = true;
     }
   };
 
@@ -715,6 +720,53 @@ if (!parsed.success) {
     // a11y: 削除直後は削除ボタンが disabled になるため、focus を選択 file
     // input に戻す (label が clickable wrapper として動作する)。
     profilePhotoInput.focus();
+  };
+
+  // 写真欄のアスペクト比 (renderer の PHOTO_BOX_MM = 30.31 × 38.69mm)。
+  // モーダルの crop frame をこの比率にして WYSIWYG と一致させる。
+  const PHOTO_BOX_ASPECT_RATIO = 30.31 / 38.69;
+
+  /**
+   * 適用された transform を currentPhoto に反映する。
+   *
+   * 既定値 (zoom=1, offsetX=50, offsetY=50) のフィールドは省いて保存 JSON を
+   * 綺麗に保つ。すべて既定なら transform 自体を削除する。
+   */
+  const applyPhotoTransform = (t: PhotoTransform): void => {
+    if (currentPhoto === undefined) return;
+    const transform: { zoom?: number; offsetX?: number; offsetY?: number } = {};
+    if (t.zoom !== 1) transform.zoom = t.zoom;
+    if (t.offsetX !== 50) transform.offsetX = t.offsetX;
+    if (t.offsetY !== 50) transform.offsetY = t.offsetY;
+    const hasAny = Object.keys(transform).length > 0;
+    const { transform: _omit, ...rest } = currentPhoto;
+    currentPhoto = hasAny ? { ...rest, transform } : rest;
+    onFormInput();
+  };
+
+  /**
+   * 写真の「位置・拡大」調整モーダルを開く。
+   * 写真が無いときは何もしない (呼び出し側でガードしているが念のため)。
+   */
+  const openPhotoAdjust = (): void => {
+    if (currentPhoto?.source?.kind !== 'dataUri') return;
+    const t = currentPhoto.transform;
+    openPhotoAdjustModal({
+      dataUri: currentPhoto.source.dataUri,
+      boxAspectRatio: PHOTO_BOX_ASPECT_RATIO,
+      initial: {
+        zoom: t?.zoom ?? 1,
+        offsetX: t?.offsetX ?? 50,
+        offsetY: t?.offsetY ?? 50,
+      },
+      onApply: applyPhotoTransform,
+      // 「画像を変更」: モーダルを閉じてからファイル選択を開く。新しい画像を
+      // 選ぶと transform はリセットされる (onPhotoSelected が transform を
+      // 引き継がないため)。
+      onChangeImage: () => {
+        profilePhotoInput.click();
+      },
+    });
   };
 
   const onSave = async (): Promise<void> => {
@@ -1185,6 +1237,11 @@ if (!parsed.success) {
     onPhotoRemove();
   });
 
+  // SP 版 form の「位置・拡大を調整」ボタン: 調整モーダルを開く。
+  profilePhotoAdjustButton.addEventListener('click', () => {
+    openPhotoAdjust();
+  });
+
   /**
    * ドラッグ&ドロップで写真ファイルを受け付ける drop zone を element に取り付ける。
    * - dragover / dragleave で `is-dragover` クラスを toggle (CSS で視覚フィードバック)
@@ -1222,18 +1279,23 @@ if (!parsed.success) {
   attachPhotoDropZone(wysiwygPane);
 
   // PC 版 WYSIWYG では「写真を選択」 ボタンが form pane と共に非表示なので、
-  // 写真欄 (.jcd-mhlw-a4__photo) を直接クリックしてもファイル選択ダイアログが
-  // 開くようにする。delegated click handler で profile-photo-input の click()
-  // を呼ぶ (= 同じファイル選択フローを再利用)。
+  // 写真欄 (.jcd-mhlw-a4__photo) を直接クリックで操作できるようにする:
+  //   - 写真 未挿入 (ガイド表示): クリックでファイル選択ダイアログ (= アップロード)
+  //   - 写真 挿入済み (--filled): クリックで「位置・拡大」調整モーダル
+  // (アップロード経路と調整経路を写真の有無で振り分けることで、 Phase 2.5 で
+  //  起きた「click が常に upload を開く」 競合を解消する。 画像の差し替えは
+  //  モーダル内の「画像を変更」ボタンから行う。)
   wysiwygPane.addEventListener('click', (e) => {
     const target = e.target;
     if (!(target instanceof HTMLElement)) return;
     const photoBox = target.closest('.jcd-mhlw-a4__photo');
     if (photoBox === null) return;
-    // 写真が既に挿入済みの場合 (`.jcd-mhlw-a4__photo--filled`) もクリックで
-    // 再選択できるようにする (= 写真の差し替え操作)。
     e.preventDefault();
-    profilePhotoInput.click();
+    if (photoBox.classList.contains('jcd-mhlw-a4__photo--filled')) {
+      openPhotoAdjust();
+    } else {
+      profilePhotoInput.click();
+    }
   });
 
   // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を
