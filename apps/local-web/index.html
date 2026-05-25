@@ -37,17 +37,31 @@
             role="status"
             aria-live="polite"
             hidden
-            >● 未保存</span
+            >● 未確定</span
           >
         </div>
         <div class="app__storage">
-          <button type="button" id="save-button" class="app__storage-button">保存</button>
-          <label class="app__storage-label" for="saved-profile-select">保存済み:</label>
+          <button type="button" id="new-version-button" class="app__storage-button">
+            新規作成
+          </button>
+          <button type="button" id="duplicate-button" class="app__storage-button" disabled>
+            複製
+          </button>
+          <label class="app__storage-label" for="saved-profile-select">バージョン:</label>
           <select id="saved-profile-select" class="app__storage-select">
             <option value="">(選択してください)</option>
           </select>
-          <button type="button" id="load-button" class="app__storage-button" disabled>
-            読み込み
+          <button type="button" id="load-button" class="app__storage-button" disabled>開く</button>
+          <button
+            type="button"
+            id="commit-button"
+            class="app__storage-button app__storage-button--primary"
+            disabled
+          >
+            確定
+          </button>
+          <button type="button" id="rename-button" class="app__storage-button" disabled>
+            名前変更
           </button>
           <button
             type="button"

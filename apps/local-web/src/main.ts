@@ -64,7 +64,12 @@ import {
   RendererError,
   type DocumentKind,
 } from '@jcd-editor/renderer';
-import { createIndexedDbStorageAdapter, type StoredProfileId } from '@jcd-editor/storage';
+import {
+  createIndexedDbStorageAdapter,
+  isCommitted,
+  type StoredProfileId,
+  type StoredProfileMetadata,
+} from '@jcd-editor/storage';
 
 import './styles.css';
 
@@ -141,8 +146,11 @@ const kindSelector = requireElement('kind-selector', HTMLSelectElement);
 const formEl = requireElement('basics-form', HTMLFormElement);
 const validationSummaryEl = requireElement('validation-summary', HTMLDivElement);
 const validationSummaryList = requireElement('validation-summary-list', HTMLUListElement);
-const saveButton = requireElement('save-button', HTMLButtonElement);
+const newVersionButton = requireElement('new-version-button', HTMLButtonElement);
+const duplicateButton = requireElement('duplicate-button', HTMLButtonElement);
 const loadButton = requireElement('load-button', HTMLButtonElement);
+const commitButton = requireElement('commit-button', HTMLButtonElement);
+const renameButton = requireElement('rename-button', HTMLButtonElement);
 const deleteButton = requireElement('delete-button', HTMLButtonElement);
 const profileSelect = requireElement('saved-profile-select', HTMLSelectElement);
 const workExperiencesList = requireElement('work-experiences-list', HTMLDivElement);
@@ -433,10 +441,19 @@ if (!parsed.success) {
   let draftBase: Record<string, unknown> = sampleProfileInput;
   let isCurrentDraftValid = true;
   let isStorageBusy = false;
-  // isDirty: form 内容が「最後の save / load / import 成功時点」から変化したか。
-  // 初期 mount 時 (sample fixture) は false。user 入力で true、save / load /
-  // import 成功時に false に戻る。invalid draft 中も dirty 判定は維持する
-  // (input 自体が user の保存意図とは独立)。
+  // === バージョン管理の状態 ===
+  // 現在編集中バージョンの名前 (rename / 表示用キャッシュ)。
+  let currentVersionName = '';
+  // 現在編集中バージョンが「確定済み」か。自動保存で false、確定操作で true。
+  // currentProfileId === undefined (新規未作成) のときは意味を持たない。
+  let isCommittedNow = false;
+  // 自動保存 debounce タイマー。
+  let autoSaveTimer: number | undefined;
+  const AUTO_SAVE_DELAY_MS = 400;
+  // isDirty: 「未確定の変更がある」インジケータ駆動用。currentProfileId があり、
+  // 確定後に内容が変わった (自動保存された) ら true。確定で false。新規未作成
+  // (currentProfileId === undefined) でも user 入力があれば true にして
+  // 「新規作成で保存先を作ってください」を促す。
   let isDirty = false;
 
   // currentPhoto: basics.profilePhoto を form input とは独立に保持する。
@@ -576,9 +593,19 @@ if (!parsed.success) {
   };
 
   const updateButtonStates = (): void => {
-    saveButton.disabled = !isCurrentDraftValid || isStorageBusy;
-    loadButton.disabled = profileSelect.value === '' || isStorageBusy;
-    deleteButton.disabled = profileSelect.value === '' || isStorageBusy;
+    const hasCurrent = currentProfileId !== undefined;
+    const selected = profileSelect.value !== '';
+    // 新規作成: 常に可能 (busy 中のみ不可)
+    newVersionButton.disabled = isStorageBusy;
+    // 複製: 現在バージョンがあり valid なときのみ (現在の内容を元に複製)
+    duplicateButton.disabled = !hasCurrent || !isCurrentDraftValid || isStorageBusy;
+    // 開く: 一覧で選択があるとき
+    loadButton.disabled = !selected || isStorageBusy;
+    // 確定: 現在バージョンがあり、未確定で、valid なとき
+    commitButton.disabled = !hasCurrent || isCommittedNow || !isCurrentDraftValid || isStorageBusy;
+    // 名前変更 / 削除: 一覧で選択があるとき
+    renameButton.disabled = !selected || isStorageBusy;
+    deleteButton.disabled = !selected || isStorageBusy;
   };
 
   const updateDirtyIndicator = (): void => {
@@ -663,8 +690,12 @@ if (!parsed.success) {
       profile = result.data;
       draftBase = result.data as unknown as Record<string, unknown>;
       isCurrentDraftValid = true;
+      // 確定済みバージョンを編集したら「未確定」に転ばせる。
+      isCommittedNow = false;
       clearValidationIssues();
       renderAndUpdate(currentKind);
+      // 自動保存をスケジュール (currentProfileId があるバージョンのみ実保存される)。
+      scheduleAutoSave();
     } else {
       isCurrentDraftValid = false;
       showValidationIssues(result.issues);
@@ -769,20 +800,156 @@ if (!parsed.success) {
     });
   };
 
-  const onSave = async (): Promise<void> => {
+  // === 自動保存 ===
+  //
+  // user 入力 (valid) のたびに debounce 付きで現在バージョンに静かに上書き保存
+  // する。committedAt は更新しないので一覧では「未確定」になる。
+  // 新規未作成 (currentProfileId === undefined) や invalid 中は保存しない。
+
+  const scheduleAutoSave = (): void => {
+    if (autoSaveTimer !== undefined) window.clearTimeout(autoSaveTimer);
+    autoSaveTimer = window.setTimeout(() => {
+      autoSaveTimer = undefined;
+      void autoSave();
+    }, AUTO_SAVE_DELAY_MS);
+  };
+
+  // 保留中の自動保存があれば即実行する (確定 / load / 複製 / 閉じる前に呼ぶ)。
+  const flushAutoSave = async (): Promise<void> => {
+    if (autoSaveTimer !== undefined) {
+      window.clearTimeout(autoSaveTimer);
+      autoSaveTimer = undefined;
+      await autoSave();
+    }
+  };
+
+  const autoSave = async (): Promise<void> => {
+    if (currentProfileId === undefined) return; // 新規未作成は保存しない
+    if (!isCurrentDraftValid) return; // invalid はスキップ (last-valid のみ保存)
+    if (isStorageBusy) {
+      // 別の storage 操作中なら後で再試行
+      scheduleAutoSave();
+      return;
+    }
+    isStorageBusy = true;
+    updateButtonStates();
+    try {
+      // name は渡さない (= 既存 name を保持)。committedAt は storage 側で据え置き。
+      const stored = await storage.saveProfile(buildSaveProfileInput(profile, currentProfileId));
+      currentProfileId = stored.metadata.id;
+      isCommittedNow = false;
+      updateCurrentOptionLabel(stored.metadata);
+      showStatus('自動保存しました');
+    } catch (error) {
+      handleStorageError(error, '自動保存に失敗しました');
+    } finally {
+      isStorageBusy = false;
+      updateButtonStates();
+    }
+  };
+
+  // 一覧 select 内の現在バージョン option の label のみ更新する (フルリフレッシュ
+  // するとフォーカス / 選択が乱れるため、自動保存ごとの軽量更新に使う)。
+  const updateCurrentOptionLabel = (metadata: StoredProfileMetadata): void => {
+    const option = Array.from(profileSelect.options).find((o) => o.value === metadata.id);
+    if (option !== undefined) {
+      option.textContent = formatStoredProfileOption(metadata);
+    } else {
+      // option が無い (新規作成直後など) ならフルリフレッシュにフォールバック
+      void refreshSavedProfileList().then(() => {
+        if (currentProfileId !== undefined) profileSelect.value = currentProfileId;
+      });
+    }
+  };
+
+  // === 確定 ===
+  const onCommit = async (): Promise<void> => {
+    if (currentProfileId === undefined || isStorageBusy || !isCurrentDraftValid) return;
+    // 保留中の自動保存を先に反映してから確定する (確定 = 今の内容を正とする)。
+    await flushAutoSave();
+    if (currentProfileId === undefined) return; // flush 中に削除された場合の防御
+    isStorageBusy = true;
+    updateButtonStates();
+    try {
+      const stored = await storage.commitProfile(currentProfileId);
+      isCommittedNow = true;
+      markClean();
+      updateCurrentOptionLabel(stored.metadata);
+      showStatus(`「${currentVersionName || '名称未設定'}」を確定しました`);
+    } catch (error) {
+      handleStorageError(error, '確定に失敗しました');
+    } finally {
+      isStorageBusy = false;
+      updateButtonStates();
+    }
+  };
+
+  // === 新規作成 / 複製 ===
+  //
+  // 新規作成: 現在の form 内容を元に、名前を付けた新バージョンを作る。
+  // 複製: 同上 (現在バージョンの内容をコピーして別名の新バージョンに)。
+  // 内部処理は同じ (新 id で saveProfile + name) なので共通化する。
+
+  const createVersionFrom = async (name: string): Promise<void> => {
     if (!isCurrentDraftValid || isStorageBusy) return;
     isStorageBusy = true;
     updateButtonStates();
     try {
-      const input = buildSaveProfileInput(profile, currentProfileId);
-      const stored = await storage.saveProfile(input);
+      // id を渡さない = 新規。name を付ける。
+      const stored = await storage.saveProfile({ name, profile });
       currentProfileId = stored.metadata.id;
+      currentVersionName = stored.metadata.name;
+      isCommittedNow = false;
+      markDirty();
       await refreshSavedProfileList();
       profileSelect.value = currentProfileId;
-      markClean();
-      showStatus('保存しました');
+      showStatus(`「${currentVersionName || '名称未設定'}」を作成しました (未確定)`);
     } catch (error) {
-      handleStorageError(error, '保存に失敗しました');
+      handleStorageError(error, 'バージョンの作成に失敗しました');
+    } finally {
+      isStorageBusy = false;
+      updateButtonStates();
+    }
+  };
+
+  const onNewVersion = async (): Promise<void> => {
+    if (isStorageBusy) return;
+    const name = window.prompt('このバージョンの名前 (例: A 社用)', '');
+    if (name === null) return; // キャンセル
+    // 保留中の自動保存を現バージョンに反映してから新規作成 (取りこぼし防止)。
+    await flushAutoSave();
+    await createVersionFrom(name.trim());
+  };
+
+  const onDuplicate = async (): Promise<void> => {
+    if (currentProfileId === undefined || isStorageBusy) return;
+    const base = currentVersionName.trim() === '' ? 'コピー' : `${currentVersionName} のコピー`;
+    const name = window.prompt('複製後のバージョン名', base);
+    if (name === null) return;
+    await flushAutoSave();
+    await createVersionFrom(name.trim());
+  };
+
+  // === 名前変更 ===
+  const onRename = async (): Promise<void> => {
+    if (isStorageBusy) return;
+    const id = profileSelect.value;
+    if (id === '') return;
+    const current = profileSelect.options[profileSelect.selectedIndex]?.textContent ?? '';
+    const name = window.prompt(
+      '新しいバージョン名',
+      current.split(' ● ')[0]?.split(' — ')[0] ?? '',
+    );
+    if (name === null) return;
+    isStorageBusy = true;
+    updateButtonStates();
+    try {
+      const stored = await storage.renameProfile(id, name.trim());
+      if (currentProfileId === id) currentVersionName = stored.metadata.name;
+      updateCurrentOptionLabel(stored.metadata);
+      showStatus('バージョン名を変更しました');
+    } catch (error) {
+      handleStorageError(error, '名前変更に失敗しました');
     } finally {
       isStorageBusy = false;
       updateButtonStates();
@@ -944,18 +1111,14 @@ if (!parsed.success) {
     if (isStorageBusy) return;
     const id = profileSelect.value;
     if (id === '') return;
-
-    // 未保存変更があれば確認してから上書きする (load は form 内容を完全に
-    // 置き換えるため、user の編集が失われる経路)。
-    if (isDirty) {
-      const confirmed = window.confirm(
-        '未保存の変更があります。読み込むと現在の編集内容は失われます。続行しますか?',
-      );
-      if (!confirmed) {
-        showStatus('読み込みをキャンセルしました');
-        return;
-      }
+    if (id === currentProfileId) {
+      showStatus('このバージョンは既に開いています');
+      return;
     }
+
+    // 別バージョンを開く前に、現バージョンの保留中自動保存を反映する
+    // (取りこぼし防止)。自動保存されるので確認ダイアログは不要。
+    await flushAutoSave();
 
     isStorageBusy = true;
     updateButtonStates();
@@ -963,13 +1126,17 @@ if (!parsed.success) {
       const stored = await storage.loadProfile(id);
       profile = stored.profile;
       currentProfileId = stored.metadata.id;
+      currentVersionName = stored.metadata.name;
+      isCommittedNow = isCommitted(stored.metadata);
       draftBase = stored.profile as unknown as Record<string, unknown>;
       isCurrentDraftValid = true;
       populateAll(stored.profile);
       clearValidationIssues();
       renderAndUpdate(currentKind);
-      markClean();
-      showStatus('保存済みプロフィールを読み込みました');
+      // 未確定マークは load したバージョンの確定状態に合わせる。
+      if (isCommittedNow) markClean();
+      else markDirty();
+      showStatus(`「${currentVersionName || '名称未設定'}」を開きました`);
       // a11y: 読み込み後は form 編集を始めることが多いため、form 先頭に focus
       nameFamilyInput.focus();
     } catch (error) {
@@ -1003,15 +1170,21 @@ if (!parsed.success) {
     updateButtonStates();
     try {
       await storage.deleteProfile(id);
-      // 削除した profile が現在編集中のものなら、id を切り離して未保存 draft に
-      // する (form / preview は維持: ユーザーが内容を別 profile として再保存
-      // したいかもしれない)。
+      // 削除した profile が現在編集中のものなら、id を切り離す (form / preview は
+      // 維持: ユーザーが内容を別バージョンとして再作成したいかもしれない)。
+      // 保留中の自動保存タイマーがあれば消す (削除済み id への保存を防ぐ)。
       if (currentProfileId === id) {
+        if (autoSaveTimer !== undefined) {
+          window.clearTimeout(autoSaveTimer);
+          autoSaveTimer = undefined;
+        }
         currentProfileId = undefined;
+        currentVersionName = '';
+        isCommittedNow = false;
       }
       await refreshSavedProfileList();
       profileSelect.value = '';
-      showStatus('プロフィールを削除しました');
+      showStatus('バージョンを削除しました');
       // a11y: 削除後は delete-button が disabled になるため、focus を
       // profileSelect に移して次の選択に進めるようにする。
       profileSelect.focus();
@@ -1193,12 +1366,24 @@ if (!parsed.success) {
     }
   });
 
-  saveButton.addEventListener('click', () => {
-    void onSave();
+  newVersionButton.addEventListener('click', () => {
+    void onNewVersion();
+  });
+
+  duplicateButton.addEventListener('click', () => {
+    void onDuplicate();
   });
 
   loadButton.addEventListener('click', () => {
     void onLoad();
+  });
+
+  commitButton.addEventListener('click', () => {
+    void onCommit();
+  });
+
+  renameButton.addEventListener('click', () => {
+    void onRename();
   });
 
   deleteButton.addEventListener('click', () => {
@@ -1298,11 +1483,18 @@ if (!parsed.success) {
     }
   });
 
-  // ページリロード / タブ閉じ時に未保存変更があれば browser の標準確認 dialog を
-  // 表示する。最新ブラウザはカスタム message を表示しない (browser 既定文言)
-  // が、確認 dialog 自体は出る。
+  // ページリロード / タブ閉じ時の挙動:
+  //   - 保存先がある (currentProfileId) バージョンは自動保存されるため、保留中の
+  //     自動保存を同期的に flush しようと試みる (IndexedDB は非同期なので保証は
+  //     弱いが、debounce 待機中の取りこぼしを減らす)。確認ダイアログは出さない。
+  //   - まだ「新規作成」していない編集 (currentProfileId === undefined だが
+  //     user が入力した = isDirty) は保存先が無く失われるため、確認ダイアログを
+  //     出す。
   window.addEventListener('beforeunload', (e) => {
-    if (isDirty) {
+    if (autoSaveTimer !== undefined) {
+      void flushAutoSave();
+    }
+    if (currentProfileId === undefined && isDirty) {
       e.preventDefault();
       // 一部 browser 互換のため returnValue にも空文字をセットする。
       e.returnValue = '';

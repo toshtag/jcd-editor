@@ -6,8 +6,10 @@ const storageState = vi.hoisted(() => {
   type Stored = {
     metadata: {
       id: string;
+      name: string;
       createdAt: string;
       updatedAt: string;
+      committedAt?: string;
       schemaVersion: number;
     };
     profile: {
@@ -112,13 +114,16 @@ const setupDom = (): void => {
       <option value="shokumukeirekisho">職務経歴書</option>
     </select>
     <span id="status"></span>
-    <span id="dirty-indicator" hidden>● 未保存</span>
+    <span id="dirty-indicator" hidden>● 未確定</span>
     <div id="validation-summary" hidden>
       <ul id="validation-summary-list"></ul>
     </div>
-    <button type="button" id="save-button">保存</button>
+    <button type="button" id="new-version-button">新規作成</button>
+    <button type="button" id="duplicate-button" disabled>複製</button>
     <select id="saved-profile-select"><option value="">(選択してください)</option></select>
-    <button type="button" id="load-button" disabled>読み込み</button>
+    <button type="button" id="load-button" disabled>開く</button>
+    <button type="button" id="commit-button" disabled>確定</button>
+    <button type="button" id="rename-button" disabled>名前変更</button>
     <button type="button" id="delete-button" disabled>削除</button>
     <button type="button" id="export-button">JSON エクスポート</button>
     <input type="file" id="import-file-input" />
@@ -223,6 +228,39 @@ const dispatchChange = (el: HTMLElement): void => {
   el.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
+// バージョン管理ヘルパー (自動保存 + 名前付きバージョンモデル)。
+//
+// 新規作成 / 複製 / 名前変更は window.prompt で名前を取る。テストでは prompt を
+// mock して名前を返す。新規作成は debounce せず即 saveProfile するので
+// flushPromises で確定する。
+const createVersion = async (name: string): Promise<void> => {
+  const spy = vi.spyOn(window, 'prompt').mockReturnValue(name);
+  button('new-version-button').click();
+  await flushPromises();
+  spy.mockRestore();
+};
+
+// 確定: 保留中の自動保存を flush してから committedAt を更新する。
+// 編集内容を「確実に永続化」したいテストでも使える (flushAutoSave 経由)。
+const commitCurrent = async (): Promise<void> => {
+  button('commit-button').click();
+  await flushPromises();
+};
+
+const renameSelected = async (name: string): Promise<void> => {
+  const spy = vi.spyOn(window, 'prompt').mockReturnValue(name);
+  button('rename-button').click();
+  await flushPromises();
+  spy.mockRestore();
+};
+
+const duplicateCurrent = async (name: string): Promise<void> => {
+  const spy = vi.spyOn(window, 'prompt').mockReturnValue(name);
+  button('duplicate-button').click();
+  await flushPromises();
+  spy.mockRestore();
+};
+
 /**
  * preview にスキル / プロジェクトが反映されることを確認する系の test では、
  * preview を職務経歴書 (shokumukeirekisho) に切り替える。
@@ -264,8 +302,10 @@ describe('local-web main flow', () => {
     expect(document.getElementById('status')?.textContent).toBe('履歴書を表示中');
   });
 
-  it('invalid draft では preview を保持し save を無効化する', async () => {
+  it('invalid draft では preview を保持し確定を無効化する', async () => {
     await importMain();
+    await createVersion('テスト');
+    expect(button('commit-button').disabled).toBe(false);
     const previousPreview = preview().srcdoc;
 
     input('birth-date').value = '1800-01-01';
@@ -278,7 +318,7 @@ describe('local-web main flow', () => {
     expect(summary?.textContent).toContain('基本情報 > 生年月日');
     expect(summary?.textContent).not.toContain('basics.birthDate');
     expect(preview().srcdoc).toBe(previousPreview);
-    expect(button('save-button').disabled).toBe(true);
+    expect(button('commit-button').disabled).toBe(true);
   });
 
   it('初期 profile に sample fixture 由来の学歴が反映される', async () => {
@@ -381,20 +421,23 @@ describe('local-web main flow', () => {
     expect(preview().srcdoc).not.toContain('サンプル大学');
   });
 
-  it('save 後に未保存編集を load で保存済み profile に戻せる', async () => {
+  it('別バージョンを開くとその内容が復元される', async () => {
     await importMain();
 
+    // A 社用バージョンを作成し、佐藤 で確定
+    await createVersion('A社');
     input('name-family').value = '佐藤';
     dispatchInput(input('name-family'));
-    button('save-button').click();
-    await flushPromises();
+    await commitCurrent();
 
+    // B 社用バージョンを作成 (現在の佐藤内容を引き継ぐ) し、田中 に変更して確定
+    await createVersion('B社');
     input('name-family').value = '田中';
     dispatchInput(input('name-family'));
     expect(preview().srcdoc).toContain('田中');
+    await commitCurrent();
 
-    // 未保存変更があるため load 時に confirm が出るが、beforeEach の global mock
-    // で承認される。
+    // A 社 (profile-1) を開くと佐藤に戻る
     select('saved-profile-select').value = 'profile-1';
     button('load-button').click();
     await flushPromises();
@@ -442,15 +485,18 @@ describe('local-web main flow', () => {
     levelInput.value = '中級';
     dispatchInput(levelInput);
 
-    button('save-button').click();
-    await flushPromises();
+    // 新バージョンを作成して確定 (Rust / 中級 を永続化)
+    await createVersion('スキル版');
+    await commitCurrent();
 
-    // 編集を加える (未保存状態)
+    // 別バージョンを作成し、スキルを Erlang に変更
+    await createVersion('別版');
     nameInput.value = 'Erlang';
     dispatchInput(nameInput);
     expect(preview().srcdoc).toContain('Erlang');
+    await commitCurrent();
 
-    // load で復元
+    // 元バージョン (profile-1) を開くと Rust が復元される
     select('saved-profile-select').value = 'profile-1';
     button('load-button').click();
     await flushPromises();
@@ -481,11 +527,15 @@ describe('local-web main flow', () => {
     // 不可: 同 fixture の projects.technologies にも 'TypeScript' が含まれる)
     expect(document.querySelectorAll('#skills-list [data-index]')).toHaveLength(0);
 
-    button('save-button').click();
-    await flushPromises();
+    // 新バージョンを作成して確定 (空スキルを永続化)
+    await createVersion('スキル空版');
+    await commitCurrent();
 
+    // 別バージョンを経由してから profile-1 を開き直す
+    await createVersion('別版');
     input('name-family').value = '佐藤';
     dispatchInput(input('name-family'));
+    await commitCurrent();
 
     select('saved-profile-select').value = 'profile-1';
     button('load-button').click();
@@ -638,15 +688,18 @@ describe('local-web main flow', () => {
     techInput.value = 'Elixir\nPhoenix';
     dispatchInput(techInput);
 
-    button('save-button').click();
-    await flushPromises();
+    // 新バージョンを作成して確定 (WakandaProject を永続化)
+    await createVersion('プロジェクト版');
+    await commitCurrent();
 
-    // 編集を加える (未保存状態)
+    // 別バージョンを作成し、プロジェクト名を変更
+    await createVersion('別版');
     nameInput.value = 'ErebusProject';
     dispatchInput(nameInput);
     expect(preview().srcdoc).toContain('ErebusProject');
+    await commitCurrent();
 
-    // load で復元
+    // 元バージョン (profile-1) を開くと WakandaProject が復元される
     select('saved-profile-select').value = 'profile-1';
     button('load-button').click();
     await flushPromises();
@@ -681,13 +734,15 @@ describe('local-web main flow', () => {
     expect(document.querySelectorAll('#projects-list [data-index]')).toHaveLength(0);
     expect(preview().srcdoc).not.toContain('サンプルプロジェクト');
 
-    // 保存して load し直す
-    button('save-button').click();
-    await flushPromises();
+    // 新バージョンを作成して確定 (空プロジェクトを永続化)
+    await createVersion('プロジェクト空版');
+    await commitCurrent();
 
-    // 編集中の draft をリセットするため、別 profile の編集状態を経由してから load
+    // 別バージョンを経由してから profile-1 を開き直す
+    await createVersion('別版');
     input('name-family').value = '佐藤';
     dispatchInput(input('name-family'));
+    await commitCurrent();
 
     select('saved-profile-select').value = 'profile-1';
     button('load-button').click();
@@ -907,10 +962,12 @@ describe('local-web main flow', () => {
   describe('accessibility: focus management', () => {
     it('load 成功後: form 先頭 (name-family) に focus が移る', async () => {
       await importMain();
+      // profile-1 を作成し、別バージョンを経由しておく (load 経路を作る)
+      await createVersion('A社');
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
+      await commitCurrent();
+      await createVersion('B社');
 
       // load 前に別 element に focus を移しておく (確実な差分検証のため)
       button('load-button').focus();
@@ -925,10 +982,7 @@ describe('local-web main flow', () => {
 
     it('削除成功後: profile-select に focus が移る (disabled ボタンに残らない)', async () => {
       await importMain();
-      input('name-family').value = '佐藤';
-      dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
+      await createVersion('A社');
 
       select('saved-profile-select').value = 'profile-1';
       select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
@@ -1053,30 +1107,35 @@ describe('local-web main flow', () => {
       expect(dirtyIndicator().hidden).toBe(false);
     });
 
-    it('save 成功後: indicator が非表示に戻る', async () => {
+    it('確定成功後: indicator が非表示に戻る', async () => {
       await importMain();
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
       expect(dirtyIndicator().hidden).toBe(false);
 
-      button('save-button').click();
-      await flushPromises();
+      // 新バージョン作成直後は未確定 (indicator 表示)
+      await createVersion('A社');
+      expect(dirtyIndicator().hidden).toBe(false);
+
+      // 確定すると未確定が解消される
+      await commitCurrent();
       expect(dirtyIndicator().hidden).toBe(true);
     });
 
-    it('load 成功後: indicator が非表示に戻る', async () => {
+    it('確定済みバージョンを開くと indicator が非表示に戻る', async () => {
       await importMain();
-      // 一度 save して保存済み profile を 1 件作る
+      // profile-1 を作成して確定 (確定済みバージョン)
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
-      // 編集して dirty にする
-      input('name-family').value = '田中';
-      dispatchInput(input('name-family'));
+      await createVersion('A社');
+      await commitCurrent();
+      expect(dirtyIndicator().hidden).toBe(true);
+
+      // 別バージョンを作成して dirty (未確定) にする
+      await createVersion('B社');
       expect(dirtyIndicator().hidden).toBe(false);
 
-      // load (beforeEach の global mock で confirm 承認される)
+      // 確定済みの profile-1 を開くと未確定が解消される
       select('saved-profile-select').value = 'profile-1';
       button('load-button').click();
       await flushPromises();
@@ -1086,70 +1145,51 @@ describe('local-web main flow', () => {
 
     it('invalid draft 中も dirty 判定は維持される', async () => {
       await importMain();
+      await createVersion('A社');
       // 無効な birthDate で invalid 状態にする
       input('birth-date').value = '1800-01-01';
       dispatchInput(input('birth-date'));
       expect(dirtyIndicator().hidden).toBe(false);
-      expect(button('save-button').disabled).toBe(true);
+      // invalid 中は確定できない
+      expect(button('commit-button').disabled).toBe(true);
     });
 
-    it('load 時に未保存変更があると confirm が表示される。承認するとロードが進む', async () => {
+    // 旧モデルの「load 時に未保存変更があると confirm が表示される / キャンセルで
+    // skip される / 未保存なしでは confirm されない」3 件は、自動保存 + 名前付き
+    // バージョンモデルでは load 時の confirm 自体が廃止されたため削除した。
+    // 代わりに「別バージョンを開くと現バージョンの編集が自動保存されてから切り替わる」
+    // ことを検証する。
+    it('別バージョンを開くと現バージョンの編集が自動保存されてから切り替わる', async () => {
       await importMain();
+      // profile-1 を作成して確定
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
+      await createVersion('A社');
+      await commitCurrent();
 
-      // dirty にする
-      input('name-family').value = '田中';
+      // profile-2 を作成 (現在の佐藤内容を引き継ぐ)
+      await createVersion('B社');
+
+      // profile-1 に佐藤以外の編集を加える (= 現在は profile-2 が current)
+      // ここでは profile-2 を編集してから profile-1 を開き、自動保存されたことを確認
+      input('name-family').value = '鈴木';
       dispatchInput(input('name-family'));
 
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-      select('saved-profile-select').value = 'profile-1';
-      button('load-button').click();
-      await flushPromises();
-
-      expect(confirmSpy).toHaveBeenCalledTimes(1);
-      expect(confirmSpy.mock.calls[0]?.[0]).toContain('未保存の変更があります');
-      expect(input('name-family').value).toBe('佐藤');
-    });
-
-    it('load 時に confirm キャンセル: form / preview が維持されてロードは skip される', async () => {
-      await importMain();
-      input('name-family').value = '佐藤';
-      dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
-      input('name-family').value = '田中';
-      dispatchInput(input('name-family'));
-      const dirtyBefore = preview().srcdoc;
-
-      vi.spyOn(window, 'confirm').mockReturnValue(false);
-      select('saved-profile-select').value = 'profile-1';
-      button('load-button').click();
-      await flushPromises();
-
-      expect(input('name-family').value).toBe('田中');
-      expect(preview().srcdoc).toBe(dirtyBefore);
-      expect(dirtyIndicator().hidden).toBe(false);
-      expect(document.getElementById('status')?.textContent).toBe('読み込みをキャンセルしました');
-    });
-
-    it('未保存変更がない状態での load: confirm は呼ばれない (新規 mount 後すぐ等)', async () => {
-      await importMain();
-      // 初期 save (dirty なし状態を作るため、まず編集 → save する)
-      input('name-family').value = '佐藤';
-      dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
-      // ここで dirty=false。load 時に confirm は呼ばれない
-
+      // load 時に confirm は呼ばれない (自動保存される)
       const confirmSpy = vi.spyOn(window, 'confirm');
       select('saved-profile-select').value = 'profile-1';
       button('load-button').click();
       await flushPromises();
-
       expect(confirmSpy).not.toHaveBeenCalled();
+
+      // profile-1 (佐藤) に切り替わっている
+      expect(input('name-family').value).toBe('佐藤');
+
+      // profile-2 を開き直すと、自動保存された鈴木が復元される
+      select('saved-profile-select').value = 'profile-2';
+      button('load-button').click();
+      await flushPromises();
+      expect(input('name-family').value).toBe('鈴木');
     });
   });
 
@@ -1432,7 +1472,7 @@ describe('local-web main flow', () => {
       expect(wysiwygImg?.getAttribute('style')).toContain('scale(2)');
     });
 
-    it('写真選択 → save → 編集して別写真選択 → load で元写真が復元される', async () => {
+    it('写真選択 → バージョン作成 → 別バージョンで写真変更 → load で元写真が復元される', async () => {
       await importMain();
       const file1 = new File([new Blob([PNG_BYTES], { type: 'image/png' })], 'photo.png', {
         type: 'image/png',
@@ -1441,14 +1481,17 @@ describe('local-web main flow', () => {
       await waitForPhotoProcessing();
       const firstDataUri = thumbnail().src;
 
-      button('save-button').click();
-      await flushPromises();
+      // 写真付きで profile-1 を作成して確定
+      await createVersion('写真版');
+      await commitCurrent();
 
-      // 削除して未保存状態にする
+      // 別バージョン (profile-2) を作成し、写真を削除して確定
+      await createVersion('写真なし版');
       button('profile-photo-remove-button').click();
       expect(thumbnail().hidden).toBe(true);
+      await commitCurrent();
 
-      // load で復元 (beforeEach の global confirm mock で承認)
+      // profile-1 を開くと元の写真が復元される
       select('saved-profile-select').value = 'profile-1';
       button('load-button').click();
       await flushPromises();
@@ -1467,11 +1510,10 @@ describe('local-web main flow', () => {
     it('confirm OK: storage から削除されて dropdown から消える', async () => {
       await importMain();
 
-      // 1 件保存
+      // 1 件作成
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
+      await createVersion('A社');
 
       // dropdown で選択
       select('saved-profile-select').value = 'profile-1';
@@ -1485,7 +1527,7 @@ describe('local-web main flow', () => {
       const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
       expect(options.filter((v) => v !== '')).toHaveLength(0);
       expect(button('delete-button').disabled).toBe(true);
-      expect(document.getElementById('status')?.textContent).toBe('プロフィールを削除しました');
+      expect(document.getElementById('status')?.textContent).toBe('バージョンを削除しました');
 
       vi.restoreAllMocks();
     });
@@ -1495,8 +1537,7 @@ describe('local-web main flow', () => {
 
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
+      await createVersion('A社');
 
       select('saved-profile-select').value = 'profile-1';
       select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
@@ -1512,14 +1553,13 @@ describe('local-web main flow', () => {
       vi.restoreAllMocks();
     });
 
-    it('現在編集中の profile を削除: currentProfileId を切り離し、次の save は新規 id で作成される', async () => {
+    it('現在編集中の profile を削除: currentProfileId を切り離し、次の新規作成は新規 id で作成される', async () => {
       await importMain();
 
-      // 保存して current にする
+      // 作成して current にする
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
+      await createVersion('A社');
 
       // 1 件目を選択して削除
       select('saved-profile-select').value = 'profile-1';
@@ -1532,9 +1572,8 @@ describe('local-web main flow', () => {
       expect(input('name-family').value).toBe('佐藤');
       expect(preview().srcdoc).toContain('佐藤');
 
-      // 再 save すると新規 id (profile-2) で作成される
-      button('save-button').click();
-      await flushPromises();
+      // 再度新規作成すると新規 id (profile-2) で作成される
+      await createVersion('B社');
       const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
       expect(options).toContain('profile-2');
       expect(options).not.toContain('profile-1');
@@ -1547,8 +1586,7 @@ describe('local-web main flow', () => {
 
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
-      button('save-button').click();
-      await flushPromises();
+      await createVersion('A社');
 
       select('saved-profile-select').value = 'profile-1';
       select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
@@ -1573,6 +1611,45 @@ describe('local-web main flow', () => {
       // teardown: 元の adapter を戻す
       storageState.adapter.deleteProfile = originalDelete;
       vi.restoreAllMocks();
+    });
+  });
+
+  describe('バージョン名前変更 / 複製', () => {
+    it('名前変更: 選択中バージョンの name が更新され dropdown 表示に反映される', async () => {
+      await importMain();
+      await createVersion('旧名');
+
+      // 選択して名前変更
+      select('saved-profile-select').value = 'profile-1';
+      select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
+      await renameSelected('新名');
+
+      const option = Array.from(select('saved-profile-select').options).find(
+        (o) => o.value === 'profile-1',
+      );
+      expect(option?.textContent).toContain('新名');
+      expect(option?.textContent).not.toContain('旧名');
+      expect(document.getElementById('status')?.textContent).toBe('バージョン名を変更しました');
+    });
+
+    it('複製: 現在の内容が別 id でコピー作成され、一覧が 2 件になる', async () => {
+      await importMain();
+      input('name-family').value = '佐藤';
+      dispatchInput(input('name-family'));
+      await createVersion('元バージョン');
+
+      // 複製は現在バージョンがあるときのみ enabled
+      expect(button('duplicate-button').disabled).toBe(false);
+      await duplicateCurrent('複製バージョン');
+
+      const options = Array.from(select('saved-profile-select').options).map((o) => o.value);
+      expect(options).toContain('profile-1');
+      expect(options).toContain('profile-2');
+      // 複製後は新バージョン (profile-2) が current として選択される
+      expect(select('saved-profile-select').value).toBe('profile-2');
+      // 複製先にも氏名がコピーされている
+      const stored = await storageState.adapter.loadProfile('profile-2');
+      expect((stored.profile.basics as { name?: { family?: string } }).name?.family).toBe('佐藤');
     });
   });
 
@@ -1858,16 +1935,19 @@ describe('local-web main flow', () => {
       input('prepared-on').value = '2026-05-22';
       dispatchInput(input('prepared-on'));
 
-      button('save-button').click();
-      await flushPromises();
+      // 全 field 入力済みの状態で profile-1 を作成して確定
+      await createVersion('厚労省版');
+      await commitCurrent();
 
-      // 一旦 form を別の値で上書き (未保存編集)
+      // 別バージョン (profile-2) を作成し、一部 field を別の値で上書き
+      await createVersion('別版');
       input('gender').value = 'X';
       dispatchInput(input('gender'));
       input('prepared-on').value = '2025-01-01';
       dispatchInput(input('prepared-on'));
+      await commitCurrent();
 
-      // load で復元
+      // profile-1 を開くと元の値が復元される
       select('saved-profile-select').value = 'profile-1';
       button('load-button').click();
       await flushPromises();
