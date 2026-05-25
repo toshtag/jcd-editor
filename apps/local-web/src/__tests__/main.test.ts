@@ -98,6 +98,9 @@ const storageState = vi.hoisted(() => {
 
 vi.mock('@jcd-editor/storage', () => ({
   createIndexedDbStorageAdapter: () => storageState.adapter,
+  // storage-ui.ts が import する純関数。module 全体を mock するので実装を補う。
+  isCommitted: (m: { committedAt?: string; updatedAt: string }): boolean =>
+    m.committedAt !== undefined && m.committedAt >= m.updatedAt,
 }));
 
 const flushPromises = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
