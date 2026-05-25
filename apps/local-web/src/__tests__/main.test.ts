@@ -35,21 +35,48 @@ const storageState = vi.hoisted(() => {
       state.tick = 0;
     },
     adapter: {
-      saveProfile: async (input: { id?: string; profile: Stored['profile'] }): Promise<Stored> => {
+      saveProfile: async (input: {
+        id?: string;
+        name?: string;
+        profile: Stored['profile'];
+      }): Promise<Stored> => {
         const id = input.id ?? `profile-${++state.idCounter}`;
         const existing = state.profiles.get(id);
         const timestamp = now();
+        const existingCommittedAt = existing?.metadata.committedAt;
         const stored: Stored = {
           metadata: {
             id,
+            name: input.name ?? existing?.metadata.name ?? '',
             createdAt: existing?.metadata.createdAt ?? timestamp,
             updatedAt: timestamp,
+            ...(existingCommittedAt !== undefined ? { committedAt: existingCommittedAt } : {}),
             schemaVersion: input.profile.schemaVersion,
           },
           profile: input.profile,
         };
         state.profiles.set(id, stored);
         return stored;
+      },
+      commitProfile: async (id: string): Promise<Stored> => {
+        const stored = state.profiles.get(id);
+        if (stored === undefined) throw new Error(`Profile not found: ${id}`);
+        const updated: Stored = {
+          metadata: { ...stored.metadata, committedAt: stored.metadata.updatedAt },
+          profile: stored.profile,
+        };
+        state.profiles.set(id, updated);
+        return updated;
+      },
+      renameProfile: async (id: string, name: string): Promise<Stored> => {
+        const stored = state.profiles.get(id);
+        if (stored === undefined) throw new Error(`Profile not found: ${id}`);
+        const updated: Stored = {
+          metadata: { ...stored.metadata, name },
+          profile: stored.profile,
+        };
+        state.profiles.set(id, updated);
+        return updated;
       },
       loadProfile: async (id: string): Promise<Stored> => {
         const stored = state.profiles.get(id);

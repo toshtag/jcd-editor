@@ -78,6 +78,30 @@ const createInMemoryStoragePort = (options: {
       store.set(id, stored);
       return stored;
     },
+    async commitProfile(id) {
+      const stored = store.get(id);
+      if (stored === undefined) {
+        throw new StorageError(`Profile not found: ${id}`, 'PROFILE_NOT_FOUND');
+      }
+      const updated: StoredProfile = {
+        metadata: { ...stored.metadata, committedAt: stored.metadata.updatedAt },
+        profile: stored.profile,
+      };
+      store.set(id, updated);
+      return updated;
+    },
+    async renameProfile(id, name) {
+      const stored = store.get(id);
+      if (stored === undefined) {
+        throw new StorageError(`Profile not found: ${id}`, 'PROFILE_NOT_FOUND');
+      }
+      const updated: StoredProfile = {
+        metadata: { ...stored.metadata, name },
+        profile: stored.profile,
+      };
+      store.set(id, updated);
+      return updated;
+    },
     async loadProfile(id) {
       const stored = store.get(id);
       if (stored === undefined) {
@@ -211,6 +235,55 @@ describe('StoragePort contract: loadProfile', () => {
     const port = createPort();
     await expect(port.loadProfile('missing-id')).rejects.toBeInstanceOf(StorageError);
     await expect(port.loadProfile('missing-id')).rejects.toMatchObject({
+      code: 'PROFILE_NOT_FOUND',
+    });
+  });
+});
+
+describe('StoragePort contract: commitProfile', () => {
+  it('committedAt を現在の updatedAt に設定し isCommitted=true になる', async () => {
+    const port = createPort();
+    const profile = buildValidProfile();
+    const saved = await port.saveProfile({ id: 'my-id', name: 'A 社用', profile });
+    expect(isCommitted(saved.metadata)).toBe(false);
+    const committed = await port.commitProfile('my-id');
+    expect(committed.metadata.committedAt).toBe(committed.metadata.updatedAt);
+    expect(isCommitted(committed.metadata)).toBe(true);
+  });
+
+  it('確定後に saveProfile すると updatedAt が進み再び未確定になる', async () => {
+    const port = createPort();
+    const profile = buildValidProfile();
+    await port.saveProfile({ id: 'my-id', profile });
+    await port.commitProfile('my-id');
+    const resaved = await port.saveProfile({ id: 'my-id', profile });
+    expect(isCommitted(resaved.metadata)).toBe(false);
+  });
+
+  it('存在しない id で PROFILE_NOT_FOUND', async () => {
+    const port = createPort();
+    await expect(port.commitProfile('missing')).rejects.toMatchObject({
+      code: 'PROFILE_NOT_FOUND',
+    });
+  });
+});
+
+describe('StoragePort contract: renameProfile', () => {
+  it('name のみ変更し updatedAt / committedAt を保つ (確定状態を壊さない)', async () => {
+    const port = createPort();
+    const profile = buildValidProfile();
+    await port.saveProfile({ id: 'my-id', name: '旧名', profile });
+    const committed = await port.commitProfile('my-id');
+    const renamed = await port.renameProfile('my-id', '新名');
+    expect(renamed.metadata.name).toBe('新名');
+    expect(renamed.metadata.updatedAt).toBe(committed.metadata.updatedAt);
+    expect(renamed.metadata.committedAt).toBe(committed.metadata.committedAt);
+    expect(isCommitted(renamed.metadata)).toBe(true);
+  });
+
+  it('存在しない id で PROFILE_NOT_FOUND', async () => {
+    const port = createPort();
+    await expect(port.renameProfile('missing', 'x')).rejects.toMatchObject({
       code: 'PROFILE_NOT_FOUND',
     });
   });

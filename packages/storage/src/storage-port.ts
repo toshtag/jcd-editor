@@ -65,8 +65,14 @@ export type SaveProfileInput = {
 };
 
 export type StoragePort = {
-  // upsert。committedAt は更新しない (確定は commitProfile の責務、別コミットで追加)。
+  // upsert。committedAt は更新しない (確定は commitProfile の責務)。
   saveProfile(input: SaveProfileInput): Promise<StoredProfile>;
+  // 現在保存済みの内容を「確定」する。committedAt = 現在の updatedAt にする
+  // (updatedAt は触らない)。missing id は PROFILE_NOT_FOUND。
+  commitProfile(id: StoredProfileId): Promise<StoredProfile>;
+  // 名前のみ変更。updatedAt / committedAt は触らない (確定状態を壊さない)。
+  // missing id は PROFILE_NOT_FOUND。
+  renameProfile(id: StoredProfileId, name: string): Promise<StoredProfile>;
   loadProfile(id: StoredProfileId): Promise<StoredProfile>;
   listProfiles(): Promise<readonly StoredProfileMetadata[]>;
   deleteProfile(id: StoredProfileId): Promise<void>;

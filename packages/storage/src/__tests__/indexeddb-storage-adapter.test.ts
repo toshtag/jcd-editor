@@ -284,6 +284,39 @@ describe('createIndexedDbStorageAdapter: deleteProfile', () => {
   });
 });
 
+describe('createIndexedDbStorageAdapter: commitProfile / renameProfile', () => {
+  it('commitProfile が committedAt を updatedAt に設定し、 listProfiles でも反映される', async () => {
+    const port = createAdapter();
+    const profile = buildValidProfile();
+    const saved = await port.saveProfile({ id: 'c', name: 'A 社用', profile });
+    const committed = await port.commitProfile('c');
+    expect(committed.metadata.committedAt).toBe(saved.metadata.updatedAt);
+
+    const list = await port.listProfiles();
+    expect(list[0]?.committedAt).toBe(saved.metadata.updatedAt);
+  });
+
+  it('renameProfile が name のみ変更し load でも反映される', async () => {
+    const port = createAdapter();
+    const profile = buildValidProfile();
+    await port.saveProfile({ id: 'r', name: '旧', profile });
+    const renamed = await port.renameProfile('r', '新');
+    expect(renamed.metadata.name).toBe('新');
+    const loaded = await port.loadProfile('r');
+    expect(loaded.metadata.name).toBe('新');
+  });
+
+  it('存在しない id の commitProfile / renameProfile は PROFILE_NOT_FOUND', async () => {
+    const port = createAdapter();
+    await expect(port.commitProfile('missing')).rejects.toMatchObject({
+      code: 'PROFILE_NOT_FOUND',
+    });
+    await expect(port.renameProfile('missing', 'x')).rejects.toMatchObject({
+      code: 'PROFILE_NOT_FOUND',
+    });
+  });
+});
+
 describe('createIndexedDbStorageAdapter: persistence across adapter instances', () => {
   it('同一 databaseName で別 adapter instance を作っても保存内容を読める (browser reload simulation)', async () => {
     const dbName = uniqueDatabaseName();

@@ -181,6 +181,45 @@ export const createIndexedDbStorageAdapter = (
     return stored;
   };
 
+  // 既存レコードの metadata を一部更新して put し直す共通ヘルパー。
+  // get の onsuccess 内 (synchronous tick) で put を発行し auto-commit を回避する
+  // (saveProfile / deleteProfile と同じ lifecycle)。
+  const updateMetadata = async (
+    id: StoredProfileId,
+    updater: (metadata: StoredProfileMetadata) => StoredProfileMetadata,
+  ): Promise<StoredProfile> => {
+    const db = await getDatabase();
+    const tx = db.transaction([storeName, metadataStoreName], 'readwrite');
+    const store = tx.objectStore(storeName);
+    const metadataStore = tx.objectStore(metadataStoreName);
+
+    let updated: StoredProfile | undefined;
+
+    const getRequest = store.get(id);
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as StoredProfile | undefined;
+      if (existing === undefined) return; // not found は put せず、下で throw
+      updated = { metadata: updater(existing.metadata), profile: existing.profile };
+      store.put(updated);
+      metadataStore.put(updated.metadata);
+    };
+
+    await waitForTransaction(tx);
+
+    if (updated === undefined) {
+      throw new StorageError(`Profile not found: ${id}`, 'PROFILE_NOT_FOUND');
+    }
+    return updated;
+  };
+
+  const commitProfile = (id: StoredProfileId): Promise<StoredProfile> =>
+    // updatedAt は触らず committedAt = updatedAt にする (確定 = 「今の内容を正とする」)。
+    updateMetadata(id, (m) => ({ ...m, committedAt: m.updatedAt }));
+
+  const renameProfile = (id: StoredProfileId, name: string): Promise<StoredProfile> =>
+    // name のみ変更。updatedAt / committedAt は触らない (確定状態を壊さない)。
+    updateMetadata(id, (m) => ({ ...m, name }));
+
   const loadProfile = async (id: StoredProfileId): Promise<StoredProfile> => {
     const db = await getDatabase();
     const tx = db.transaction(storeName, 'readonly');
@@ -230,5 +269,5 @@ export const createIndexedDbStorageAdapter = (
     }
   };
 
-  return { saveProfile, loadProfile, listProfiles, deleteProfile };
+  return { saveProfile, commitProfile, renameProfile, loadProfile, listProfiles, deleteProfile };
 };
