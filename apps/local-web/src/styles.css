@@ -4,6 +4,17 @@
   box-sizing: border-box;
 }
 
+/* hidden 属性を確実に効かせる。
+   .app__main / .app__storage / .app__io は display:flex を持つため、HTML 標準の
+   [hidden] (= display:none 相当) が上書きされてしまう。属性セレクタを併記して
+   specificity を上げ、hidden 指定時は必ず消す (ホーム ⇄ 編集 の排他切り替え /
+   ホーム時の編集専用 UI 非表示のため)。 */
+.app__main[hidden],
+.app__storage[hidden],
+.app__io[hidden] {
+  display: none;
+}
+
 html,
 body {
   margin: 0;
