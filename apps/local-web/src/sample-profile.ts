@@ -97,3 +97,16 @@ export const sampleProfileInput = {
     },
   ],
 };
+
+// 新規作成 (ホーム画面の「新規作成」) の初期内容。
+//
+// 設計判断: 氏名・住所等のサンプル文字列は入れない (空)。
+//   - ホーム画面導入の目的が「正体不明のサンプル履歴書をいきなり出さない」ことなので、
+//     新規作成でサンプル文字列が入ると本末転倒 (消す手間 / 誤提出リスク)
+//   - 記入位置の案内は input の placeholder や WYSIWYG セルのガイド表示で行う
+//   - schemaVersion のみ必須。basics は空、配列 section は省略 (renderer が
+//     公式罫線の固定行数を空セルで描く)
+export const emptyProfileInput = {
+  schemaVersion: 1,
+  basics: {},
+};
