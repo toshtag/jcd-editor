@@ -1498,35 +1498,19 @@ body {
   flex-shrink: 0;
 }
 
-/* レスポンシブ切り替え (file 末尾に置き、specificity warning を回避):
-   - PC (>= 1024px) + 履歴書 kind: WYSIWYG エディタのみ表示、form pane と
-     preview iframe は隠す。職務経歴書 kind では WYSIWYG が hidden 属性で
-     非表示なので :has() セレクタにマッチせず、form + preview が表示される。
-   - SP (< 1024px): WYSIWYG を非表示、form pane + preview iframe を縦並びで表示。 */
-@media (min-width: 1024px) {
-  .app__main:has(#wysiwyg-editor:not([hidden])) .app__form-pane,
-  .app__main:has(#wysiwyg-editor:not([hidden])) .app__preview-pane {
-    display: none;
-  }
-  .app__main:has(#wysiwyg-editor:not([hidden])) {
-    justify-content: center;
-  }
+/* 履歴書 kind 表示時のレイアウト制御 (file 末尾に置き、specificity warning を回避):
+   履歴書 kind では WYSIWYG エディタのみ表示し、form pane と preview iframe は隠す。
+   職務経歴書 kind では WYSIWYG が hidden 属性で非表示なので :has() セレクタに
+   マッチせず、form + preview が表示される。
+   本ツールは PC 専用 (ダウンロードして使うローカルアプリ) を対象とするため、
+   タブレット / スマホ向けのレスポンシブ切り替えは持たない。狭幅画面では
+   A4 実寸 (210mm) の WYSIWYG が横スクロールになるが、これは想定挙動。 */
+.app__main:has(#wysiwyg-editor:not([hidden])) .app__form-pane,
+.app__main:has(#wysiwyg-editor:not([hidden])) .app__preview-pane {
+  display: none;
 }
-@media (max-width: 1023px) {
-  .app__main {
-    flex-direction: column;
-  }
-  .app__form-pane {
-    flex: 0 0 auto;
-    width: auto;
-  }
-  /* SP では WYSIWYG を強制非表示。`hidden` 属性 + `display: flex` の両方を
-     上書きするため :is(#wysiwyg-editor, [id="wysiwyg-editor"]) と二重 ID で
-     specificity を高くする (2 重 ID > display:flex の specificity)。
-     これで !important を避けつつ確実に hidden できる。 */
-  :is(#wysiwyg-editor)#wysiwyg-editor {
-    display: none;
-  }
+.app__main:has(#wysiwyg-editor:not([hidden])) {
+  justify-content: center;
 }
 
 /* === ホーム画面 (バージョン一覧 + 新規作成) === */
