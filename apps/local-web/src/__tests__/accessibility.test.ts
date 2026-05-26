@@ -143,6 +143,17 @@ const mountAppFromIndexHtml = async (): Promise<void> => {
   await flushPromises();
 };
 
+// 起動時はホーム画面。編集画面の a11y を検査するテストでは「新規作成」で
+// 編集画面に入る (window.prompt を mock)。
+const enterEditorFromHome = async (): Promise<void> => {
+  const spy = vi.spyOn(window, 'prompt').mockReturnValue('テスト');
+  const newBtn = document.getElementById('home-new-button');
+  if (!(newBtn instanceof HTMLButtonElement)) throw new Error('Missing home-new-button');
+  newBtn.click();
+  await flushPromises();
+  spy.mockRestore();
+};
+
 describe('accessibility (axe-core)', () => {
   beforeEach(() => {
     storageState.reset();
@@ -153,9 +164,22 @@ describe('accessibility (axe-core)', () => {
   });
 
   it(
-    'mount 直後 (sample fixture loaded) で axe violations なし',
+    'mount 直後 (ホーム画面) で axe violations なし',
     async () => {
       await mountAppFromIndexHtml();
+      // 起動時はホーム画面が入口
+      expect(document.getElementById('home-screen')?.hidden).toBe(false);
+      await expectNoAxeViolations();
+    },
+    AXE_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    '新規作成で編集画面に入った直後で axe violations なし',
+    async () => {
+      await mountAppFromIndexHtml();
+      await enterEditorFromHome();
+      expect(document.getElementById('app-main')?.hidden).toBe(false);
       await expectNoAxeViolations();
     },
     AXE_TEST_TIMEOUT_MS,
@@ -165,6 +189,7 @@ describe('accessibility (axe-core)', () => {
     'validation エラー発生中 (summary + inline error 表示中) で axe violations なし',
     async () => {
       await mountAppFromIndexHtml();
+      await enterEditorFromHome();
       const birthInput = document.getElementById('birth-date');
       if (!(birthInput instanceof HTMLInputElement)) throw new Error('Missing birth-date');
       birthInput.value = '1800-01-01';
@@ -180,6 +205,7 @@ describe('accessibility (axe-core)', () => {
     'section entry を追加した後の動的 DOM で axe violations なし',
     async () => {
       await mountAppFromIndexHtml();
+      await enterEditorFromHome();
       const addBtn = document.getElementById('add-education-button');
       if (!(addBtn instanceof HTMLButtonElement)) throw new Error('Missing add-education-button');
       addBtn.click();

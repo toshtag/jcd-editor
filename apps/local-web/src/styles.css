@@ -1517,3 +1517,152 @@ body {
     display: none;
   }
 }
+
+/* === ホーム画面 (バージョン一覧 + 新規作成) === */
+.home {
+  flex: 1;
+  padding: 2rem 1.5rem;
+  overflow: auto;
+}
+.home__inner {
+  max-width: 880px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+.home__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #333;
+}
+.home__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.home__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #444;
+}
+.home__kind-select {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+}
+.home__new-button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 1.1rem;
+  border: 1px solid #4a90e2;
+  border-radius: 4px;
+  background: #4a90e2;
+  color: #fff;
+  cursor: pointer;
+}
+.home__new-button:hover {
+  background: #3a7bc8;
+}
+.home__empty {
+  margin: 0;
+  padding: 2rem;
+  text-align: center;
+  color: #888;
+  background: #f7f7f7;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+}
+.home__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+.home__error {
+  margin: 0;
+  color: #d33;
+  font-size: 0.85rem;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+}
+.home-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.home-card__name {
+  font-weight: 600;
+  color: #222;
+  word-break: break-word;
+}
+.home-card__status {
+  font-size: 0.78rem;
+}
+.home-card__status--draft {
+  color: #c77;
+}
+.home-card__status--committed {
+  color: #4a90e2;
+}
+.home-card__date {
+  font-size: 0.75rem;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+.home-card__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.home-card__actions button {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 3px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+.home-card__actions .home-card__open {
+  border-color: #4a90e2;
+  color: #4a90e2;
+}
+.home-card__actions .home-card__open:hover {
+  background: #f0f6fd;
+}
+.home-card__actions .home-card__delete {
+  border-color: #d33;
+  color: #d33;
+}
+.home-card__actions .home-card__delete:hover {
+  background: #fff5f5;
+}
+
+.app__back-button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #999;
+  border-radius: 3px;
+  background: #fff;
+  color: #444;
+  cursor: pointer;
+}
+.app__back-button:hover {
+  background: #f0f0f0;
+}

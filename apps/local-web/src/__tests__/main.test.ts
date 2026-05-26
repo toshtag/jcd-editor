@@ -113,21 +113,38 @@ const setupDom = (): void => {
       <option value="rirekisho">履歴書</option>
       <option value="shokumukeirekisho">職務経歴書</option>
     </select>
+    <button type="button" id="back-to-home-button" hidden>← 一覧へ戻る</button>
+    <span id="editor-kind-control" hidden></span>
     <span id="status"></span>
     <span id="dirty-indicator" hidden>● 未確定</span>
     <div id="validation-summary" hidden>
       <ul id="validation-summary-list"></ul>
     </div>
-    <button type="button" id="new-version-button">新規作成</button>
-    <button type="button" id="duplicate-button" disabled>複製</button>
-    <select id="saved-profile-select"><option value="">(選択してください)</option></select>
-    <button type="button" id="load-button" disabled>開く</button>
-    <button type="button" id="commit-button" disabled>確定</button>
-    <button type="button" id="rename-button" disabled>名前変更</button>
-    <button type="button" id="delete-button" disabled>削除</button>
-    <button type="button" id="export-button">JSON エクスポート</button>
-    <input type="file" id="import-file-input" />
-    <button type="button" id="print-button">PDF 出力</button>
+    <section id="home-screen">
+      <select id="home-kind-selector">
+        <option value="rirekisho">履歴書</option>
+        <option value="shokumukeirekisho">職務経歴書</option>
+      </select>
+      <button type="button" id="home-new-button">新規作成</button>
+      <p id="home-empty" hidden></p>
+      <ul id="home-version-list" hidden></ul>
+      <p id="home-error" hidden></p>
+    </section>
+    <div id="app-storage" hidden>
+      <button type="button" id="new-version-button">新規作成</button>
+      <button type="button" id="duplicate-button" disabled>複製</button>
+      <select id="saved-profile-select"><option value="">(選択してください)</option></select>
+      <button type="button" id="load-button" disabled>開く</button>
+      <button type="button" id="commit-button" disabled>確定</button>
+      <button type="button" id="rename-button" disabled>名前変更</button>
+      <button type="button" id="delete-button" disabled>削除</button>
+    </div>
+    <div id="app-io" hidden>
+      <button type="button" id="export-button">JSON エクスポート</button>
+      <input type="file" id="import-file-input" />
+      <button type="button" id="print-button">PDF 出力</button>
+    </div>
+    <main id="app-main" hidden>
     <form id="basics-form" data-section="basics">
       <div data-section="profilePhoto">
         <img id="profile-photo-thumbnail" alt="" hidden />
@@ -178,6 +195,7 @@ const setupDom = (): void => {
     <button type="button" id="add-history-row-button" hidden>学歴・職歴 1 行追加</button>
     <button type="button" id="add-certification-row-button" hidden>資格 1 行追加</button>
     <section id="wysiwyg-editor" hidden></section>
+    </main>
   `;
 };
 
@@ -230,9 +248,17 @@ const dispatchChange = (el: HTMLElement): void => {
 
 // バージョン管理ヘルパー (自動保存 + 名前付きバージョンモデル)。
 //
-// 新規作成 / 複製 / 名前変更は window.prompt で名前を取る。テストでは prompt を
-// mock して名前を返す。新規作成は debounce せず即 saveProfile するので
-// flushPromises で確定する。
+// 起動時はホーム画面なので、編集画面に入るにはまず新規作成 (または既存を開く)
+// が必要。enterEditorWithNewVersion は ホームの「新規作成」を押して空テンプレで
+// 編集画面に入る (= 大半のテストの新しい前提)。
+const enterEditorWithNewVersion = async (name = 'テスト'): Promise<void> => {
+  const spy = vi.spyOn(window, 'prompt').mockReturnValue(name);
+  button('home-new-button').click();
+  await flushPromises();
+  spy.mockRestore();
+};
+
+// 編集画面に居る状態で、現在の form 内容を元に別バージョンを作る (in-editor)。
 const createVersion = async (name: string): Promise<void> => {
   const spy = vi.spyOn(window, 'prompt').mockReturnValue(name);
   button('new-version-button').click();
@@ -291,20 +317,28 @@ describe('local-web main flow', () => {
     vi.restoreAllMocks();
   });
 
-  it('初期 profile を form と preview に反映する', async () => {
+  it('起動時はホーム画面が表示され編集画面は隠れている', async () => {
     await importMain();
 
-    expect(input('name-family').value).toBe('山田');
-    expect(input('name-given').value).toBe('太郎');
-    expect(document.querySelectorAll('#work-experiences-list [data-index]')).toHaveLength(1);
+    // 起動直後はホーム画面が入口。編集画面 (app-main / storage / io) は隠れている。
+    expect(document.getElementById('home-screen')?.hidden).toBe(false);
+    expect(document.getElementById('app-main')?.hidden).toBe(true);
+    expect(document.getElementById('app-storage')?.hidden).toBe(true);
+    expect(document.getElementById('app-io')?.hidden).toBe(true);
+
+    // 「新規作成」で空テンプレの編集画面に入ると app-main が表示され form は空。
+    await enterEditorWithNewVersion();
+    expect(document.getElementById('app-main')?.hidden).toBe(false);
+    expect(document.getElementById('home-screen')?.hidden).toBe(true);
+    expect(input('name-family').value).toBe('');
+    expect(input('name-given').value).toBe('');
     expect(preview().srcdoc).toContain('履歴書');
-    expect(preview().srcdoc).toContain('山田');
     expect(document.getElementById('status')?.textContent).toBe('履歴書を表示中');
   });
 
   it('invalid draft では preview を保持し確定を無効化する', async () => {
     await importMain();
-    await createVersion('テスト');
+    await enterEditorWithNewVersion('テスト');
     expect(button('commit-button').disabled).toBe(false);
     const previousPreview = preview().srcdoc;
 
@@ -321,16 +355,13 @@ describe('local-web main flow', () => {
     expect(button('commit-button').disabled).toBe(true);
   });
 
-  it('初期 profile に sample fixture 由来の学歴が反映される', async () => {
+  it('新規作成で編集画面に入ると学歴 form セクションが空で表示される', async () => {
     await importMain();
+    await enterEditorWithNewVersion();
 
-    const educationItems = document.querySelectorAll('#education-list [data-index]');
-    expect(educationItems).toHaveLength(1);
-    const institutionInput = educationItems[0]?.querySelector<HTMLInputElement>(
-      '[data-field="institutionName"]',
-    );
-    expect(institutionInput?.value).toBe('サンプル大学');
-    expect(preview().srcdoc).toContain('サンプル大学');
+    // 空テンプレなのでサンプル学歴は無く、学歴 list は空 (要素は存在する)。
+    expect(document.getElementById('education-list')).not.toBeNull();
+    expect(document.querySelectorAll('#education-list [data-index]')).toHaveLength(0);
   });
 
   // TODO: form (educationHistory) 入力 と historyRows (PC 版 WYSIWYG) の
@@ -424,7 +455,10 @@ describe('local-web main flow', () => {
   it('別バージョンを開くとその内容が復元される', async () => {
     await importMain();
 
-    // A 社用バージョンを作成し、佐藤 で確定
+    // A 社用バージョンを作成し、佐藤 で確定。
+    // (氏名は family のみ編集し given は sample fixture 由来の値を活かすため、
+    //  ここは空テンプレに入る enterEditorWithNewVersion ではなく、現在の form
+    //  内容を元に版を作る in-editor createVersion を使う。)
     await createVersion('A社');
     input('name-family').value = '佐藤';
     dispatchInput(input('name-family'));
@@ -545,14 +579,13 @@ describe('local-web main flow', () => {
     expect(document.querySelectorAll('#skills-list [data-index]')).toHaveLength(0);
   });
 
-  it('初期 profile に sample fixture 由来の資格が反映される', async () => {
+  it('新規作成で編集画面に入ると資格 form セクションが空で表示される', async () => {
     await importMain();
+    await enterEditorWithNewVersion();
 
-    const items = document.querySelectorAll('#certifications-list [data-index]');
-    expect(items).toHaveLength(1);
-    const nameInput = items[0]?.querySelector<HTMLInputElement>('[data-field="name"]');
-    expect(nameInput?.value).toBe('基本情報技術者試験');
-    expect(preview().srcdoc).toContain('基本情報技術者試験');
+    // 空テンプレなのでサンプル資格は無く、資格 list は空 (要素は存在する)。
+    expect(document.getElementById('certifications-list')).not.toBeNull();
+    expect(document.querySelectorAll('#certifications-list [data-index]')).toHaveLength(0);
   });
 
   // TODO: 同上 (form ⇄ certificationRows 同期未実装)
@@ -962,7 +995,9 @@ describe('local-web main flow', () => {
   describe('accessibility: focus management', () => {
     it('load 成功後: form 先頭 (name-family) に focus が移る', async () => {
       await importMain();
-      // profile-1 を作成し、別バージョンを経由しておく (load 経路を作る)
+      // profile-1 を作成し、別バージョンを経由しておく (load 経路を作る)。
+      // 氏名は family のみ編集し given は sample fixture 由来を活かすため、
+      // 現在の form 内容を元に版を作る in-editor createVersion を使う。
       await createVersion('A社');
       input('name-family').value = '佐藤';
       dispatchInput(input('name-family'));
@@ -982,7 +1017,7 @@ describe('local-web main flow', () => {
 
     it('削除成功後: profile-select に focus が移る (disabled ボタンに残らない)', async () => {
       await importMain();
-      await createVersion('A社');
+      await enterEditorWithNewVersion('A社');
 
       select('saved-profile-select').value = 'profile-1';
       select('saved-profile-select').dispatchEvent(new Event('change', { bubbles: true }));
@@ -1145,7 +1180,7 @@ describe('local-web main flow', () => {
 
     it('invalid draft 中も dirty 判定は維持される', async () => {
       await importMain();
-      await createVersion('A社');
+      await enterEditorWithNewVersion('A社');
       // 無効な birthDate で invalid 状態にする
       input('birth-date').value = '1800-01-01';
       dispatchInput(input('birth-date'));
@@ -1190,6 +1225,111 @@ describe('local-web main flow', () => {
       button('load-button').click();
       await flushPromises();
       expect(input('name-family').value).toBe('鈴木');
+    });
+  });
+
+  describe('ホーム画面 (起動時の入口)', () => {
+    const home = (id: string): HTMLElement => {
+      const el = document.getElementById(id);
+      if (el === null) throw new Error(`Missing #${id}`);
+      return el;
+    };
+
+    it('起動時はホーム画面が表示され編集画面・編集用 UI は隠れている', async () => {
+      await importMain();
+      expect(home('home-screen').hidden).toBe(false);
+      expect(home('app-main').hidden).toBe(true);
+      expect(home('app-storage').hidden).toBe(true);
+      expect(home('app-io').hidden).toBe(true);
+    });
+
+    it('保存済みが無いとき空状態を表示し、一覧は隠れる', async () => {
+      await importMain();
+      expect(home('home-empty').hidden).toBe(false);
+      expect(home('home-version-list').hidden).toBe(true);
+    });
+
+    it('新規作成すると空テンプレートで編集画面に入る', async () => {
+      await importMain();
+      await enterEditorWithNewVersion('A社用');
+      expect(home('home-screen').hidden).toBe(true);
+      expect(home('app-main').hidden).toBe(false);
+      // 空テンプレなので氏名は空
+      expect(input('name-family').value).toBe('');
+      // 戻るボタンが見える
+      expect(home('back-to-home-button').hidden).toBe(false);
+    });
+
+    it('新規作成したバージョンはホームのカードに「● 未確定」で並ぶ', async () => {
+      await importMain();
+      await enterEditorWithNewVersion('A社用');
+      // 戻る
+      home('back-to-home-button').click();
+      await flushPromises();
+      expect(home('home-screen').hidden).toBe(false);
+      const list = home('home-version-list');
+      expect(list.hidden).toBe(false);
+      expect(list.querySelectorAll('.home-card')).toHaveLength(1);
+      expect(list.querySelector('.home-card__name')?.textContent).toBe('A社用');
+      expect(list.querySelector('.home-card__status')?.textContent).toContain('未確定');
+    });
+
+    it('カードの「開く」で編集画面に入り内容が復元される', async () => {
+      await importMain();
+      await enterEditorWithNewVersion('A社用');
+      input('name-family').value = '山田';
+      dispatchInput(input('name-family'));
+      input('name-given').value = '花子';
+      dispatchInput(input('name-given'));
+      await commitCurrent();
+      home('back-to-home-button').click();
+      await flushPromises();
+
+      // カードから開く
+      const openBtn =
+        home('home-version-list').querySelector<HTMLButtonElement>('.home-card__open');
+      openBtn?.click();
+      await flushPromises();
+      expect(home('app-main').hidden).toBe(false);
+      expect(input('name-family').value).toBe('山田');
+      expect(input('name-given').value).toBe('花子');
+    });
+
+    it('カードの「削除」で確認後にカードが消え、最後の 1 件なら空状態に戻る', async () => {
+      await importMain();
+      await enterEditorWithNewVersion('A社用');
+      home('back-to-home-button').click();
+      await flushPromises();
+      expect(home('home-version-list').querySelectorAll('.home-card')).toHaveLength(1);
+
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      home('home-version-list').querySelector<HTMLButtonElement>('.home-card__delete')?.click();
+      await flushPromises();
+      expect(home('home-version-list').querySelectorAll('.home-card')).toHaveLength(0);
+      expect(home('home-empty').hidden).toBe(false);
+    });
+
+    it('カードの「名前変更」で表示名が更新される', async () => {
+      await importMain();
+      await enterEditorWithNewVersion('旧名');
+      home('back-to-home-button').click();
+      await flushPromises();
+
+      const spy = vi.spyOn(window, 'prompt').mockReturnValue('新名');
+      home('home-version-list').querySelector<HTMLButtonElement>('.home-card__rename')?.click();
+      await flushPromises();
+      spy.mockRestore();
+      expect(home('home-version-list').querySelector('.home-card__name')?.textContent).toBe('新名');
+    });
+
+    it('新規作成を prompt キャンセルすると編集画面に入らない', async () => {
+      await importMain();
+      const spy = vi.spyOn(window, 'prompt').mockReturnValue(null);
+      home('home-new-button').click();
+      await flushPromises();
+      spy.mockRestore();
+      expect(home('home-screen').hidden).toBe(false);
+      expect(home('app-main').hidden).toBe(true);
     });
   });
 
@@ -1617,7 +1757,7 @@ describe('local-web main flow', () => {
   describe('バージョン名前変更 / 複製', () => {
     it('名前変更: 選択中バージョンの name が更新され dropdown 表示に反映される', async () => {
       await importMain();
-      await createVersion('旧名');
+      await enterEditorWithNewVersion('旧名');
 
       // 選択して名前変更
       select('saved-profile-select').value = 'profile-1';
@@ -1818,6 +1958,8 @@ describe('local-web main flow', () => {
 
     it('import: malformed JSON でエラー表示 (form / preview は維持)', async () => {
       await importMain();
+      // import は編集画面の app-io 内なので、まず編集画面に入る (空テンプレ)。
+      await enterEditorWithNewVersion();
       const before = preview().srcdoc;
 
       await triggerImportWithText('{ not valid json');
@@ -1825,10 +1967,11 @@ describe('local-web main flow', () => {
       const errorArea = document.getElementById('error-area');
       expect(errorArea?.hidden).toBe(false);
       expect(errorArea?.textContent).toContain('JSON の解析に失敗');
-      // form は維持
-      expect(input('name-family').value).toBe('山田');
-      // preview は隠れる (showError の挙動) が、再表示でも fixture は残る
-      expect(before).toContain('山田');
+      // form は維持 (空テンプレのまま、import で書き換わっていない)
+      expect(input('name-family').value).toBe('');
+      // 解析失敗時は preview を触らないので、import 前の preview がそのまま残る
+      expect(preview().srcdoc).toBe(before);
+      expect(before).toContain('履歴書');
     });
 
     it('import: schema 不一致でエラー表示 (form / preview は維持)', async () => {
@@ -1968,6 +2111,8 @@ describe('local-web main flow', () => {
 
     it('新 field が全て空でも初期 preview が表示される (空 basics でも parse 成功)', async () => {
       await importMain();
+      // 新規作成は空テンプレ (basics={}) で編集画面に入る。
+      await enterEditorWithNewVersion();
       expect(preview().srcdoc).toContain('履歴書');
       // 任意 field なので preview 描画自体は阻害しない
     });
@@ -1995,7 +2140,8 @@ describe('local-web main flow', () => {
 
     it('履歴書 kind 選択時に wysiwyg-editor が visible になる', async () => {
       await importMain();
-      // sample fixture は kind=rirekisho で初期化される
+      // 編集画面に入って初めて WYSIWYG が描画される (kind=rirekisho)。
+      await enterEditorWithNewVersion();
       expect(wysiwygSection().hidden).toBe(false);
     });
 
@@ -2007,15 +2153,18 @@ describe('local-web main flow', () => {
       expect(wysiwygSection().hidden).toBe(true);
     });
 
-    it('WYSIWYG editor に [data-field="name"] が描画されている (sample fixture 由来の氏名)', async () => {
+    it('WYSIWYG editor に [data-field="name"] が描画されている', async () => {
       await importMain();
+      // 編集画面に入ると WYSIWYG が描画され、氏名セル要素が存在する (空テンプレ
+      // なので textContent は空)。
+      await enterEditorWithNewVersion();
       const nameEl = findField('name');
       expect(nameEl).not.toBeNull();
-      expect(nameEl?.textContent).toContain('山田');
     });
 
     it('氏名セルに 山田　次郎 と入力すると CareerProfile が更新される', async () => {
       await importMain();
+      await enterEditorWithNewVersion();
       typeIn('name', '山田　次郎');
       // dirty indicator が更新されるはず
       const dirty = document.getElementById('dirty-indicator');
@@ -2024,7 +2173,8 @@ describe('local-web main flow', () => {
 
     it('historyRows.0.content に入力すると CareerProfile に反映される', async () => {
       await importMain();
-      // sample fixture は historyRows を持たないので、まず追加 button を押す
+      await enterEditorWithNewVersion();
+      // 空テンプレは historyRows を持たないので、まず追加 button を押す
       button('add-history-row-button').click();
       typeIn('historyRows.0.content', '◯◯大学 入学');
       const dirty = document.getElementById('dirty-indicator');
@@ -2033,6 +2183,7 @@ describe('local-web main flow', () => {
 
     it('certificationRows.0.content に入力すると CareerProfile に反映される', async () => {
       await importMain();
+      await enterEditorWithNewVersion();
       button('add-certification-row-button').click();
       typeIn('certificationRows.0.content', '基本情報技術者試験');
       const dirty = document.getElementById('dirty-indicator');

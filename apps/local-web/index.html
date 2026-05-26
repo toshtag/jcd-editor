@@ -25,11 +25,16 @@
       <header class="app__header">
         <h1 class="app__title">jcd-editor (local-web)</h1>
         <div class="app__controls">
-          <label class="app__kind-label" for="kind-selector">種別:</label>
-          <select id="kind-selector" class="app__kind-select">
-            <option value="rirekisho">履歴書</option>
-            <option value="shokumukeirekisho">職務経歴書</option>
-          </select>
+          <button type="button" id="back-to-home-button" class="app__back-button" hidden>
+            ← 一覧へ戻る
+          </button>
+          <span id="editor-kind-control" class="app__kind-control" hidden>
+            <label class="app__kind-label" for="kind-selector">種別:</label>
+            <select id="kind-selector" class="app__kind-select">
+              <option value="rirekisho">履歴書</option>
+              <option value="shokumukeirekisho">職務経歴書</option>
+            </select>
+          </span>
           <span id="status" class="app__status" role="status" aria-live="polite"></span>
           <span
             id="dirty-indicator"
@@ -40,7 +45,7 @@
             >● 未確定</span
           >
         </div>
-        <div class="app__storage">
+        <div id="app-storage" class="app__storage" hidden>
           <button type="button" id="new-version-button" class="app__storage-button">
             新規作成
           </button>
@@ -72,7 +77,7 @@
             削除
           </button>
         </div>
-        <div class="app__io">
+        <div id="app-io" class="app__io" hidden>
           <button type="button" id="export-button" class="app__io-button">JSON エクスポート</button>
           <label class="app__io-import">
             <span class="app__io-import-label">JSON インポート</span>
@@ -92,7 +97,29 @@
           </button>
         </div>
       </header>
-      <main class="app__main">
+      <section id="home-screen" class="home" aria-label="保存済み履歴書">
+        <div class="home__inner">
+          <h2 class="home__title">履歴書を作成・編集する</h2>
+          <div class="home__actions">
+            <span class="home__kind">
+              <label class="home__kind-label" for="home-kind-selector">種別:</label>
+              <select id="home-kind-selector" class="home__kind-select">
+                <option value="rirekisho">履歴書</option>
+                <option value="shokumukeirekisho">職務経歴書</option>
+              </select>
+            </span>
+            <button type="button" id="home-new-button" class="home__new-button">
+              ＋ 新規作成
+            </button>
+          </div>
+          <p id="home-empty" class="home__empty" hidden>
+            保存された履歴書はまだありません。「新規作成」から始めてください。
+          </p>
+          <ul id="home-version-list" class="home__list" hidden></ul>
+          <p id="home-error" class="home__error" role="status" aria-live="polite" hidden></p>
+        </div>
+      </section>
+      <main id="app-main" class="app__main" hidden>
         <!--
           Phase 2.1b — WYSIWYG エディタ。履歴書 kind 選択時のみ visible。
           renderer (editable=true) の出力 HTML をここに直接 innerHTML する。

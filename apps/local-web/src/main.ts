@@ -83,7 +83,7 @@ import {
   type BasicsFormValues,
   type MetaFormValues,
 } from './profile-draft';
-import { sampleProfileInput } from './sample-profile';
+import { emptyProfileInput, sampleProfileInput } from './sample-profile';
 import { formatStoredProfileOption } from './storage-ui';
 import {
   buildCertificationsFromForm,
@@ -143,6 +143,18 @@ const requireElement = <T extends Element>(id: string, ctor: new () => T): T => 
 
 const previewFrame = requireElement('preview-frame', HTMLIFrameElement);
 const kindSelector = requireElement('kind-selector', HTMLSelectElement);
+// ホーム画面 (起動時の入口) 関連
+const homeScreen = requireElement('home-screen', HTMLElement);
+const appMain = requireElement('app-main', HTMLElement);
+const appStorageControls = requireElement('app-storage', HTMLDivElement);
+const appIoControls = requireElement('app-io', HTMLDivElement);
+const editorKindControl = requireElement('editor-kind-control', HTMLSpanElement);
+const backToHomeButton = requireElement('back-to-home-button', HTMLButtonElement);
+const homeNewButton = requireElement('home-new-button', HTMLButtonElement);
+const homeKindSelector = requireElement('home-kind-selector', HTMLSelectElement);
+const homeEmpty = requireElement('home-empty', HTMLParagraphElement);
+const homeVersionList = requireElement('home-version-list', HTMLUListElement);
+const homeError = requireElement('home-error', HTMLParagraphElement);
 const formEl = requireElement('basics-form', HTMLFormElement);
 const validationSummaryEl = requireElement('validation-summary', HTMLDivElement);
 const validationSummaryList = requireElement('validation-summary-list', HTMLUListElement);
@@ -441,6 +453,8 @@ if (!parsed.success) {
   let draftBase: Record<string, unknown> = sampleProfileInput;
   let isCurrentDraftValid = true;
   let isStorageBusy = false;
+  // 現在表示中の画面。起動時はホーム (編集画面ではない)。
+  let currentScreen: 'home' | 'editor' = 'home';
   // === バージョン管理の状態 ===
   // 現在編集中バージョンの名前 (rename / 表示用キャッシュ)。
   let currentVersionName = '';
@@ -653,6 +667,198 @@ if (!parsed.success) {
       }
     } catch (error) {
       handleStorageError(error, '保存済みプロフィール一覧の取得に失敗しました');
+    }
+  };
+
+  // === ホーム画面 (バージョン一覧 + 新規作成) ===
+
+  // ホームのバージョンカード 1 枚を組み立てる (createElement のみ、innerHTML 不使用)。
+  const createHomeCard = (metadata: StoredProfileMetadata): HTMLLIElement => {
+    const li = document.createElement('li');
+    li.className = 'home-card';
+    li.dataset.id = metadata.id;
+
+    const body = document.createElement('div');
+    body.className = 'home-card__body';
+
+    const name = document.createElement('span');
+    name.className = 'home-card__name';
+    name.textContent = metadata.name.trim() === '' ? '(名称未設定)' : metadata.name;
+
+    const committed = isCommitted(metadata);
+    const statusEl = document.createElement('span');
+    statusEl.className = committed
+      ? 'home-card__status home-card__status--committed'
+      : 'home-card__status home-card__status--draft';
+    statusEl.textContent = committed ? '確定済み' : '● 未確定';
+
+    const date = document.createElement('span');
+    date.className = 'home-card__date';
+    date.textContent =
+      committed && metadata.committedAt !== undefined
+        ? `確定 ${formatHomeDate(metadata.committedAt)}`
+        : `更新 ${formatHomeDate(metadata.updatedAt)}`;
+
+    body.append(name, statusEl, date);
+
+    const actions = document.createElement('div');
+    actions.className = 'home-card__actions';
+    const mkBtn = (action: string, cls: string, label: string): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = cls;
+      b.dataset.action = action;
+      b.textContent = label;
+      return b;
+    };
+    actions.append(
+      mkBtn('open', 'home-card__open', '開く'),
+      mkBtn('rename', 'home-card__rename', '名前変更'),
+      mkBtn('delete', 'home-card__delete', '削除'),
+    );
+
+    li.append(body, actions);
+    return li;
+  };
+
+  const formatHomeDate = (iso: string): string => {
+    const d = new Date(iso);
+    const p = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  // ホームのカード一覧を再描画する。
+  const renderHomeList = async (): Promise<void> => {
+    try {
+      const list = await storage.listProfiles();
+      homeVersionList.replaceChildren();
+      if (list.length === 0) {
+        homeEmpty.hidden = false;
+        homeVersionList.hidden = true;
+      } else {
+        homeEmpty.hidden = true;
+        homeVersionList.hidden = false;
+        for (const metadata of list) homeVersionList.appendChild(createHomeCard(metadata));
+      }
+      homeError.hidden = true;
+    } catch (error) {
+      homeError.hidden = false;
+      homeError.textContent = '一覧の取得に失敗しました';
+      console.error('listProfiles failed for home:', error);
+    }
+  };
+
+  // ホーム画面を表示する (編集 UI を隠す)。
+  const showHome = (): void => {
+    currentScreen = 'home';
+    homeScreen.hidden = false;
+    appMain.hidden = true;
+    appStorageControls.hidden = true;
+    appIoControls.hidden = true;
+    editorKindControl.hidden = true;
+    backToHomeButton.hidden = true;
+    showStatus('');
+    void renderHomeList();
+  };
+
+  // 編集画面を表示する (profile / state は呼び出し側で整える前提)。
+  const enterEditor = (): void => {
+    currentScreen = 'editor';
+    homeScreen.hidden = true;
+    appMain.hidden = false;
+    appStorageControls.hidden = false;
+    appIoControls.hidden = false;
+    editorKindControl.hidden = false;
+    backToHomeButton.hidden = false;
+    kindSelector.value = currentKind;
+    renderAndUpdate(currentKind);
+    updateButtonStates();
+    updateDirtyIndicator();
+  };
+
+  // ホームの「新規作成」: 空テンプレートで新バージョンを作り編集画面へ。
+  const startNewVersionFromHome = async (): Promise<void> => {
+    if (isStorageBusy) return;
+    const name = window.prompt('このバージョンの名前 (例: A 社用)', '');
+    if (name === null) return; // キャンセル
+    currentKind =
+      homeKindSelector.value === 'shokumukeirekisho' ? 'shokumukeirekisho' : 'rirekisho';
+    const fresh = safeParseCareerProfile(emptyProfileInput);
+    if (!fresh.success) {
+      handleStorageError(new Error('テンプレート不正'), '新規作成に失敗しました');
+      return;
+    }
+    profile = fresh.data;
+    draftBase = fresh.data as unknown as Record<string, unknown>;
+    currentPhoto = undefined;
+    currentProfileId = undefined;
+    isCurrentDraftValid = true;
+    populateAll(fresh.data);
+    await createVersionFrom(name.trim());
+    if (currentProfileId !== undefined) enterEditor();
+  };
+
+  // ホームのカードから「開く」。
+  const onOpenFromHome = async (id: string): Promise<void> => {
+    await onLoad(id);
+    if (currentProfileId === id) enterEditor();
+  };
+
+  // 編集画面からホームへ戻る。保留中の自動保存を flush してから戻る。
+  const onBackToHome = async (): Promise<void> => {
+    await flushAutoSave();
+    if (currentProfileId === undefined && isDirty) {
+      const ok = window.confirm(
+        'このバージョンはまだ保存されていません。一覧に戻ると編集内容は失われます。続行しますか?',
+      );
+      if (!ok) return;
+    }
+    currentProfileId = undefined;
+    currentVersionName = '';
+    isCommittedNow = false;
+    markClean();
+    showHome();
+  };
+
+  // ホームのカードから名前変更 (storage.renameProfile を直接呼び一覧を再描画)。
+  const onRenameFromHome = async (id: string): Promise<void> => {
+    if (isStorageBusy) return;
+    const name = window.prompt('新しいバージョン名', '');
+    if (name === null) return;
+    isStorageBusy = true;
+    try {
+      const stored = await storage.renameProfile(id, name.trim());
+      if (currentProfileId === id) currentVersionName = stored.metadata.name;
+      await renderHomeList();
+    } catch (error) {
+      handleStorageError(error, '名前変更に失敗しました');
+    } finally {
+      isStorageBusy = false;
+    }
+  };
+
+  // ホームのカードから削除 (confirm 後 storage.deleteProfile)。
+  const onDeleteFromHome = async (id: string): Promise<void> => {
+    if (isStorageBusy) return;
+    const ok = window.confirm(
+      'このバージョンを削除します。この操作は取り消せません。続行しますか?',
+    );
+    if (!ok) return;
+    isStorageBusy = true;
+    try {
+      await storage.deleteProfile(id);
+      // 削除したのが現在開いているもの (通常ホームでは無いが防御) なら state を切り離す。
+      if (currentProfileId === id) {
+        currentProfileId = undefined;
+        currentVersionName = '';
+        isCommittedNow = false;
+      }
+      await renderHomeList();
+      await refreshSavedProfileList();
+    } catch (error) {
+      handleStorageError(error, '削除に失敗しました');
+    } finally {
+      isStorageBusy = false;
     }
   };
 
@@ -1107,9 +1313,9 @@ if (!parsed.success) {
     }
   };
 
-  const onLoad = async (): Promise<void> => {
+  const onLoad = async (idArg?: string): Promise<void> => {
     if (isStorageBusy) return;
-    const id = profileSelect.value;
+    const id = idArg ?? profileSelect.value;
     if (id === '') return;
     if (id === currentProfileId) {
       showStatus('このバージョンは既に開いています');
@@ -1392,6 +1598,34 @@ if (!parsed.success) {
 
   profileSelect.addEventListener('change', updateButtonStates);
 
+  // === ホーム画面の配線 ===
+  homeNewButton.addEventListener('click', () => {
+    void startNewVersionFromHome();
+  });
+
+  backToHomeButton.addEventListener('click', () => {
+    void onBackToHome();
+  });
+
+  // カードのアクション (開く / 名前変更 / 削除) を delegation で受ける。
+  homeVersionList.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    const actionEl = target.closest<HTMLElement>('[data-action]');
+    const cardEl = target.closest<HTMLElement>('.home-card');
+    if (actionEl === null || cardEl === null) return;
+    const id = cardEl.dataset.id;
+    if (id === undefined) return;
+    const action = actionEl.dataset.action;
+    if (action === 'open') {
+      void onOpenFromHome(id);
+    } else if (action === 'rename') {
+      void onRenameFromHome(id);
+    } else if (action === 'delete') {
+      void onDeleteFromHome(id);
+    }
+  });
+
   exportButton.addEventListener('click', () => {
     onExport();
   });
@@ -1491,6 +1725,7 @@ if (!parsed.success) {
   //     user が入力した = isDirty) は保存先が無く失われるため、確認ダイアログを
   //     出す。
   window.addEventListener('beforeunload', (e) => {
+    if (currentScreen === 'home') return; // ホーム表示中は編集状態が無いので確認不要
     if (autoSaveTimer !== undefined) {
       void flushAutoSave();
     }
@@ -1793,8 +2028,11 @@ if (!parsed.success) {
     }
   });
 
-  renderAndUpdate(currentKind);
+  // 起動時は編集画面ではなくホーム画面を入口にする。
+  // (サンプル履歴書をいきなり編集状態で出さない。保存済みがあれば一覧、
+  //  無ければ空状態を見せ、「新規作成」または「開く」で編集画面に入る。)
   updateButtonStates();
   updateDirtyIndicator();
+  showHome();
   void refreshSavedProfileList();
 }
