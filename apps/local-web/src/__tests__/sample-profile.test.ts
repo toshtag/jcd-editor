@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { safeParseCareerProfile } from '@jcd-editor/core';
 
-import { sampleProfileInput } from '../sample-profile';
+import { emptyProfileInput, sampleProfileInput } from '../sample-profile';
 
 describe('sampleProfileInput', () => {
   it('safeParseCareerProfile が success を返す (現行 schema と一致、drift なし)', () => {
@@ -36,5 +36,20 @@ describe('sampleProfileInput', () => {
     expect(contents).toContain('株式会社サンプル');
     expect(contents).toContain('学歴');
     expect(contents).toContain('職歴');
+  });
+});
+
+describe('emptyProfileInput (新規作成テンプレート)', () => {
+  it('safeParseCareerProfile が success を返す (現行 schema と一致)', () => {
+    const result = safeParseCareerProfile(emptyProfileInput);
+    expect(result.success).toBe(true);
+  });
+
+  it('schemaVersion === 1', () => {
+    expect(emptyProfileInput.schemaVersion).toBe(1);
+  });
+
+  it('basics は空 (サンプル文字列を含まない)', () => {
+    expect(emptyProfileInput.basics).toEqual({});
   });
 });
